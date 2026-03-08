@@ -1,0 +1,11 @@
+tunnel: vcloudrunner-local
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  - hostname: platform.example.com
+    service: http://caddy:80
+  - hostname: api.platform.example.com
+    service: http://caddy:80
+  - hostname: '*.apps.platform.example.com'
+    service: http://caddy:80
+  - service: http_status:404

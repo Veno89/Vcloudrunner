@@ -1,0 +1,20 @@
+{
+  admin 0.0.0.0:2019
+  auto_https disable_redirects
+}
+
+api.platform.example.com {
+  reverse_proxy api:4000
+}
+
+platform.example.com {
+  reverse_proxy dashboard:3001
+}
+
+*.apps.platform.example.com {
+  respond "No deployment route found yet" 404
+}
+
+:80 {
+  respond "Vcloudrunner Caddy is running" 200
+}

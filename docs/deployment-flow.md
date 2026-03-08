@@ -1,0 +1,20 @@
+# Deployment Flow
+
+Canonical single-node MVP pipeline:
+
+1. User triggers deployment.
+2. API creates deployment record (`queued`) and computes runtime config defaults.
+3. API publishes deployment job to BullMQ (Redis).
+4. Worker consumes job.
+5. Worker clones repository.
+6. Worker builds Docker image.
+7. Worker starts Docker container with env vars and runtime limits (memory/cpu/non-root user).
+8. Worker writes container metadata to Postgres.
+9. Worker updates Caddy route for `*.apps.platform.example.com` host.
+10. Worker stores logs and updates deployment state (`running` or `failed`).
+
+Ingress path for end-users:
+
+`Cloudflare -> cloudflared -> caddy -> deployed container`
+
+This flow is intentionally single-node and avoids Kubernetes/service-mesh complexity in MVP.
