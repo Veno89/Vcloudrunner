@@ -1,0 +1,17 @@
+{
+  "name": "vcloudrunner",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run -ws build",
+    "lint": "npm run -ws lint",
+    "typecheck": "npm run -ws typecheck",
+    "dev:api": "npm --workspace @vcloudrunner/api run dev",
+    "dev:worker": "npm --workspace @vcloudrunner/worker run dev",
+    "dev:dashboard": "npm --workspace @vcloudrunner/dashboard run dev"
+  }
+}

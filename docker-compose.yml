@@ -1,0 +1,132 @@
+version: '3.9'
+
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: apps/dashboard/Dockerfile
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: http://api:4000
+      NEXT_PUBLIC_DEMO_USER_ID: ${NEXT_PUBLIC_DEMO_USER_ID:-}
+    depends_on:
+      api:
+        condition: service_healthy
+    expose:
+      - '3001'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3001 >/dev/null 2>&1 || exit 1']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4000
+      LOG_LEVEL: info
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/vcloudrunner
+      REDIS_URL: redis://redis:6379
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change-this-with-a-32-byte-minimum-secret-key}
+      DEPLOYMENT_DEFAULT_CONTAINER_PORT: 3000
+      DEPLOYMENT_DEFAULT_MEMORY_MB: 512
+      DEPLOYMENT_DEFAULT_CPU_MILLICORES: 500
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - '4000'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:4000/health >/dev/null 2>&1 || exit 1']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./.tmp/deployments:/workspace/.tmp/deployments
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: info
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/vcloudrunner
+      DOCKER_SOCKET_PATH: /var/run/docker.sock
+      WORK_DIR: /workspace/.tmp/deployments
+      PLATFORM_DOMAIN: apps.platform.example.com
+      CADDY_ADMIN_URL: http://caddy:2019
+      DEPLOYMENT_DEFAULT_CONTAINER_PORT: 3000
+      DEPLOYMENT_DEFAULT_MEMORY_MB: 512
+      DEPLOYMENT_DEFAULT_CPU_MILLICORES: 500
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      caddy:
+        condition: service_started
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: vcloudrunner
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d vcloudrunner']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  caddy:
+    image: caddy:2.8
+    ports:
+      - '80:80'
+      - '443:443'
+      - '2019:2019'
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      dashboard:
+        condition: service_healthy
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TOKEN}
+    restart: unless-stopped
+    depends_on:
+      caddy:
+        condition: service_started
+    profiles: ['tunnel']
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
