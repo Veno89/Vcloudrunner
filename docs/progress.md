@@ -1,6 +1,6 @@
 # Vcloudrunner MVP Progress Tracker
 
-Last updated: 2026-03-08 (dashboard logs viewer vertical slice)
+Last updated: 2026-03-08 (dashboard env project selector vertical slice)
 
 ## Legend
 
@@ -10,6 +10,53 @@ Last updated: 2026-03-08 (dashboard logs viewer vertical slice)
 
 
 ## Implementation Log
+
+### Phase: Dashboard env project selector vertical slice (2026-03-08)
+
+- what was built:
+  - environment variable editor now supports selecting which project to edit
+  - selected project persists through save/delete env actions via query params
+  - editor fetches and renders env vars for the chosen project in live mode
+- files created or changed:
+  - `apps/dashboard/app/page.tsx`
+  - `docs/progress.md`
+  - `README.md`
+  - `apps/dashboard/README.md`
+  - `docs/architecture.md`
+- what is still missing:
+  - true live log streaming transport (websocket/pubsub/sse)
+  - project creation workflow
+  - auth boundary for real multi-user dashboard usage
+- known issues:
+  - typecheck/build cannot be fully validated in this environment due missing npm dependencies
+  - compose runtime cannot be executed in this environment due missing Docker CLI
+- next recommended step:
+  - implement project creation workflow in dashboard
+
+
+### Phase: Dashboard logs polling + selector vertical slice (2026-03-08)
+
+- what was built:
+  - logs panel now supports selecting which recent deployment to inspect
+  - optional 5-second auto-refresh polling added for logs view
+  - deployment logs section updated with explicit apply controls and clearer refresh status
+- files created or changed:
+  - `apps/dashboard/components/logs-auto-refresh.tsx`
+  - `apps/dashboard/app/page.tsx`
+  - `docs/progress.md`
+  - `README.md`
+  - `apps/dashboard/README.md`
+  - `docs/architecture.md`
+- what is still missing:
+  - true live log streaming transport (websocket/pubsub/sse)
+  - env editor project selector (currently first project only)
+  - project creation workflow
+  - auth boundary for real multi-user dashboard usage
+- known issues:
+  - typecheck/build cannot be fully validated in this environment due missing npm dependencies
+  - compose runtime cannot be executed in this environment due missing Docker CLI
+- next recommended step:
+  - add environment editor project selector in dashboard
 
 ### Phase: Dashboard logs viewer vertical slice (2026-03-08)
 
@@ -146,8 +193,8 @@ Last updated: 2026-03-08 (dashboard logs viewer vertical slice)
 - [x] Next.js dashboard scaffold
 - [~] Project list/create UI (read-only API wiring done; create action pending)
 - [x] Deploy trigger UI (basic trigger wired to deployment API)
-- [x] Environment variable editor UI (basic list/add/delete wired for selected project)
-- [x] Deployment history + logs viewer UI (read-only latest-deployment logs slice)
+- [x] Environment variable editor UI (project selector + list/add/delete wired to API)
+- [x] Deployment history + logs viewer UI (deployment selector + optional polling refresh)
 
 ## 8) Observability & DX
 
@@ -167,8 +214,8 @@ Last updated: 2026-03-08 (dashboard logs viewer vertical slice)
 
 ## Immediate Next Recommended Steps
 
-1. Add logs auto-refresh/polling control and deployment selector in dashboard.
-2. Add environment editor project selector (multi-project UX).
-3. Add worker cleanup/idempotency guards for failed deployments.
-4. Add migration workflow (`drizzle generate` + committed SQL) for reproducible DB evolution.
-5. Add minimal auth boundary for project/deployment ownership.
+1. Implement project creation workflow in dashboard.
+2. Add worker cleanup/idempotency guards for failed deployments.
+3. Add migration workflow (`drizzle generate` + committed SQL) for reproducible DB evolution.
+4. Add minimal auth boundary for project/deployment ownership.
+5. Add true live log streaming path (websocket/sse/pubsub).
