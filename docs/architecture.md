@@ -60,6 +60,6 @@ Host machine runs Docker Engine with:
 ## UI Status
 
 - `apps/dashboard` now has a Next.js scaffold with project/deployment overview shells.
-- Dashboard now has read integration for projects/deployments, basic deploy trigger action, environment variable editor CRUD for selected project, and a read-only latest-deployment logs viewer; live log streaming and selectors remain in progress.
+- Dashboard now has read integration for projects/deployments, basic deploy trigger action, environment variable editor CRUD for selected project, and a deployment logs viewer with deployment selector plus optional polling-based auto-refresh; true streaming remains in progress.
 
 - dashboard is now included in compose runtime and served via `platform.example.com` through Caddy.

@@ -7,12 +7,12 @@ Next.js dashboard scaffold for the single-node Vcloudrunner MVP.
 - project list (API-backed with fallback to mock data)
 - deployment table (API-backed with fallback to mock data)
 - deployment trigger action (server action -> API)
-- environment variable editor (list/add/delete via API for selected demo project)
+- environment variable editor (project selector + list/add/delete via API)
+- deployment logs viewer with deployment selector and optional 5-second auto-refresh
 
 ## Next
 
-- add logs viewer stream / polling controls
-- add project selector for env variable editor
+- add true live log streaming transport (websocket/sse)
 
 ## Environment
 

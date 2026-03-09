@@ -2,6 +2,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { DeploymentTable } from '../components/deployment-table.js';
+import { LogsAutoRefresh } from '../components/logs-auto-refresh.js';
 import { ProjectCard } from '../components/project-card.js';
 import { deployments as mockDeployments, projects as mockProjects } from '../lib/mock-data.js';
 import {
@@ -28,6 +29,9 @@ interface DashboardPageProps {
     action?: 'save' | 'delete';
     key?: string;
     project?: string;
+    envProjectId?: string;
+    logsAutoRefresh?: '0' | '1';
+    logsDeploymentId?: string;
   };
 }
 
@@ -74,9 +78,9 @@ async function saveEnvironmentVariable(formData: FormData) {
   try {
     await upsertEnvironmentVariable(projectId, key, value);
     revalidatePath('/');
-    redirect(`/?env=success&action=save&key=${encodeURIComponent(key)}`);
+    redirect(`/?env=success&action=save&envProjectId=${encodeURIComponent(projectId)}&key=${encodeURIComponent(key)}`);
   } catch {
-    redirect('/?env=error&action=save');
+    redirect(`/?env=error&action=save&envProjectId=${encodeURIComponent(projectId)}`);
   }
 }
 
@@ -97,9 +101,9 @@ async function removeEnvironmentVariable(formData: FormData) {
   try {
     await deleteEnvironmentVariable(projectId, key);
     revalidatePath('/');
-    redirect(`/?env=success&action=delete&key=${encodeURIComponent(key)}`);
+    redirect(`/?env=success&action=delete&envProjectId=${encodeURIComponent(projectId)}&key=${encodeURIComponent(key)}`);
   } catch {
-    redirect('/?env=error&action=delete');
+    redirect(`/?env=error&action=delete&envProjectId=${encodeURIComponent(projectId)}`);
   }
 }
 
@@ -112,6 +116,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   let logsDeploymentLabel = '';
   let deploymentLogs: Array<{ level: string; message: string; timestamp: string }> = [];
   let usingLiveData = false;
+  let envProjectOptions: Array<{ id: string; name: string }> = [];
+  let logDeploymentOptions: Array<{ id: string; projectName: string; status: string }> = [];
+
+  const logsAutoRefreshEnabled = searchParams?.logsAutoRefresh === '1';
 
   if (demoUserId) {
     try {
@@ -123,6 +131,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         })
       );
 
+      const sortedDeployments = deploymentGroups
+        .flat()
+        .sort((a, b) => Date.parse(b.deployment.createdAt) - Date.parse(a.deployment.createdAt));
+
       const mappedProjects = apiProjects.map((project) => ({
         id: project.id,
         name: project.name,
@@ -131,17 +143,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         status: 'active'
       }));
 
-      const mappedDeployments = deploymentGroups
-        .flat()
-        .sort((a, b) => Date.parse(b.deployment.createdAt) - Date.parse(a.deployment.createdAt))
-        .slice(0, 10)
-        .map(({ deployment, project }) => ({
-          id: deployment.id,
-          project: project.name,
-          status: deployment.status,
-          commitSha: deployment.commitSha ?? 'unknown',
-          createdAt: new Date(deployment.createdAt).toISOString()
-        }));
+      const mappedDeployments = sortedDeployments.slice(0, 10).map(({ deployment, project }) => ({
+        id: deployment.id,
+        project: project.name,
+        status: deployment.status,
+        commitSha: deployment.commitSha ?? 'unknown',
+        createdAt: new Date(deployment.createdAt).toISOString()
+      }));
 
       if (mappedProjects.length > 0) {
         projects = mappedProjects;
@@ -150,23 +158,32 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         deployments = mappedDeployments;
       }
 
-      const envProject = apiProjects[0];
-      if (envProject) {
-        envProjectName = envProject.name;
-        envProjectId = envProject.id;
-        const envItems = await fetchEnvironmentVariables(envProject.id);
+      envProjectOptions = apiProjects.map((project) => ({ id: project.id, name: project.name }));
+
+      const selectedEnvProject =
+        apiProjects.find((project) => project.id === searchParams?.envProjectId) ?? apiProjects[0];
+
+      if (selectedEnvProject) {
+        envProjectName = selectedEnvProject.name;
+        envProjectId = selectedEnvProject.id;
+        const envItems = await fetchEnvironmentVariables(selectedEnvProject.id);
         environmentVariables = envItems.map((item) => ({ key: item.key, value: item.value }));
       }
 
-      const latestDeployment = deploymentGroups
-        .flat()
-        .sort((a, b) => Date.parse(b.deployment.createdAt) - Date.parse(a.deployment.createdAt))[0];
+      logDeploymentOptions = sortedDeployments.slice(0, 25).map(({ deployment, project }) => ({
+        id: deployment.id,
+        projectName: project.name,
+        status: deployment.status
+      }));
 
-      if (latestDeployment) {
-        logsDeploymentLabel = `${latestDeployment.project.name} / ${latestDeployment.deployment.id}`;
+      const selectedDeployment =
+        sortedDeployments.find((item) => item.deployment.id === searchParams?.logsDeploymentId) ?? sortedDeployments[0];
+
+      if (selectedDeployment) {
+        logsDeploymentLabel = `${selectedDeployment.project.name} / ${selectedDeployment.deployment.id}`;
         const logs = await fetchDeploymentLogs(
-          latestDeployment.project.id,
-          latestDeployment.deployment.id,
+          selectedDeployment.project.id,
+          selectedDeployment.deployment.id,
           100
         );
         deploymentLogs = logs.map((item) => ({
@@ -191,16 +208,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
       <section className="rounded-lg border border-slate-800 bg-slate-900 p-3 text-xs text-slate-300">
         <p>
-          Data source:{' '}
-          <span className="font-semibold text-cyan-300">
-            {usingLiveData ? `Live API (${apiBaseUrl})` : 'Mock fallback'}
-          </span>
+          API target: <span className="font-mono">{apiBaseUrl}</span>
         </p>
-        {!demoUserId && (
-          <p className="mt-1 text-slate-400">
-            Set <code>NEXT_PUBLIC_DEMO_USER_ID</code> to enable API-backed data.
-          </p>
-        )}
+        <p>
+          Demo user ID: <span className="font-mono">{demoUserId ?? 'not configured'}</span>
+        </p>
+        {!usingLiveData && <p className="mt-2 text-amber-300">Live API unavailable. Showing mock projects/deployments only.</p>}
         {searchParams?.deploy === 'success' && (
           <p className="mt-2 text-emerald-300">
             Deployment triggered successfully{searchParams.project ? ` for ${decodeURIComponent(searchParams.project)}` : ''}.
@@ -225,9 +238,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Projects</h2>
-          <button className="rounded bg-emerald-600 px-3 py-1 text-sm font-medium hover:bg-emerald-500">
-            New Project
-          </button>
+          <button className="rounded bg-emerald-600 px-3 py-1 text-sm font-medium hover:bg-emerald-500">New Project</button>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           {projects.map((project) => (
@@ -265,6 +276,22 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         <h2 className="mb-2 text-lg font-semibold">Environment Variables</h2>
         {usingLiveData && envProjectId ? (
           <>
+            <form className="mb-3 grid gap-2 md:grid-cols-[1fr_auto]">
+              <select
+                name="envProjectId"
+                defaultValue={envProjectId}
+                className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              >
+                {envProjectOptions.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+              <button type="submit" className="rounded bg-cyan-700 px-3 py-2 text-sm font-medium hover:bg-cyan-600">
+                Select Project
+              </button>
+            </form>
             <p className="mb-3 text-xs text-slate-400">Editing project: {envProjectName}</p>
 
             <form action={saveEnvironmentVariable} className="mb-4 grid gap-2 md:grid-cols-[1fr_1fr_auto]">
@@ -319,7 +346,28 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         <h2 className="mb-2 text-lg font-semibold">Deployment Logs</h2>
         {usingLiveData && logsDeploymentLabel ? (
           <>
-            <p className="mb-3 text-xs text-slate-400">Showing latest deployment logs for: {logsDeploymentLabel}</p>
+            <LogsAutoRefresh enabled={logsAutoRefreshEnabled} />
+            <form className="mb-3 grid gap-2 md:grid-cols-[1fr_auto_auto]">
+              <select
+                name="logsDeploymentId"
+                defaultValue={searchParams?.logsDeploymentId ?? logDeploymentOptions[0]?.id}
+                className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              >
+                {logDeploymentOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.projectName} / {option.id} ({option.status})
+                  </option>
+                ))}
+              </select>
+              <label className="flex items-center gap-2 rounded border border-slate-700 px-3 py-2 text-xs text-slate-300">
+                <input type="checkbox" name="logsAutoRefresh" value="1" defaultChecked={logsAutoRefreshEnabled} />
+                Auto-refresh (5s)
+              </label>
+              <button type="submit" className="rounded bg-cyan-700 px-3 py-2 text-sm font-medium hover:bg-cyan-600">
+                Apply
+              </button>
+            </form>
+            <p className="mb-3 text-xs text-slate-400">Showing deployment logs for: {logsDeploymentLabel}</p>
             <div className="max-h-72 overflow-auto rounded border border-slate-800 bg-slate-950 p-2 font-mono text-xs">
               {deploymentLogs.length === 0 ? (
                 <p className="text-slate-500">No logs found for this deployment yet.</p>
@@ -327,13 +375,16 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                 deploymentLogs.map((log, index) => (
                   <p key={`${log.timestamp}-${index}`} className="mb-1 whitespace-pre-wrap break-words text-slate-300">
                     <span className="text-slate-500">[{log.timestamp}]</span>{' '}
-                    <span className="text-cyan-300">{log.level.toUpperCase()}</span>{' '}
-                    {log.message}
+                    <span className="text-cyan-300">{log.level.toUpperCase()}</span> {log.message}
                   </p>
                 ))
               )}
             </div>
-            <p className="mt-2 text-xs text-slate-500">Refresh the page to fetch the latest log entries.</p>
+            <p className="mt-2 text-xs text-slate-500">
+              {logsAutoRefreshEnabled
+                ? 'Auto-refresh is enabled. Log entries refresh every 5 seconds.'
+                : 'Auto-refresh is disabled. Click Apply to refresh logs or enable auto-refresh.'}
+            </p>
           </>
         ) : (
           <p className="text-sm text-slate-400">Logs viewer needs live API mode and at least one deployment.</p>

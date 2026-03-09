@@ -20,8 +20,8 @@ No Kubernetes or multi-node orchestration is introduced in the MVP.
 - Worker service for `clone -> build -> run`
 - Caddy route upsert integration from worker
 - Dashboard read integration + basic deploy action from dashboard
-- Environment variable editor vertical slice in dashboard
-- Deployment logs viewer vertical slice in dashboard
+- Environment variable editor vertical slice in dashboard (project selector + CRUD)
+- Deployment logs viewer vertical slice in dashboard (deployment selector + optional auto-refresh polling)
 
 ### Data + Runtime
 - Drizzle PostgreSQL schema for platform entities
