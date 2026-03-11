@@ -13,7 +13,8 @@ const EnvSchema = z.object({
   DEPLOYMENT_DEFAULT_CONTAINER_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   DEPLOYMENT_DEFAULT_MEMORY_MB: z.coerce.number().int().min(64).default(512),
   DEPLOYMENT_DEFAULT_CPU_MILLICORES: z.coerce.number().int().min(100).default(500),
-  LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info')
+  LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  API_TOKENS_JSON: z.string().default('')
 });
 
 export type AppEnv = z.infer<typeof EnvSchema>;

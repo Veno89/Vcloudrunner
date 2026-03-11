@@ -4,7 +4,7 @@ import { QUEUE_NAMES, type DeploymentJobPayload } from '@vcloudrunner/shared-typ
 import { redisConnection } from './redis.js';
 
 export class DeploymentQueue {
-  private readonly queue = new Queue<DeploymentJobPayload>(QUEUE_NAMES.deployment, {
+  private readonly queue = new Queue<DeploymentJobPayload, unknown, "deploy">(QUEUE_NAMES.deployment, {
     connection: redisConnection
   });
 
@@ -12,10 +12,10 @@ export class DeploymentQueue {
     return this.queue.add('deploy', payload, {
       removeOnComplete: 100,
       removeOnFail: 1000,
-      attempts: 3,
+      attempts: 4,
       backoff: {
         type: 'exponential',
-        delay: 3000
+        delay: 5000
       }
     });
   }

@@ -12,6 +12,9 @@ Canonical single-node MVP pipeline:
 8. Worker writes container metadata to Postgres.
 9. Worker updates Caddy route for `*.apps.platform.example.com` host.
 10. Worker stores logs and updates deployment state (`running` or `failed`).
+11. Worker retry policy applies exponential backoff for transient failures and marks non-retryable errors immediately failed.
+12. Dashboard can consume logs via list endpoint and live SSE stream endpoint.
+13. Worker retention policy prunes old logs by age and per-deployment cap.
 
 Ingress path for end-users:
 

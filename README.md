@@ -19,9 +19,9 @@ No Kubernetes or multi-node orchestration is introduced in the MVP.
 - BullMQ/Redis deployment queue
 - Worker service for `clone -> build -> run`
 - Caddy route upsert integration from worker
-- Dashboard read integration + basic deploy action from dashboard
+- Dashboard project list/create integration + deploy action from dashboard
 - Environment variable editor vertical slice in dashboard (project selector + CRUD)
-- Deployment logs viewer vertical slice in dashboard (deployment selector + optional auto-refresh polling)
+- Deployment logs viewer with live SSE stream (deployment selector + server-proxied EventSource)
 
 ### Data + Runtime
 - Drizzle PostgreSQL schema for platform entities
@@ -54,12 +54,18 @@ No Kubernetes or multi-node orchestration is introduced in the MVP.
    ```bash
    docker compose --profile tunnel up -d cloudflared
    ```
-5. Push schema (from host):
+5. Apply committed migrations (from host):
    ```bash
    npm install
-   npm --workspace @vcloudrunner/api run db:push
+   npm --workspace @vcloudrunner/api run db:migrate
    ```
-6. Run dashboard locally:
+
+6. For future schema changes, generate and commit SQL migration files:
+   ```bash
+   npm --workspace @vcloudrunner/api run db:generate
+   ```
+
+7. Run dashboard locally:
    ```bash
    npm run dev:dashboard
    ```
@@ -84,6 +90,9 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 - `GET /health`
 - `POST /v1/projects`
 - `GET /v1/users/:userId/projects`
+- `GET /v1/users/:userId/api-tokens`
+- `POST /v1/users/:userId/api-tokens`
+- `DELETE /v1/users/:userId/api-tokens/:tokenId`
 - `GET /v1/projects/:projectId`
 - `POST /v1/projects/:projectId/deployments`
 - `GET /v1/projects/:projectId/deployments`
@@ -91,3 +100,36 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 - `PUT /v1/projects/:projectId/environment-variables`
 - `DELETE /v1/projects/:projectId/environment-variables/:key`
 - `GET /v1/projects/:projectId/deployments/:deploymentId/logs`
+- `GET /v1/projects/:projectId/deployments/:deploymentId/logs/stream`
+- `GET /v1/projects/:projectId/deployments/:deploymentId/logs/export`
+
+
+## Minimal Auth Boundary (MVP)
+
+- All `/v1` project-scoped endpoints require `Authorization: Bearer <token>`.
+- API resolves auth context from DB-backed `api_tokens` first (supports revocation/expiry), with `API_TOKENS_JSON` fallback for bootstrap/dev compatibility.
+- `admin` role can access all projects; `user` role is limited to owned projects.
+- Dashboard server-side API calls use `API_AUTH_TOKEN` when configured.
+
+
+## Deployment Retry Semantics
+
+- Deployment jobs use exponential backoff retries for transient failures.
+- Worker classifies known non-retryable failures (e.g., git auth/repo access and invalid Dockerfile paths) and fails fast without exhausting retries.
+
+
+## CI
+
+- GitHub Actions workflow added at `.github/workflows/ci.yml`.
+- Pipeline runs install, workspace lint, workspace typecheck, and workspace build.
+- Baseline workspace lint/typecheck/build passes locally; see `docs/progress.md` for remaining non-CI blockers.
+
+
+## Deployment Log Retention
+
+- Worker enforces a per-deployment log cap (`DEPLOYMENT_LOG_MAX_ROWS_PER_DEPLOYMENT`, default `2000`).
+- Worker also prunes logs older than retention window (`DEPLOYMENT_LOG_RETENTION_DAYS`, default `14`) on a background interval (`DEPLOYMENT_LOG_PRUNE_INTERVAL_MS`).
+- Logs can be exported before pruning via API NDJSON export endpoint (`/v1/projects/:projectId/deployments/:deploymentId/logs/export`) in `ndjson` or `ndjson.gz` format, or dashboard proxy (`/api/log-export`).
+- Worker now runs a scheduled filesystem archival sweep for completed deployments (`DEPLOYMENT_LOG_ARCHIVE_DIR`, `DEPLOYMENT_LOG_ARCHIVE_INTERVAL_MS`, `DEPLOYMENT_LOG_ARCHIVE_MIN_AGE_DAYS`).
+- Optional archive upload sweeps can push `.ndjson.gz` archives via provider-specific adapters (`http`, `s3`, `gcs`, `azure`) using `DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER` + provider settings, with optional bearer auth token, upload interval/timeout, retry/backoff controls, and optional local-delete after upload.
+- Worker cleanup lifecycle controls can prune old local archive artifacts/markers on an interval (`DEPLOYMENT_LOG_ARCHIVE_CLEANUP_INTERVAL_MS`, `DEPLOYMENT_LOG_ARCHIVE_LOCAL_MAX_AGE_DAYS`, `DEPLOYMENT_LOG_ARCHIVE_MARKER_MAX_AGE_DAYS`).

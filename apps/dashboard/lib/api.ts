@@ -29,16 +29,52 @@ export interface ApiDeploymentLog {
   timestamp: string;
 }
 
+export interface ApiTokenRecord {
+  id: string;
+  userId: string;
+  role: 'admin' | 'user';
+  label: string | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  tokenPreview: string;
+}
+
+export interface CreatedApiTokenRecord {
+  id: string;
+  userId: string;
+  role: 'admin' | 'user';
+  label: string | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  token: string;
+}
+
 interface ApiDataResponse<T> {
   data: T;
 }
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
 const demoUserId = process.env.NEXT_PUBLIC_DEMO_USER_ID;
+const apiAuthToken = process.env.API_AUTH_TOKEN;
+
+function buildAuthHeaders(extra?: Record<string, string>): Record<string, string> {
+  const headers = extra ? { ...extra } : {};
+
+  if (apiAuthToken) {
+    headers.authorization = `Bearer ${apiAuthToken}`;
+  }
+
+  return headers;
+}
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
-    cache: 'no-store'
+    cache: 'no-store',
+    headers: buildAuthHeaders()
   });
 
   if (!response.ok) {
@@ -51,9 +87,9 @@ async function fetchJson<T>(path: string): Promise<T> {
 async function postJson<T>(path: string, payload: Record<string, unknown>): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     method: 'POST',
-    headers: {
+    headers: buildAuthHeaders({
       'content-type': 'application/json'
-    },
+    }),
     body: JSON.stringify(payload),
     cache: 'no-store'
   });
@@ -68,9 +104,9 @@ async function postJson<T>(path: string, payload: Record<string, unknown>): Prom
 async function putJson<T>(path: string, payload: Record<string, unknown>): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     method: 'PUT',
-    headers: {
+    headers: buildAuthHeaders({
       'content-type': 'application/json'
-    },
+    }),
     body: JSON.stringify(payload),
     cache: 'no-store'
   });
@@ -85,7 +121,8 @@ async function putJson<T>(path: string, payload: Record<string, unknown>): Promi
 async function deleteRequest(path: string): Promise<void> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     method: 'DELETE',
-    cache: 'no-store'
+    cache: 'no-store',
+    headers: buildAuthHeaders()
   });
 
   if (!response.ok && response.status !== 204) {
@@ -120,6 +157,47 @@ export async function createDeployment(projectId: string): Promise<ApiDeployment
   );
 
   return response.data;
+}
+
+interface CreateProjectInput {
+  userId: string;
+  name: string;
+  slug: string;
+  gitRepositoryUrl: string;
+  defaultBranch?: string;
+}
+
+export async function createProject(input: CreateProjectInput): Promise<ApiProject> {
+  const response = await postJson<ApiDataResponse<ApiProject>>('/v1/projects', { ...input });
+
+  return response.data;
+}
+
+interface CreateApiTokenInput {
+  userId: string;
+  role: 'admin' | 'user';
+  label?: string;
+  expiresAt?: string;
+}
+
+export async function fetchApiTokensForUser(userId: string): Promise<ApiTokenRecord[]> {
+  const response = await fetchJson<ApiDataResponse<ApiTokenRecord[]>>(`/v1/users/${userId}/api-tokens`);
+
+  return response.data;
+}
+
+export async function createApiToken(input: CreateApiTokenInput): Promise<CreatedApiTokenRecord> {
+  const response = await postJson<ApiDataResponse<CreatedApiTokenRecord>>(`/v1/users/${input.userId}/api-tokens`, {
+    role: input.role,
+    ...(input.label ? { label: input.label } : {}),
+    ...(input.expiresAt ? { expiresAt: input.expiresAt } : {})
+  });
+
+  return response.data;
+}
+
+export async function revokeApiToken(userId: string, tokenId: string): Promise<void> {
+  await deleteRequest(`/v1/users/${userId}/api-tokens/${tokenId}`);
 }
 
 export async function fetchEnvironmentVariables(projectId: string): Promise<ApiEnvironmentVariable[]> {
@@ -159,4 +237,4 @@ export async function fetchDeploymentLogs(
   return response.data;
 }
 
-export { apiBaseUrl, demoUserId };
+export { apiBaseUrl, demoUserId, apiAuthToken };

@@ -27,4 +27,18 @@ export class LogsService {
 
     return this.logsRepository.listByDeployment({ deploymentId, after, limit });
   }
+
+  async export(projectId: string, deploymentId: string, from?: string, to?: string) {
+    const project = await this.projectsRepository.findById(projectId);
+    if (!project) {
+      throw new Error('PROJECT_NOT_FOUND');
+    }
+
+    const deployment = await this.deploymentsRepository.findById(projectId, deploymentId);
+    if (!deployment) {
+      throw new Error('DEPLOYMENT_NOT_FOUND');
+    }
+
+    return this.logsRepository.listForExport({ deploymentId, from, to });
+  }
 }

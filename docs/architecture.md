@@ -10,7 +10,7 @@
 ## Core Services (MVP)
 
 1. **API Service** (`apps/api`)
-   - project/deployment/env/log APIs
+   - project/deployment/env/log APIs with minimal bearer-token ownership boundary (`Authorization` + token claims)
    - deployment record creation
    - queue publishing
 2. **Worker Service** (`apps/worker`)
@@ -18,6 +18,8 @@
    - applies runtime limits (port/memory/cpu) from deployment payload defaults or overrides
    - route update calls to Caddy Admin API
    - deployment status/log/container/domain updates
+   - bounded deployment-log retention (per-deployment cap + time-window pruning)
+   - failure-class-aware retry behavior (retry transient failures, short-circuit non-retryable failures)
 3. **Reverse Proxy** (`caddy`)
    - local routing for `platform`, `api`, and app subdomains
    - dynamic route updates from worker
@@ -45,12 +47,17 @@ Host machine runs Docker Engine with:
 - `api` and `worker` are containerized with dedicated Dockerfiles (build once, run many).
 - Compose health checks gate startup for `postgres`, `redis`, and `api` dependencies.
 - Worker mounts Docker socket for single-node runtime container control.
+- Worker run path includes stale-container pre-cleanup and failed-run cleanup attempts (container/image/workspace) to reduce leaked local resources.
 
 ## Ingress Flow
 
 `Internet -> Cloudflare Edge -> cloudflared -> caddy -> api/app containers`
 
 ## Future Migration Compatibility
+
+- CI workflow runs workspace lint/typecheck/build on pushes and pull requests (baseline quality gate).
+
+
 
 - Worker is stateless and queue-driven (scale out by adding workers later).
 - API remains control-plane only (no build/runtime coupling).
@@ -60,6 +67,6 @@ Host machine runs Docker Engine with:
 ## UI Status
 
 - `apps/dashboard` now has a Next.js scaffold with project/deployment overview shells.
-- Dashboard now has read integration for projects/deployments, basic deploy trigger action, environment variable editor CRUD for selected project, and a deployment logs viewer with deployment selector plus optional polling-based auto-refresh; true streaming remains in progress.
+- Dashboard now has read/create integration for projects, basic deploy trigger action, environment variable editor CRUD for selected project, and a deployment logs viewer with deployment selector plus polling and SSE-based live streaming.
 
 - dashboard is now included in compose runtime and served via `platform.example.com` through Caddy.
