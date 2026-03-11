@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 
 import { db } from '../../db/client.js';
+import { assertUserAccess, requireActor } from '../auth/auth-utils.js';
 import { ProjectsService } from './projects.service.js';
 
 const projectsService = new ProjectsService(db);
@@ -24,27 +25,75 @@ const projectByIdParamsSchema = z.object({
 
 export const projectsRoutes: FastifyPluginAsync = async (app) => {
   app.post('/projects', async (request, reply) => {
-    const payload = createProjectSchema.parse(request.body);
-    const project = await projectsService.createProject(payload);
+    try {
+      const actor = requireActor(request);
+      const payload = createProjectSchema.parse(request.body);
 
-    return reply.code(201).send({ data: project });
+      try {
+        assertUserAccess(actor, payload.userId);
+      } catch {
+        return reply.forbidden('Cannot create projects for another user');
+      }
+
+      const project = await projectsService.createProject(payload);
+
+      return reply.code(201).send({ data: project });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'UNAUTHORIZED') {
+        return reply.unauthorized('Missing or invalid Bearer token');
+      }
+      if (error instanceof Error && error.message === 'PROJECT_SLUG_TAKEN') {
+        return reply.conflict('Project slug is already in use');
+      }
+
+      throw error;
+    }
   });
 
-  app.get('/users/:userId/projects', async (request) => {
-    const { userId } = userProjectsParamsSchema.parse(request.params);
-    const projects = await projectsService.listProjectsByUser(userId);
+  app.get('/users/:userId/projects', async (request, reply) => {
+    try {
+      const actor = requireActor(request);
+      const { userId } = userProjectsParamsSchema.parse(request.params);
 
-    return { data: projects };
+      try {
+        assertUserAccess(actor, userId);
+      } catch {
+        return reply.forbidden('Cannot list projects for another user');
+      }
+
+      const projects = await projectsService.listProjectsByUser(userId);
+
+      return { data: projects };
+    } catch (error) {
+      if (error instanceof Error && error.message === 'UNAUTHORIZED') {
+        return reply.unauthorized('Missing or invalid Bearer token');
+      }
+
+      throw error;
+    }
   });
 
   app.get('/projects/:projectId', async (request, reply) => {
-    const { projectId } = projectByIdParamsSchema.parse(request.params);
-    const project = await projectsService.getProjectById(projectId);
+    try {
+      const actor = requireActor(request);
+      const { projectId } = projectByIdParamsSchema.parse(request.params);
+      const project = await projectsService.getProjectById(projectId);
 
-    if (!project) {
-      return reply.notFound('Project not found');
+      if (!project) {
+        return reply.notFound('Project not found');
+      }
+
+      if (actor.role !== 'admin' && project.userId !== actor.userId) {
+        return reply.forbidden('Project access denied');
+      }
+
+      return { data: project };
+    } catch (error) {
+      if (error instanceof Error && error.message === 'UNAUTHORIZED') {
+        return reply.unauthorized('Missing or invalid Bearer token');
+      }
+
+      throw error;
     }
-
-    return { data: project };
   });
 };
