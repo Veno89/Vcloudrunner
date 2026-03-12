@@ -20,6 +20,7 @@ import {
   fetchEnvironmentVariables,
   fetchProjectsForDemoUser,
   revokeApiToken,
+  rotateApiToken,
   type ApiProject,
   upsertEnvironmentVariable
 } from '../lib/api';
@@ -42,7 +43,9 @@ interface DashboardPageProps {
     logsDeploymentId?: string;
     tokenCreate?: 'success' | 'error';
     tokenRevoke?: 'success' | 'error';
+    tokenRotate?: 'success' | 'error';
     tokenLabel?: string;
+    tokenPlaintext?: string;
   };
 }
 
@@ -225,7 +228,7 @@ async function createApiTokenAction(formData: FormData) {
     });
 
     revalidatePath('/');
-    redirect(`/?tokenCreate=success&tokenLabel=${encodeURIComponent(created.label ?? 'token')}`);
+    redirect(`/?tokenCreate=success&tokenLabel=${encodeURIComponent(created.label ?? 'token')}&tokenPlaintext=${encodeURIComponent(created.token)}`);
   } catch {
     redirect('/?tokenCreate=error');
   }
@@ -253,6 +256,30 @@ async function revokeApiTokenAction(formData: FormData) {
     redirect('/?tokenRevoke=error');
   }
 }
+
+async function rotateApiTokenAction(formData: FormData) {
+  'use server';
+
+  if (!demoUserId) {
+    redirect('/?tokenRotate=error');
+    return;
+  }
+
+  const tokenIdValue = formData.get('tokenId');
+  if (typeof tokenIdValue !== 'string' || tokenIdValue.length === 0) {
+    redirect('/?tokenRotate=error');
+    return;
+  }
+
+  try {
+    const rotated = await rotateApiToken(demoUserId, tokenIdValue);
+    revalidatePath('/');
+    redirect(`/?tokenRotate=success&tokenLabel=${encodeURIComponent(rotated.label ?? 'token')}&tokenPlaintext=${encodeURIComponent(rotated.token)}`);
+  } catch {
+    redirect('/?tokenRotate=error');
+  }
+}
+
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   let projects = mockProjects;
@@ -415,6 +442,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             Copy it now if shown in the list details.
           </p>
         )}
+        {searchParams?.tokenRotate === 'success' && (
+          <p className="mt-2 text-emerald-300">
+            API token rotated successfully{searchParams.tokenLabel ? `: ${decodeURIComponent(searchParams.tokenLabel)}` : ''}.
+          </p>
+        )}
         {searchParams?.tokenCreate === 'error' && (
           <p className="mt-2 text-rose-300">Failed to create API token. Verify auth context and input values.</p>
         )}
@@ -423,6 +455,17 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         )}
         {searchParams?.tokenRevoke === 'error' && (
           <p className="mt-2 text-rose-300">Failed to revoke API token.</p>
+        )}
+        {searchParams?.tokenRotate === 'error' && (
+          <p className="mt-2 text-rose-300">Failed to rotate API token.</p>
+        )}
+        {searchParams?.tokenPlaintext && (
+          <div className="mt-2 rounded border border-amber-700/80 bg-amber-950/40 p-3">
+            <p className="text-xs text-amber-200">Copy this token now. It will not be shown again.</p>
+            <code className="mt-1 block break-all font-mono text-xs text-amber-100">
+              {decodeURIComponent(searchParams.tokenPlaintext)}
+            </code>
+          </div>
         )}
       </section>
 
@@ -513,12 +556,20 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                     {token.revokedAt ? (
                       <span className="text-xs text-rose-300">Revoked</span>
                     ) : (
-                      <form action={revokeApiTokenAction}>
-                        <input type="hidden" name="tokenId" value={token.id} readOnly />
-                        <button type="submit" className="rounded border border-rose-700 px-2 py-1 text-xs text-rose-300 hover:bg-rose-900/30">
-                          Revoke
-                        </button>
-                      </form>
+                      <div className="flex items-center gap-2">
+                        <form action={rotateApiTokenAction}>
+                          <input type="hidden" name="tokenId" value={token.id} readOnly />
+                          <button type="submit" className="rounded border border-amber-700 px-2 py-1 text-xs text-amber-300 hover:bg-amber-900/30">
+                            Rotate
+                          </button>
+                        </form>
+                        <form action={revokeApiTokenAction}>
+                          <input type="hidden" name="tokenId" value={token.id} readOnly />
+                          <button type="submit" className="rounded border border-rose-700 px-2 py-1 text-xs text-rose-300 hover:bg-rose-900/30">
+                            Revoke
+                          </button>
+                        </form>
+                      </div>
                     )}
                   </div>
                 ))

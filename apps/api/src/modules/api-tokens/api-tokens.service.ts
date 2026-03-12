@@ -10,6 +10,11 @@ interface CreateTokenInput {
   expiresAt?: Date | null;
 }
 
+interface RotateTokenInput {
+  tokenId: string;
+  userId: string;
+}
+
 export class ApiTokensService {
   private readonly repository: ApiTokensRepository;
 
@@ -37,5 +42,23 @@ export class ApiTokensService {
 
   async revokeForUser(input: { tokenId: string; userId: string }) {
     return this.repository.revokeByIdForUser(input.tokenId, input.userId);
+  }
+
+  async rotateForUser(input: RotateTokenInput) {
+    const existing = await this.repository.findActiveByIdForUser(input.tokenId, input.userId);
+    if (!existing) {
+      return null;
+    }
+
+    await this.repository.revokeByIdForUser(existing.id, input.userId);
+
+    const created = await this.createForUser({
+      userId: existing.userId,
+      role: existing.role === 'admin' ? 'admin' : 'user',
+      label: existing.label ?? undefined,
+      expiresAt: existing.expiresAt
+    });
+
+    return created;
   }
 }

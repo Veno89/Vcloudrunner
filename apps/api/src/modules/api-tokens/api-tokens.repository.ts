@@ -42,4 +42,10 @@ export class ApiTokensRepository {
 
     return record ?? null;
   }
+
+  async findActiveByIdForUser(id: string, userId: string) {
+    return this.db.query.apiTokens.findFirst({
+      where: and(eq(apiTokens.id, id), eq(apiTokens.userId, userId), isNull(apiTokens.revokedAt))
+    });
+  }
 }
