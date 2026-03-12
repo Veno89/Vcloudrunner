@@ -15,6 +15,7 @@ Canonical single-node MVP pipeline:
 11. Worker retry policy applies exponential backoff for transient failures and marks non-retryable errors immediately failed.
 12. Dashboard can consume logs via list endpoint and live SSE stream endpoint.
 13. Worker retention policy prunes old logs by age and per-deployment cap.
+14. Optional archive upload sweeps can ship archived logs to object storage using provider-native auth/signing flows (S3 SigV4, GCS bearer OAuth, Azure SharedKey).
 
 Ingress path for end-users:
 

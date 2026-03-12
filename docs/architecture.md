@@ -19,6 +19,7 @@
    - route update calls to Caddy Admin API
    - deployment status/log/container/domain updates
    - bounded deployment-log retention (per-deployment cap + time-window pruning)
+   - provider-aware archive upload auth/signing (S3 SigV4, GCS OAuth bearer, Azure SharedKey)
    - failure-class-aware retry behavior (retry transient failures, short-circuit non-retryable failures)
 3. **Reverse Proxy** (`caddy`)
    - local routing for `platform`, `api`, and app subdomains
@@ -68,5 +69,6 @@ Host machine runs Docker Engine with:
 
 - `apps/dashboard` now has a Next.js scaffold with project/deployment overview shells.
 - Dashboard now has read/create integration for projects, basic deploy trigger action, environment variable editor CRUD for selected project, and a deployment logs viewer with deployment selector plus polling and SSE-based live streaming.
+- Dashboard API token panel supports list/create/revoke/rotate operations and one-time plaintext token reveal on create/rotate for safe copy workflows.
 
 - dashboard is now included in compose runtime and served via `platform.example.com` through Caddy.

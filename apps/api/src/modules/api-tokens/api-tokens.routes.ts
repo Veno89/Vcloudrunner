@@ -99,6 +99,44 @@ export const apiTokensRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  app.post('/users/:userId/api-tokens/:tokenId/rotate', async (request, reply) => {
+    try {
+      const actor = requireActor(request);
+      const { userId, tokenId } = tokenParamsSchema.parse(request.params);
+
+      try {
+        assertUserAccess(actor, userId);
+      } catch {
+        return reply.forbidden('Cannot rotate API tokens for another user');
+      }
+
+      const rotated = await apiTokensService.rotateForUser({ tokenId, userId });
+      if (!rotated) {
+        return reply.notFound('API token not found or already revoked');
+      }
+
+      return reply.code(201).send({
+        data: {
+          id: rotated.record.id,
+          userId: rotated.record.userId,
+          role: rotated.record.role,
+          label: rotated.record.label,
+          expiresAt: rotated.record.expiresAt,
+          revokedAt: rotated.record.revokedAt,
+          createdAt: rotated.record.createdAt,
+          updatedAt: rotated.record.updatedAt,
+          token: rotated.token
+        }
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'UNAUTHORIZED') {
+        return reply.unauthorized('Missing or invalid Bearer token');
+      }
+
+      throw error;
+    }
+  });
+
   app.delete('/users/:userId/api-tokens/:tokenId', async (request, reply) => {
     try {
       const actor = requireActor(request);

@@ -92,6 +92,7 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 - `GET /v1/users/:userId/projects`
 - `GET /v1/users/:userId/api-tokens`
 - `POST /v1/users/:userId/api-tokens`
+- `POST /v1/users/:userId/api-tokens/:tokenId/rotate`
 - `DELETE /v1/users/:userId/api-tokens/:tokenId`
 - `GET /v1/projects/:projectId`
 - `POST /v1/projects/:projectId/deployments`
@@ -131,5 +132,5 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 - Worker also prunes logs older than retention window (`DEPLOYMENT_LOG_RETENTION_DAYS`, default `14`) on a background interval (`DEPLOYMENT_LOG_PRUNE_INTERVAL_MS`).
 - Logs can be exported before pruning via API NDJSON export endpoint (`/v1/projects/:projectId/deployments/:deploymentId/logs/export`) in `ndjson` or `ndjson.gz` format, or dashboard proxy (`/api/log-export`).
 - Worker now runs a scheduled filesystem archival sweep for completed deployments (`DEPLOYMENT_LOG_ARCHIVE_DIR`, `DEPLOYMENT_LOG_ARCHIVE_INTERVAL_MS`, `DEPLOYMENT_LOG_ARCHIVE_MIN_AGE_DAYS`).
-- Optional archive upload sweeps can push `.ndjson.gz` archives via provider-specific adapters (`http`, `s3`, `gcs`, `azure`) using `DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER` + provider settings, with optional bearer auth token, upload interval/timeout, retry/backoff controls, and optional local-delete after upload.
+- Optional archive upload sweeps can push `.ndjson.gz` archives via provider-specific adapters (`http`, `s3`, `gcs`, `azure`) using `DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER` + provider settings, now including provider-native auth/signing modes (S3 SigV4 headers, GCS bearer token or service-account OAuth flow, Azure Blob SharedKey), plus upload interval/timeout, retry/backoff controls, and optional local-delete after upload.
 - Worker cleanup lifecycle controls can prune old local archive artifacts/markers on an interval (`DEPLOYMENT_LOG_ARCHIVE_CLEANUP_INTERVAL_MS`, `DEPLOYMENT_LOG_ARCHIVE_LOCAL_MAX_AGE_DAYS`, `DEPLOYMENT_LOG_ARCHIVE_MARKER_MAX_AGE_DAYS`).

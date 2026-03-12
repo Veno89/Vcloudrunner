@@ -1,6 +1,7 @@
+import { createHash, createHmac, createSign } from 'node:crypto';
 import { mkdir, readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises';
-import { gzipSync } from 'node:zlib';
 import { join } from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { Pool } from 'pg';
 
 import { env } from '../config/env.js';
@@ -36,13 +37,34 @@ interface DeploymentLogRow {
   timestamp: string;
 }
 
+interface ArchiveUploadRequest {
+  targetUrl: string;
+  headers: Record<string, string>;
+}
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function sha256Hex(value: string | Uint8Array) {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function hmac(key: Uint8Array | string, value: string) {
+  return createHmac('sha256', key).update(value).digest();
+}
+
+function formatAmzDate(date: Date) {
+  return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+}
+
+function normalizePrivateKey(raw: string) {
+  return raw.replace(/\\n/g, '\n');
+}
+
 export class DeploymentStateService {
   private readonly pool: Queryable;
+  private gcsAccessTokenCache: { token: string; expiresAt: number } | null = null;
 
   constructor(pool?: Queryable) {
     this.pool = pool ?? new Pool({ connectionString: env.DATABASE_URL });
@@ -188,11 +210,18 @@ export class DeploymentStateService {
       }
 
       const payload = await readFile(archivePath);
-      const targetUrl = this.buildArchiveUploadTargetUrl({ fileName, baseUrl });
+      const uploadRequest = await this.createArchiveUploadRequest({ fileName, baseUrl, payload });
 
-      await this.uploadArchiveWithRetry({ targetUrl, payload });
+      await this.uploadArchiveWithRetry({
+        targetUrl: uploadRequest.targetUrl,
+        payload,
+        headers: uploadRequest.headers
+      });
 
-      await writeFile(markerPath, JSON.stringify({ uploadedAt: new Date().toISOString(), targetUrl }));
+      await writeFile(
+        markerPath,
+        JSON.stringify({ uploadedAt: new Date().toISOString(), targetUrl: uploadRequest.targetUrl })
+      );
 
       if (env.DEPLOYMENT_LOG_ARCHIVE_DELETE_LOCAL_AFTER_UPLOAD) {
         await unlink(archivePath);
@@ -203,8 +232,6 @@ export class DeploymentStateService {
 
     return uploadedCount;
   }
-
-
 
   async cleanupArchivedArtifacts() {
     await mkdir(env.DEPLOYMENT_LOG_ARCHIVE_DIR, { recursive: true });
@@ -246,12 +273,50 @@ export class DeploymentStateService {
     return deletedCount;
   }
 
-  private buildArchiveUploadTargetUrl(input: { fileName: string; baseUrl: string }) {
-    const normalizedBase = input.baseUrl.replace(/\/$/, '');
-    const fileName = encodeURIComponent(input.fileName);
+  async createArchiveUploadRequest(input: { fileName: string; baseUrl: string; payload: Buffer }): Promise<ArchiveUploadRequest> {
+    const targetUrl = this.buildArchiveUploadTargetUrl({ fileName: input.fileName, baseUrl: input.baseUrl });
 
     if (env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER === 'http') {
-      return `${normalizedBase}/${fileName}`;
+      return {
+        targetUrl,
+        headers: {
+          'content-type': 'application/gzip',
+          ...(env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_AUTH_TOKEN
+            ? { authorization: `Bearer ${env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_AUTH_TOKEN}` }
+            : {})
+        }
+      };
+    }
+
+    if (env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER === 's3') {
+      return {
+        targetUrl,
+        headers: this.buildS3UploadHeaders({ targetUrl, payload: input.payload })
+      };
+    }
+
+    if (env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER === 'gcs') {
+      const token = await this.resolveGcsAccessToken();
+      return {
+        targetUrl,
+        headers: {
+          'content-type': 'application/gzip',
+          authorization: `Bearer ${token}`
+        }
+      };
+    }
+
+    return {
+      targetUrl,
+      headers: this.buildAzureUploadHeaders({ targetUrl, payload: input.payload })
+    };
+  }
+
+  private buildArchiveUploadTargetUrl(input: { fileName: string; baseUrl: string }) {
+    const normalizedBase = input.baseUrl.replace(/\/$/, '');
+
+    if (env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER === 'http') {
+      return `${normalizedBase}/${encodeURIComponent(input.fileName)}`;
     }
 
     if (env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER === 's3') {
@@ -260,7 +325,7 @@ export class DeploymentStateService {
       }
 
       const key = this.joinObjectKey(env.DEPLOYMENT_LOG_ARCHIVE_S3_PREFIX, input.fileName);
-      return `${normalizedBase}/${encodeURIComponent(env.DEPLOYMENT_LOG_ARCHIVE_S3_BUCKET)}/${encodeURIComponent(key)}`;
+      return `${normalizedBase}/${this.encodePathSegment(env.DEPLOYMENT_LOG_ARCHIVE_S3_BUCKET)}/${this.encodeObjectKey(key)}`;
     }
 
     if (env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER === 'gcs') {
@@ -269,7 +334,7 @@ export class DeploymentStateService {
       }
 
       const key = this.joinObjectKey(env.DEPLOYMENT_LOG_ARCHIVE_GCS_PREFIX, input.fileName);
-      return `${normalizedBase}/${encodeURIComponent(env.DEPLOYMENT_LOG_ARCHIVE_GCS_BUCKET)}/${encodeURIComponent(key)}`;
+      return `${normalizedBase}/${this.encodePathSegment(env.DEPLOYMENT_LOG_ARCHIVE_GCS_BUCKET)}/${this.encodeObjectKey(key)}`;
     }
 
     if (env.DEPLOYMENT_LOG_ARCHIVE_AZURE_CONTAINER.trim().length === 0) {
@@ -277,7 +342,179 @@ export class DeploymentStateService {
     }
 
     const key = this.joinObjectKey(env.DEPLOYMENT_LOG_ARCHIVE_AZURE_PREFIX, input.fileName);
-    return `${normalizedBase}/${encodeURIComponent(env.DEPLOYMENT_LOG_ARCHIVE_AZURE_CONTAINER)}/${encodeURIComponent(key)}`;
+    return `${normalizedBase}/${this.encodePathSegment(env.DEPLOYMENT_LOG_ARCHIVE_AZURE_CONTAINER)}/${this.encodeObjectKey(key)}`;
+  }
+
+  private buildS3UploadHeaders(input: { targetUrl: string; payload: Buffer }) {
+    const accessKeyId = env.DEPLOYMENT_LOG_ARCHIVE_S3_ACCESS_KEY_ID.trim();
+    const secretAccessKey = env.DEPLOYMENT_LOG_ARCHIVE_S3_SECRET_ACCESS_KEY.trim();
+    const region = env.DEPLOYMENT_LOG_ARCHIVE_S3_REGION.trim();
+    if (accessKeyId.length === 0 || secretAccessKey.length === 0) {
+      throw new Error('missing DEPLOYMENT_LOG_ARCHIVE_S3_ACCESS_KEY_ID/DEPLOYMENT_LOG_ARCHIVE_S3_SECRET_ACCESS_KEY for s3 provider');
+    }
+
+    const url = new URL(input.targetUrl);
+    const timestamp = new Date();
+    const amzDate = formatAmzDate(timestamp);
+    const shortDate = amzDate.slice(0, 8);
+
+    const payloadHash = sha256Hex(input.payload);
+    const sessionToken = env.DEPLOYMENT_LOG_ARCHIVE_S3_SESSION_TOKEN.trim();
+
+    const headerEntries: Array<[string, string]> = [
+      ['host', url.host],
+      ['x-amz-content-sha256', payloadHash],
+      ['x-amz-date', amzDate]
+    ];
+
+    if (sessionToken.length > 0) {
+      headerEntries.push(['x-amz-security-token', sessionToken]);
+    }
+
+    const canonicalHeaders = `${headerEntries.map(([key, value]) => `${key}:${value}`).join('\n')}\n`;
+    const signedHeaders = headerEntries.map(([key]) => key).join(';');
+    const canonicalRequest = [
+      'PUT',
+      url.pathname,
+      '',
+      canonicalHeaders,
+      signedHeaders,
+      payloadHash
+    ].join('\n');
+
+    const credentialScope = `${shortDate}/${region}/s3/aws4_request`;
+    const stringToSign = [
+      'AWS4-HMAC-SHA256',
+      amzDate,
+      credentialScope,
+      sha256Hex(canonicalRequest)
+    ].join('\n');
+
+    const kDate = hmac(`AWS4${secretAccessKey}`, shortDate);
+    const kRegion = hmac(kDate, region);
+    const kService = hmac(kRegion, 's3');
+    const kSigning = hmac(kService, 'aws4_request');
+    const signature = createHmac('sha256', kSigning).update(stringToSign).digest('hex');
+
+    const headers: Record<string, string> = {
+      'content-type': 'application/gzip',
+      'x-amz-date': amzDate,
+      'x-amz-content-sha256': payloadHash,
+      authorization:
+        `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`
+    };
+
+    if (sessionToken.length > 0) {
+      headers['x-amz-security-token'] = sessionToken;
+    }
+
+    return headers;
+  }
+
+  private buildAzureUploadHeaders(input: { targetUrl: string; payload: Buffer }) {
+    const accountName = env.DEPLOYMENT_LOG_ARCHIVE_AZURE_ACCOUNT_NAME.trim();
+    const accountKey = env.DEPLOYMENT_LOG_ARCHIVE_AZURE_ACCOUNT_KEY.trim();
+    if (accountName.length === 0 || accountKey.length === 0) {
+      throw new Error('missing DEPLOYMENT_LOG_ARCHIVE_AZURE_ACCOUNT_NAME/DEPLOYMENT_LOG_ARCHIVE_AZURE_ACCOUNT_KEY for azure provider');
+    }
+
+    const url = new URL(input.targetUrl);
+    const now = new Date().toUTCString();
+    const version = '2023-11-03';
+    const contentLength = `${input.payload.length}`;
+    const canonicalizedHeaders = `x-ms-blob-type:BlockBlob\nx-ms-date:${now}\nx-ms-version:${version}`;
+    const canonicalizedResource = `/${accountName}${url.pathname}`;
+
+    const stringToSign = [
+      'PUT',
+      '',
+      '',
+      contentLength,
+      '',
+      'application/gzip',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      canonicalizedHeaders,
+      canonicalizedResource
+    ].join('\n');
+
+    const signature = createHmac('sha256', Buffer.from(accountKey, 'base64'))
+      .update(stringToSign, 'utf8')
+      .digest('base64');
+
+    return {
+      'content-type': 'application/gzip',
+      'x-ms-blob-type': 'BlockBlob',
+      'x-ms-date': now,
+      'x-ms-version': version,
+      authorization: `SharedKey ${accountName}:${signature}`
+    };
+  }
+
+  private async resolveGcsAccessToken() {
+    const staticToken = env.DEPLOYMENT_LOG_ARCHIVE_GCS_ACCESS_TOKEN.trim();
+    if (staticToken.length > 0) {
+      return staticToken;
+    }
+
+    if (this.gcsAccessTokenCache && Date.now() < this.gcsAccessTokenCache.expiresAt - 60_000) {
+      return this.gcsAccessTokenCache.token;
+    }
+
+    const clientEmail = env.DEPLOYMENT_LOG_ARCHIVE_GCS_SERVICE_ACCOUNT_EMAIL.trim();
+    const privateKey = normalizePrivateKey(env.DEPLOYMENT_LOG_ARCHIVE_GCS_PRIVATE_KEY.trim());
+    if (clientEmail.length === 0 || privateKey.length === 0) {
+      throw new Error('missing GCS credentials: set DEPLOYMENT_LOG_ARCHIVE_GCS_ACCESS_TOKEN or service-account email/private key');
+    }
+
+    const issuedAt = Math.floor(Date.now() / 1000);
+    const expiresAt = issuedAt + 3600;
+
+    const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+    const claimSet = Buffer.from(
+      JSON.stringify({
+        iss: clientEmail,
+        scope: 'https://www.googleapis.com/auth/devstorage.read_write',
+        aud: 'https://oauth2.googleapis.com/token',
+        iat: issuedAt,
+        exp: expiresAt
+      })
+    ).toString('base64url');
+
+    const unsignedToken = `${header}.${claimSet}`;
+    const signer = createSign('RSA-SHA256');
+    signer.update(unsignedToken);
+    signer.end();
+    const signature = signer.sign(privateKey).toString('base64url');
+    const assertion = `${unsignedToken}.${signature}`;
+
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`failed to obtain GCS access token: ${response.status}`);
+    }
+
+    const data = (await response.json()) as { access_token?: string; expires_in?: number };
+    if (!data.access_token) {
+      throw new Error('failed to obtain GCS access token: missing access_token');
+    }
+
+    const expiryMs = Date.now() + (data.expires_in ?? 3600) * 1000;
+    this.gcsAccessTokenCache = { token: data.access_token, expiresAt: expiryMs };
+    return data.access_token;
   }
 
   private joinObjectKey(prefix: string, fileName: string) {
@@ -285,7 +522,15 @@ export class DeploymentStateService {
     return cleanedPrefix.length > 0 ? `${cleanedPrefix}/${fileName}` : fileName;
   }
 
-  private async uploadArchiveWithRetry(input: { targetUrl: string; payload: Buffer }) {
+  private encodePathSegment(value: string) {
+    return encodeURIComponent(value);
+  }
+
+  private encodeObjectKey(key: string) {
+    return key.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+  }
+
+  private async uploadArchiveWithRetry(input: { targetUrl: string; payload: Buffer; headers: Record<string, string> }) {
     let lastError: unknown = null;
 
     for (let attempt = 1; attempt <= env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_MAX_ATTEMPTS; attempt += 1) {
@@ -297,12 +542,7 @@ export class DeploymentStateService {
       try {
         const response = await fetch(input.targetUrl, {
           method: 'PUT',
-          headers: {
-            'content-type': 'application/gzip',
-            ...(env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_AUTH_TOKEN
-              ? { authorization: `Bearer ${env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_AUTH_TOKEN}` }
-              : {})
-          },
+          headers: input.headers,
           body: new Uint8Array(input.payload),
           signal: controller.signal
         });
@@ -354,15 +594,18 @@ export class DeploymentStateService {
       return false;
     }
 
-    const ndjson = rows
-      .map((item) => JSON.stringify({
-        id: item.id,
-        deploymentId: item.deployment_id,
-        level: item.level,
-        message: item.message,
-        timestamp: item.timestamp
-      }))
-      .join('\n') + '\n';
+    const ndjson =
+      rows
+        .map((item) =>
+          JSON.stringify({
+            id: item.id,
+            deploymentId: item.deployment_id,
+            level: item.level,
+            message: item.message,
+            timestamp: item.timestamp
+          })
+        )
+        .join('\n') + '\n';
 
     const compressed = gzipSync(ndjson);
     await writeFile(archivePath, compressed);

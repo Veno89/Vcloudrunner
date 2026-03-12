@@ -196,6 +196,15 @@ export async function createApiToken(input: CreateApiTokenInput): Promise<Create
   return response.data;
 }
 
+export async function rotateApiToken(userId: string, tokenId: string): Promise<CreatedApiTokenRecord> {
+  const response = await postJson<ApiDataResponse<CreatedApiTokenRecord>>(
+    `/v1/users/${userId}/api-tokens/${tokenId}/rotate`,
+    {}
+  );
+
+  return response.data;
+}
+
 export async function revokeApiToken(userId: string, tokenId: string): Promise<void> {
   await deleteRequest(`/v1/users/${userId}/api-tokens/${tokenId}`);
 }

@@ -1,6 +1,6 @@
 # Vcloudrunner MVP Progress Tracker
 
-Last updated: 2026-03-11 (archive lifecycle cleanup controls slice)
+Last updated: 2026-03-12 (archive idempotency + delete-local integration slice)
 
 ## Legend
 
@@ -10,6 +10,121 @@ Last updated: 2026-03-11 (archive lifecycle cleanup controls slice)
 
 
 ## Implementation Log
+
+### Phase: Archive idempotency + delete-local integration slice (2026-03-12)
+
+- what was built:
+  - extended archive upload integration tests to assert post-upload idempotency via `.uploaded` markers (second sweep skips re-upload)
+  - added integration test coverage for `DEPLOYMENT_LOG_ARCHIVE_DELETE_LOCAL_AFTER_UPLOAD=true` to verify archive deletion and marker persistence
+  - strengthened upload-sweep confidence for real operator lifecycle behavior beyond header/path validation
+- files created or changed:
+  - `apps/worker/src/services/deployment-state.archive-upload.integration.test.ts`
+  - `docs/progress.md`
+- what is still missing:
+  - emulator-backed compatibility tests (MinIO/FakeGCS/Azurite) with provider-like error semantics
+  - persistent first-class authn/authz model beyond bearer token ownership checks
+- known issues:
+  - compose runtime cannot be executed in this environment due missing Docker CLI
+- next recommended step:
+  - add emulator-backed provider compatibility suite and document CI/dev runbook
+
+### Phase: Archive upload integration-test slice (2026-03-12)
+
+- what was built:
+  - added worker integration-style tests for `uploadPendingArchives` using local HTTP capture servers and temp archive fixtures
+  - validated end-to-end request paths/headers for S3 signed uploads, GCS static bearer uploads, and Azure SharedKey uploads
+  - verified archive upload path still writes and transmits payload bytes as expected through public service flow
+- files created or changed:
+  - `apps/worker/src/services/deployment-state.archive-upload.integration.test.ts`
+  - `docs/progress.md`
+- what is still missing:
+  - emulator-backed compatibility tests (MinIO/FakeGCS/Azurite) to validate against provider-like server semantics
+  - persistent first-class authn/authz model beyond bearer token ownership checks
+- known issues:
+  - compose runtime cannot be executed in this environment due missing Docker CLI
+- next recommended step:
+  - add emulator-backed provider compatibility tests and a local runbook for executing them in CI/dev
+
+### Phase: Archive auth test expansion slice (2026-03-12)
+
+- what was built:
+  - expanded worker archive-auth test coverage across S3/GCS/Azure request construction paths
+  - added assertions for S3 session-token signed header behavior, GCS static bearer usage, Azure SharedKey header shape, and S3 missing-credential fail-fast behavior
+  - refactored tests to use typed service API (`createArchiveUploadRequest`) and direct env object mutation instead of dynamic module import hacks
+- files created or changed:
+  - `apps/worker/src/services/deployment-state.archive-auth.test.ts`
+  - `docs/progress.md`
+- what is still missing:
+  - end-to-end provider compatibility tests against storage emulators (MinIO/FakeGCS/Azurite)
+  - persistent first-class authn/authz model beyond bearer token ownership checks
+- known issues:
+  - compose runtime cannot be executed in this environment due missing Docker CLI
+- next recommended step:
+  - add emulator-backed integration tests for signed uploads and document local runbook
+
+### Phase: Archive signing hardening slice (2026-03-12)
+
+- what was built:
+  - fixed S3 SigV4 signing to include `x-amz-security-token` in canonical/signed headers whenever a session token is configured
+  - exposed a typed `createArchiveUploadRequest` method on `DeploymentStateService` to avoid brittle private-method test access
+  - removed test `@ts-expect-error`/`any` usage and expanded S3 signing test coverage to verify session-token header signing behavior
+- files created or changed:
+  - `apps/worker/src/services/deployment-state.service.ts`
+  - `apps/worker/src/services/deployment-state.archive-auth.test.ts`
+  - `docs/progress.md`
+  - `docs/architecture.md`
+- what is still missing:
+  - broader provider integration tests against emulated object storage endpoints
+  - persistent first-class authn/authz model beyond bearer token ownership checks
+- known issues:
+  - compose runtime cannot be executed in this environment due missing Docker CLI
+- next recommended step:
+  - add provider integration tests against MinIO/FakeGCS/Azurite flows to validate signed request compatibility end-to-end
+
+### Phase: Archive provider signing slice (2026-03-12)
+
+- what was built:
+  - worker archive upload pipeline now builds provider-aware authenticated upload requests rather than generic unauthenticated PUT targets
+  - added S3 SigV4 request signing for archive uploads, GCS auth support via static bearer token or service-account OAuth token exchange, and Azure Blob SharedKey signing
+  - added worker config/env inputs for provider credentials and added a focused worker test covering S3-signed upload request construction
+- files created or changed:
+  - `apps/worker/src/services/deployment-state.service.ts`
+  - `apps/worker/src/services/deployment-state.archive-auth.test.ts`
+  - `apps/worker/src/config/env.ts`
+  - `apps/worker/.env.example`
+  - `README.md`
+  - `docs/architecture.md`
+  - `docs/deployment-flow.md`
+  - `docs/progress.md`
+- what is still missing:
+  - broader provider integration tests against emulated object storage endpoints
+  - persistent first-class authn/authz model beyond bearer token ownership checks
+- known issues:
+  - compose runtime cannot be executed in this environment due missing Docker CLI
+- next recommended step:
+  - add integration coverage for provider upload modes using local storage emulators and document operator runbooks
+
+### Phase: Token rotation + copy-once UX slice (2026-03-12)
+
+- what was built:
+  - added API token rotation endpoint (`POST /v1/users/:userId/api-tokens/:tokenId/rotate`) that revokes the active token and returns a replacement token once
+  - dashboard token panel now supports rotate actions and surfaces one-time plaintext token output for both create and rotate operations
+  - token lifecycle API client now includes a typed rotate helper and README endpoint docs include rotate route
+- files created or changed:
+  - `apps/api/src/modules/api-tokens/api-tokens.repository.ts`
+  - `apps/api/src/modules/api-tokens/api-tokens.service.ts`
+  - `apps/api/src/modules/api-tokens/api-tokens.routes.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/app/page.tsx`
+  - `README.md`
+  - `docs/progress.md`
+- what is still missing:
+  - provider-native SDK/signing integrations for S3/GCS/Azure
+  - persistent first-class authn/authz model beyond bearer token ownership checks
+- known issues:
+  - compose runtime cannot be executed in this environment due missing Docker CLI
+- next recommended step:
+  - implement provider-native SDK/signing integrations for S3/GCS/Azure to complete long-term archive export path
 
 ### Phase: Archive lifecycle cleanup controls slice (2026-03-11)
 
