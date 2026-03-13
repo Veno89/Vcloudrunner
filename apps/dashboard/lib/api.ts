@@ -211,6 +211,7 @@ export async function createProject(input: CreateProjectInput): Promise<ApiProje
 interface CreateApiTokenInput {
   userId: string;
   role: 'admin' | 'user';
+  scopes?: string[];
   label?: string;
   expiresAt?: string;
 }
@@ -224,6 +225,7 @@ export async function fetchApiTokensForUser(userId: string): Promise<ApiTokenRec
 export async function createApiToken(input: CreateApiTokenInput): Promise<CreatedApiTokenRecord> {
   const response = await postJson<ApiDataResponse<CreatedApiTokenRecord>>(`/v1/users/${input.userId}/api-tokens`, {
     role: input.role,
+    ...(input.scopes && input.scopes.length > 0 ? { scopes: input.scopes } : {}),
     ...(input.label ? { label: input.label } : {}),
     ...(input.expiresAt ? { expiresAt: input.expiresAt } : {})
   });

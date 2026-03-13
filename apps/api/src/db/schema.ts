@@ -20,6 +20,12 @@ export const deploymentStatus = pgEnum('deployment_status', [
   'stopped'
 ]);
 
+export const projectMemberRole = pgEnum('project_member_role', [
+  'viewer',
+  'editor',
+  'admin'
+]);
+
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
   email: varchar('email', { length: 320 }).notNull(),
@@ -128,4 +134,17 @@ export const deploymentLogs = pgTable('deployment_logs', {
   timestamp: timestamp('timestamp', { withTimezone: true }).defaultNow().notNull()
 }, (table) => ({
   deploymentLogsDeploymentIdIdx: index('deployment_logs_deployment_id_idx').on(table.deploymentId)
+}));
+
+export const projectMembers = pgTable('project_members', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  role: projectMemberRole('role').notNull().default('viewer'),
+  invitedBy: uuid('invited_by').references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+}, (table) => ({
+  projectMembersProjectUserUnique: uniqueIndex('project_members_project_user_unique').on(table.projectId, table.userId),
+  projectMembersUserIdIdx: index('project_members_user_id_idx').on(table.userId)
 }));

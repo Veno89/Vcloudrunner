@@ -23,10 +23,15 @@ export async function createApiTokenAction(formData: FormData) {
   const label = typeof labelValue === 'string' ? labelValue.trim() : '';
   const expiresAt = typeof expiresAtValue === 'string' ? expiresAtValue.trim() : '';
 
+  const scopeValues = formData.getAll('scopes');
+  const scopes = scopeValues
+    .filter((v): v is string => typeof v === 'string' && v.length > 0);
+
   try {
     const created = await createApiToken({
       userId: demoUserId,
       role: roleValue,
+      scopes: scopes.length > 0 ? scopes : undefined,
       label: label.length > 0 ? label : undefined,
       expiresAt: expiresAt.length > 0 ? new Date(expiresAt).toISOString() : undefined,
     });

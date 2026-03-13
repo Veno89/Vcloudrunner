@@ -24,6 +24,7 @@ export default async function TokensPage({ searchParams }: TokensPageProps) {
     id: string;
     label: string | null;
     role: 'admin' | 'user';
+    scopes: string[];
     tokenPreview: string;
     revokedAt: string | null;
     expiresAt: string | null;
@@ -36,6 +37,7 @@ export default async function TokensPage({ searchParams }: TokensPageProps) {
         id: token.id,
         label: token.label,
         role: token.role,
+        scopes: token.scopes,
         tokenPreview: token.tokenPreview,
         revokedAt: token.revokedAt,
         expiresAt: token.expiresAt,
@@ -85,33 +87,54 @@ export default async function TokensPage({ searchParams }: TokensPageProps) {
             <CardContent>
               <form
                 action={createApiTokenAction}
-                className="grid gap-2 md:grid-cols-[1fr_140px_180px_auto]"
+                className="space-y-4"
               >
-                <input
-                  type="text"
-                  name="label"
-                  placeholder="Label (optional)"
-                  className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-                <select
-                  name="role"
-                  defaultValue="user"
-                  className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="user">user</option>
-                  <option value="admin">admin</option>
-                </select>
-                <input
-                  type="datetime-local"
-                  name="expiresAt"
-                  className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-                <button
-                  type="submit"
-                  className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-                >
-                  Create Token
-                </button>
+                <div className="grid gap-2 md:grid-cols-[1fr_140px_180px_auto]">
+                  <input
+                    type="text"
+                    name="label"
+                    placeholder="Label (optional)"
+                    className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                  <select
+                    name="role"
+                    defaultValue="user"
+                    className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="user">user</option>
+                    <option value="admin">admin</option>
+                  </select>
+                  <input
+                    type="datetime-local"
+                    name="expiresAt"
+                    className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                  >
+                    Create Token
+                  </button>
+                </div>
+                <div>
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">
+                    Scopes (leave unchecked for default)
+                  </p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                    {[
+                      'projects:read', 'projects:write',
+                      'deployments:read', 'deployments:write', 'deployments:cancel',
+                      'environment:read', 'environment:write',
+                      'logs:read',
+                      'tokens:read', 'tokens:write',
+                    ].map((scope) => (
+                      <label key={scope} className="flex items-center gap-1.5 text-xs">
+                        <input type="checkbox" name="scopes" value={scope} className="rounded border-input" />
+                        <span className="font-mono">{scope}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </form>
             </CardContent>
           </Card>
@@ -149,6 +172,15 @@ export default async function TokensPage({ searchParams }: TokensPageProps) {
                           ? `Expires at ${token.expiresAt}`
                           : 'No expiration'}
                     </p>
+                    {token.scopes.length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-0.5">
+                        {token.scopes.map((scope) => (
+                          <Badge key={scope} variant="outline" className="text-[10px] font-mono px-1.5 py-0">
+                            {scope}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   {!token.revokedAt && (
                     <div className="flex items-center gap-2">

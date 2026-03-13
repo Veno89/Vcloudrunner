@@ -43,7 +43,10 @@ const EnvSchema = z.object({
   DB_POOL_MAX: z.coerce.number().int().min(1).default(20),
   DB_POOL_IDLE_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30000),
   DB_POOL_CONNECTION_TIMEOUT_MS: z.coerce.number().int().min(1000).default(5000),
-  DB_POOL_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(0).default(30000)
+  DB_POOL_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(0).default(30000),
+  OTEL_ENABLED: z.coerce.boolean().default(false),
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default('http://localhost:4318'),
+  OTEL_SERVICE_NAME: z.string().default('vcloudrunner-api')
 });
 
 export type AppEnv = z.infer<typeof EnvSchema>;

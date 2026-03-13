@@ -344,14 +344,14 @@ Set to `http://api:3001` pointing to Docker internal network, but as a `NEXT_PUB
 10. ~~Navigation with breadcrumbs~~ ✅ DONE (sidebar nav + deployment detail breadcrumb)
 
 ### Phase 4: Extensibility
-1. Extract alert monitoring from `build-server.ts` into dedicated module
-2. Decompose worker God-service into focused services
-3. Event hooks / webhook system for deployment lifecycle
-4. Build system detection (auto-detect Dockerfile, package.json, etc.)
-5. Multi-user groundwork (user model, ownership)
-6. Network isolation for deployed containers
-7. OpenTelemetry integration
-8. Token scope management UI
+1. ~~Extract alert monitoring from `build-server.ts` into dedicated module~~ ✅ DONE
+2. ~~Decompose worker God-service into focused services~~ ✅ DONE
+3. ~~Event hooks / webhook system for deployment lifecycle~~ ✅ DONE
+4. ~~Build system detection (auto-detect Dockerfile, package.json, etc.)~~ ✅ DONE
+5. ~~Multi-user groundwork (user model, ownership)~~ ✅ DONE
+6. ~~Network isolation for deployed containers~~ ✅ DONE
+7. ~~OpenTelemetry integration~~ ✅ DONE
+8. ~~Token scope management UI~~ ✅ DONE
 
 ---
 

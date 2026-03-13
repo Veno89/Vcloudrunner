@@ -9,6 +9,7 @@ const WorkerEnvSchema = z.object({
   REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   DOCKER_SOCKET_PATH: z.string().default('/var/run/docker.sock'),
+  DEPLOYMENT_NETWORK_NAME: z.string().default('vcloudrunner-deployments'),
   DEPLOYMENT_RUNTIME_EXECUTOR: z.enum(['docker']).default('docker'),
   WORK_DIR: z.string().default('.tmp/deployments'),
   PLATFORM_DOMAIN: z.string().default('platform.local'),
@@ -59,7 +60,9 @@ const WorkerEnvSchema = z.object({
   DB_POOL_MAX: z.coerce.number().int().min(1).default(10),
   DB_POOL_IDLE_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30000),
   DB_POOL_CONNECTION_TIMEOUT_MS: z.coerce.number().int().min(1000).default(5000),
-  DB_POOL_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(0).default(30000)
+  DB_POOL_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(0).default(30000),
+  DEPLOYMENT_LIFECYCLE_WEBHOOK_URL: z.string().default(''),
+  DEPLOYMENT_LIFECYCLE_WEBHOOK_TOKEN: z.string().default('')
 });
 
 export type WorkerEnv = z.infer<typeof WorkerEnvSchema>;

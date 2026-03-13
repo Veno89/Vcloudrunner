@@ -9,6 +9,7 @@ import { createRuntimeExecutor } from '../services/runtime/runtime-executor.fact
 import { DeploymentStateService } from '../services/deployment-state.service.js';
 import { DeploymentFailure, classifyDeploymentFailure } from './deployment-errors.js';
 import { remainingAttempts } from './deployment-worker.utils.js';
+import { emitDeploymentEvent } from '../services/deployment-events.js';
 
 const runtimeExecutor = createRuntimeExecutor();
 const stateService = new DeploymentStateService();
@@ -42,6 +43,7 @@ export const deploymentWorker = new Worker<DeploymentJobPayload>(
         job.data.deploymentId,
         `Deployment cancelled before worker execution (correlation ${correlationId}).`
       );
+      emitDeploymentEvent({ type: 'deployment.cancelled', deploymentId: job.data.deploymentId, projectId: job.data.projectId, projectSlug: job.data.projectSlug, correlationId, timestamp: new Date().toISOString() });
       logger.info('deployment cancelled before execution', {
         deploymentId: job.data.deploymentId,
         correlationId,
@@ -57,6 +59,7 @@ export const deploymentWorker = new Worker<DeploymentJobPayload>(
       attempt: job.attemptsMade + 1
     });
     await stateService.markBuilding(job.data.deploymentId);
+    emitDeploymentEvent({ type: 'deployment.building', deploymentId: job.data.deploymentId, projectId: job.data.projectId, projectSlug: job.data.projectSlug, correlationId, timestamp: new Date().toISOString() });
 
     await stateService.appendLog(
       job.data.deploymentId,
@@ -125,6 +128,7 @@ export const deploymentWorker = new Worker<DeploymentJobPayload>(
         job.data.deploymentId,
         `Deployment running. Container ${result.containerName} on port ${result.hostPort ?? 'unknown'}`
       );
+      emitDeploymentEvent({ type: 'deployment.running', deploymentId: job.data.deploymentId, projectId: job.data.projectId, projectSlug: job.data.projectSlug, correlationId, timestamp: new Date().toISOString(), details: { containerId: result.containerId, hostPort: result.hostPort } });
 
       logger.info('deployment finished', {
         deploymentId: job.data.deploymentId,
@@ -152,6 +156,7 @@ export const deploymentWorker = new Worker<DeploymentJobPayload>(
 
       if (!failure.retryable) {
         await stateService.markFailed(job.data.deploymentId, `[${failure.code}] ${failure.message}`);
+        emitDeploymentEvent({ type: 'deployment.failed', deploymentId: job.data.deploymentId, projectId: job.data.projectId, projectSlug: job.data.projectSlug, correlationId, timestamp: new Date().toISOString(), details: { code: failure.code, message: failure.message } });
         logger.error('deployment failed (non-retryable)', {
           deploymentId: job.data.deploymentId,
           correlationId,
@@ -181,7 +186,8 @@ export const deploymentWorker = new Worker<DeploymentJobPayload>(
       }
 
       await stateService.markFailed(job.data.deploymentId, `[${failure.code}] ${failure.message}`);
-      logger.error('deployment failed (retries exhausted)', {
+      emitDeploymentEvent({ type: 'deployment.failed', deploymentId: job.data.deploymentId, projectId: job.data.projectId, projectSlug: job.data.projectSlug, correlationId, timestamp: new Date().toISOString(), details: { code: failure.code, message: failure.message, retriesExhausted: true } });
+      logger.error('deployment failed (retries exhausted)',' {
         deploymentId: job.data.deploymentId,
         correlationId,
         code: failure.code,
