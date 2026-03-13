@@ -1,7 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm';
 
 import type { DbClient } from '../../db/client.js';
-import { deployments } from '../../db/schema.js';
+import { deploymentLogs, deployments } from '../../db/schema.js';
 
 export interface CreateDeploymentInput {
   projectId: string;
@@ -43,6 +43,42 @@ export class DeploymentsRepository {
         eq(deployments.projectId, projectId),
         eq(deployments.id, deploymentId)
       )
+    });
+  }
+
+  async markCancellationRequested(input: {
+    deploymentId: string;
+    metadata: Record<string, unknown>;
+    requestedByCorrelationId: string;
+  }) {
+    const nextMetadata = {
+      ...input.metadata,
+      cancellation: {
+        requestedAt: new Date().toISOString(),
+        requestedByCorrelationId: input.requestedByCorrelationId
+      }
+    } satisfies Record<string, unknown>;
+
+    await this.db.update(deployments).set({
+      metadata: nextMetadata,
+      updatedAt: new Date()
+    }).where(eq(deployments.id, input.deploymentId));
+  }
+
+  async markStopped(deploymentId: string) {
+    await this.db.update(deployments).set({
+      status: 'stopped',
+      finishedAt: new Date(),
+      runtimeUrl: null,
+      updatedAt: new Date()
+    }).where(eq(deployments.id, deploymentId));
+  }
+
+  async appendLog(input: { deploymentId: string; level: 'info' | 'warn' | 'error'; message: string }) {
+    await this.db.insert(deploymentLogs).values({
+      deploymentId: input.deploymentId,
+      level: input.level,
+      message: input.message.slice(0, 10000)
     });
   }
 }

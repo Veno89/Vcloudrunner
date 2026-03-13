@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 
 import { db } from '../../db/client.js';
-import { ensureProjectAccess, requireActor } from '../auth/auth-utils.js';
+import { ensureProjectAccess, requireActor, requireScope } from '../auth/auth-utils.js';
 import { ProjectsService } from '../projects/projects.service.js';
 import { EnvironmentService } from './environment.service.js';
 
@@ -24,73 +24,34 @@ const removeParamsSchema = z.object({
 });
 
 export const environmentRoutes: FastifyPluginAsync = async (app) => {
-  app.get('/projects/:projectId/environment-variables', async (request, reply) => {
-    try {
-      const actor = requireActor(request)
-      const { projectId } = projectIdParamsSchema.parse(request.params);
+  app.get('/projects/:projectId/environment-variables', async (request) => {
+    const actor = requireActor(request);
+    const { projectId } = projectIdParamsSchema.parse(request.params);
 
-      await ensureProjectAccess(projectsService, { projectId, actor });
-      const data = await environmentService.list(projectId);
-      return { data };
-    } catch (error) {
-      if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-        return reply.unauthorized('Missing or invalid Bearer token');
-      }
-      if (error instanceof Error && error.message === 'PROJECT_NOT_FOUND') {
-        return reply.notFound('Project not found');
-      }
-      if (error instanceof Error && error.message === 'FORBIDDEN_PROJECT_ACCESS') {
-        return reply.forbidden('Project access denied');
-      }
-      throw error;
-    }
+    requireScope(actor, 'environment:read');
+    await ensureProjectAccess(projectsService, { projectId, actor });
+    const data = await environmentService.list(projectId);
+    return { data };
   });
 
   app.put('/projects/:projectId/environment-variables', async (request, reply) => {
-    try {
-      const actor = requireActor(request)
-      const { projectId } = projectIdParamsSchema.parse(request.params);
-      const body = upsertBodySchema.parse(request.body);
+    const actor = requireActor(request);
+    const { projectId } = projectIdParamsSchema.parse(request.params);
+    const body = upsertBodySchema.parse(request.body);
 
-      await ensureProjectAccess(projectsService, { projectId, actor });
-      const data = await environmentService.upsert(projectId, body.key, body.value);
-      return reply.code(201).send({ data });
-    } catch (error) {
-      if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-        return reply.unauthorized('Missing or invalid Bearer token');
-      }
-      if (error instanceof Error && error.message === 'PROJECT_NOT_FOUND') {
-        return reply.notFound('Project not found');
-      }
-      if (error instanceof Error && error.message === 'FORBIDDEN_PROJECT_ACCESS') {
-        return reply.forbidden('Project access denied');
-      }
-      throw error;
-    }
+    requireScope(actor, 'environment:write');
+    await ensureProjectAccess(projectsService, { projectId, actor });
+    const data = await environmentService.upsert(projectId, body.key, body.value);
+    return reply.code(201).send({ data });
   });
 
   app.delete('/projects/:projectId/environment-variables/:key', async (request, reply) => {
-    try {
-      const actor = requireActor(request)
-      const { projectId, key } = removeParamsSchema.parse(request.params);
+    const actor = requireActor(request);
+    const { projectId, key } = removeParamsSchema.parse(request.params);
 
-      await ensureProjectAccess(projectsService, { projectId, actor });
-      await environmentService.remove(projectId, key);
-      return reply.code(204).send();
-    } catch (error) {
-      if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-        return reply.unauthorized('Missing or invalid Bearer token');
-      }
-      if (error instanceof Error && error.message === 'PROJECT_NOT_FOUND') {
-        return reply.notFound('Project not found');
-      }
-      if (error instanceof Error && error.message === 'FORBIDDEN_PROJECT_ACCESS') {
-        return reply.forbidden('Project access denied');
-      }
-      if (error instanceof Error && error.message === 'ENV_NOT_FOUND') {
-        return reply.notFound('Environment variable not found');
-      }
-      throw error;
-    }
+    requireScope(actor, 'environment:write');
+    await ensureProjectAccess(projectsService, { projectId, actor });
+    await environmentService.remove(projectId, key);
+    return reply.code(204).send();
   });
 };

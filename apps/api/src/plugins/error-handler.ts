@@ -1,19 +1,54 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { ZodError } from 'zod';
+import { DomainError } from '../server/domain-errors.js';
 
 export const errorHandlerPlugin: FastifyPluginAsync = async (app) => {
-  app.setErrorHandler((error, _request, reply) => {
+  app.setErrorHandler((error, request, reply) => {
     if (error instanceof ZodError) {
       return reply.status(400).send({
-        error: 'ValidationError',
+        code: 'VALIDATION_ERROR',
+        message: 'Request validation failed',
+        requestId: request.id,
         details: error.flatten()
       });
     }
 
-    app.log.error(error);
+    if (error instanceof DomainError) {
+      const level = error.statusCode >= 500 ? 'error' : 'warn';
+      app.log[level]({
+        code: error.code,
+        statusCode: error.statusCode,
+        requestId: request.id,
+        method: request.method,
+        url: request.url
+      }, error.message);
+
+      return reply.status(error.statusCode).send({
+        code: error.code,
+        message: error.message,
+        requestId: request.id
+      });
+    }
+
+    app.log.error({
+      err: error,
+      requestId: request.id,
+      method: request.method,
+      url: request.url
+    });
+
     return reply.status(500).send({
-      error: 'InternalServerError',
-      message: 'An unexpected error occurred'
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'An unexpected error occurred',
+      requestId: request.id
+    });
+  });
+
+  app.setNotFoundHandler((request, reply) => {
+    return reply.status(404).send({
+      code: 'NOT_FOUND',
+      message: 'Route not found',
+      requestId: request.id
     });
   });
 };

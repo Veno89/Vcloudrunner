@@ -5,18 +5,23 @@ import { z } from 'zod';
 import { env } from '../config/env.js';
 import { db } from '../db/client.js';
 import { apiTokens } from '../db/schema.js';
+import { ALL_TOKEN_SCOPES, normalizeTokenScopes, type TokenScope } from '../modules/auth/auth-scopes.js';
+import { hashApiToken } from '../modules/api-tokens/token-utils.js';
+import { UnauthorizedError } from '../server/domain-errors.js';
 
 export type AuthRole = 'admin' | 'user';
 
 interface AuthContext {
   userId: string;
   role: AuthRole;
+  scopes: TokenScope[];
 }
 
 const tokenEntrySchema = z.object({
   token: z.string().min(8),
   userId: z.string().uuid(),
-  role: z.enum(['admin', 'user']).default('user')
+  role: z.enum(['admin', 'user']).default('user'),
+  scopes: z.array(z.enum(ALL_TOKEN_SCOPES)).optional()
 });
 
 const tokenEntriesSchema = z.array(tokenEntrySchema);
@@ -38,17 +43,23 @@ function buildStaticTokenLookup() {
 
   const parsed = tokenEntriesSchema.parse(JSON.parse(raw));
   return new Map<string, AuthContext>(
-    parsed.map((entry) => [entry.token, { userId: entry.userId, role: entry.role }])
+    parsed.map((entry) => [entry.token, {
+      userId: entry.userId,
+      role: entry.role,
+      scopes: normalizeTokenScopes(entry.scopes, entry.role)
+    }])
   );
 }
 
 async function getDbAuthContext(token: string): Promise<AuthContext | null> {
+  const tokenHash = hashApiToken(token);
+
   const result = await db
-    .select({ userId: apiTokens.userId, role: apiTokens.role })
+    .select({ userId: apiTokens.userId, role: apiTokens.role, scopes: apiTokens.scopes })
     .from(apiTokens)
     .where(
       and(
-        eq(apiTokens.token, token),
+        eq(apiTokens.tokenHash, tokenHash),
         isNull(apiTokens.revokedAt),
         or(isNull(apiTokens.expiresAt), gt(apiTokens.expiresAt, new Date()))
       )
@@ -66,7 +77,8 @@ async function getDbAuthContext(token: string): Promise<AuthContext | null> {
 
   return {
     userId: row.userId,
-    role: row.role
+    role: row.role,
+    scopes: normalizeTokenScopes(row.scopes, row.role)
   };
 }
 
@@ -85,6 +97,15 @@ export const authContextPlugin: FastifyPluginAsync = async (app) => {
       return;
     }
 
+    if (env.ENABLE_DEV_AUTH && token === 'dev-admin-token') {
+      request.auth = {
+        userId: '00000000-0000-0000-0000-000000000001',
+        role: 'admin',
+        scopes: ['*']
+      };
+      return;
+    }
+
     const dbAuth = await getDbAuthContext(token);
     if (dbAuth) {
       request.auth = dbAuth;
@@ -100,7 +121,7 @@ export const authContextPlugin: FastifyPluginAsync = async (app) => {
 
 export function requireAuthContext(request: FastifyRequest): AuthContext {
   if (!request.auth) {
-    throw new Error('UNAUTHORIZED');
+    throw new UnauthorizedError();
   }
 
   return request.auth;

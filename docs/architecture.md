@@ -13,6 +13,9 @@
    - project/deployment/env/log APIs with minimal bearer-token ownership boundary (`Authorization` + token claims)
    - deployment record creation
    - queue publishing
+   - centralized error handling: all `DomainError` subclasses carry a `statusCode` and are automatically mapped to HTTP responses by the error-handler plugin (routes throw, plugin catches)
+   - graceful shutdown via SIGTERM/SIGINT (drains connections, closes Redis/queue)
+   - dev auth bypass gated by explicit `ENABLE_DEV_AUTH` flag (default false)
 2. **Worker Service** (`apps/worker`)
    - deployment execution pipeline (`clone -> build -> run`)
    - applies runtime limits (port/memory/cpu) from deployment payload defaults or overrides

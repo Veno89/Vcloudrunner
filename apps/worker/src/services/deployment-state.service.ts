@@ -2,40 +2,9 @@ import { createHash, createHmac, createSign } from 'node:crypto';
 import { mkdir, readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { Pool } from 'pg';
 
 import { env } from '../config/env.js';
-
-interface SuccessInput {
-  deploymentId: string;
-  containerId: string;
-  imageTag: string;
-  internalPort: number;
-  hostPort: number | null;
-  runtimeUrl: string | null;
-  projectId: string;
-  projectSlug: string;
-}
-
-interface QueryResult<T = Record<string, unknown>> {
-  rows: T[];
-}
-
-interface Queryable {
-  query: (text: string, params?: unknown[]) => Promise<QueryResult>;
-}
-
-interface ArchiveCandidateRow {
-  id: string;
-}
-
-interface DeploymentLogRow {
-  id: string;
-  deployment_id: string;
-  level: string;
-  message: string;
-  timestamp: string;
-}
+import { DeploymentStateRepository, type Queryable, type SuccessInput } from './deployment-state.repository.js';
 
 interface ArchiveUploadRequest {
   targetUrl: string;
@@ -63,121 +32,90 @@ function normalizePrivateKey(raw: string) {
 }
 
 export class DeploymentStateService {
-  private readonly pool: Queryable;
+  private readonly repository: DeploymentStateRepository;
   private gcsAccessTokenCache: { token: string; expiresAt: number } | null = null;
 
   constructor(pool?: Queryable) {
-    this.pool = pool ?? new Pool({ connectionString: env.DATABASE_URL });
+    this.repository = new DeploymentStateRepository(pool);
   }
 
   async markBuilding(deploymentId: string) {
-    await this.pool.query(
-      `update deployments
-       set status = 'building', started_at = now(), updated_at = now()
-       where id = $1`,
-      [deploymentId]
-    );
+    await this.repository.markBuilding(deploymentId);
   }
 
   async markRunning(input: SuccessInput) {
-    await this.pool.query('begin');
-    try {
-      await this.pool.query(
-        `update deployments
-         set status = 'running', runtime_url = $2, updated_at = now()
-         where id = $1`,
-        [input.deploymentId, input.runtimeUrl]
-      );
-
-      if (input.hostPort !== null) {
-        await this.pool.query(
-          `insert into containers (deployment_id, container_id, image, internal_port, host_port, is_healthy)
-           values ($1, $2, $3, $4, $5, false)
-           on conflict (deployment_id) do update
-           set container_id = excluded.container_id,
-               image = excluded.image,
-               internal_port = excluded.internal_port,
-               host_port = excluded.host_port,
-               updated_at = now()`,
-          [input.deploymentId, input.containerId, input.imageTag, input.internalPort, input.hostPort]
-        );
-
-        await this.pool.query(
-          `insert into domains (project_id, deployment_id, host, target_port)
-           values ($1, $2, $3, $4)
-           on conflict (host) do update
-           set deployment_id = excluded.deployment_id,
-               target_port = excluded.target_port,
-               updated_at = now()`,
-          [input.projectId, input.deploymentId, `${input.projectSlug}.${env.PLATFORM_DOMAIN}`, input.hostPort]
-        );
-      }
-
-      await this.pool.query('commit');
-    } catch (error) {
-      await this.pool.query('rollback');
-      throw error;
-    }
+    await this.repository.markRunning(input);
   }
 
   async markFailed(deploymentId: string, message: string) {
-    await this.pool.query(
-      `update deployments
-       set status = 'failed', finished_at = now(), updated_at = now()
-       where id = $1`,
-      [deploymentId]
-    );
+    await this.repository.markStatusFailed(deploymentId);
+    await this.repository.insertLog({ deploymentId, level: 'error', message });
+    await this.repository.enforceRetentionForDeployment(deploymentId);
+  }
 
-    await this.pool.query(
-      `insert into deployment_logs (deployment_id, level, message)
-       values ($1, 'error', $2)`,
-      [deploymentId, message.slice(0, 10000)]
-    );
+  async markStopped(deploymentId: string, message: string) {
+    await this.repository.markStatusStopped(deploymentId);
+    await this.repository.insertLog({ deploymentId, level: 'warn', message });
+    await this.repository.enforceRetentionForDeployment(deploymentId);
+  }
 
-    await this.enforceRetentionForDeployment(deploymentId);
+  async isCancellationRequested(deploymentId: string) {
+    return this.repository.isCancellationRequested(deploymentId);
   }
 
   async appendLog(deploymentId: string, message: string, level = 'info') {
-    await this.pool.query(
-      `insert into deployment_logs (deployment_id, level, message)
-       values ($1, $2, $3)`,
-      [deploymentId, level, message.slice(0, 10000)]
-    );
-
-    await this.enforceRetentionForDeployment(deploymentId);
+    await this.repository.insertLog({ deploymentId, level, message });
+    await this.repository.enforceRetentionForDeployment(deploymentId);
   }
 
   async pruneLogsByRetentionWindow() {
-    await this.pool.query(
-      `delete from deployment_logs
-       where timestamp < now() - ($1::int * interval '1 day')`,
-      [env.DEPLOYMENT_LOG_RETENTION_DAYS]
-    );
+    await this.repository.pruneLogsByRetentionWindow();
+  }
+
+  async recoverStuckDeployments() {
+    const rows = await this.repository.listStuckDeployments();
+    let recoveredCount = 0;
+
+    for (const row of rows) {
+      const reason = row.status === 'queued'
+        ? `DEPLOYMENT_STUCK_RECOVERY: queued deployment exceeded ${env.DEPLOYMENT_STUCK_QUEUED_MAX_AGE_MINUTES} minutes`
+        : `DEPLOYMENT_STUCK_RECOVERY: building deployment exceeded ${env.DEPLOYMENT_STUCK_BUILDING_MAX_AGE_MINUTES} minutes`;
+
+      await this.markFailed(row.id, reason);
+      recoveredCount += 1;
+    }
+
+    return recoveredCount;
+  }
+
+  async reconcileRunningDeployments(
+    isContainerRunning: (containerId: string) => Promise<boolean>
+  ) {
+    const rows = await this.repository.listRunningDeploymentContainers();
+    let reconciledCount = 0;
+
+    for (const row of rows) {
+      const running = await isContainerRunning(row.container_id);
+      if (!running) {
+        await this.markFailed(
+          row.deployment_id,
+          'STATE_RECONCILIATION: container not found or not running on worker startup'
+        );
+        reconciledCount += 1;
+      }
+    }
+
+    return reconciledCount;
   }
 
   async archiveEligibleDeploymentLogs() {
-    const result = await this.pool.query(
-      `select d.id
-       from deployments d
-       where d.finished_at is not null
-         and d.finished_at < now() - ($1::int * interval '1 day')
-         and exists (
-           select 1
-           from deployment_logs l
-           where l.deployment_id = d.id
-         )
-       order by d.finished_at asc
-       limit 25`,
-      [env.DEPLOYMENT_LOG_ARCHIVE_MIN_AGE_DAYS]
-    );
-
-    const candidates = result.rows as unknown as ArchiveCandidateRow[];
+    const candidates = await this.repository.listArchivableDeploymentIds();
     let archivedCount = 0;
 
     await mkdir(env.DEPLOYMENT_LOG_ARCHIVE_DIR, { recursive: true });
 
-    for (const row of candidates) {
-      const wasArchived = await this.archiveDeployment(row.id);
+    for (const deploymentId of candidates) {
+      const wasArchived = await this.archiveDeployment(deploymentId);
       if (wasArchived) {
         archivedCount += 1;
       }
@@ -581,15 +519,7 @@ export class DeploymentStateService {
       return false;
     }
 
-    const result = await this.pool.query(
-      `select id, deployment_id, level, message, timestamp
-       from deployment_logs
-       where deployment_id = $1
-       order by timestamp asc, id asc`,
-      [deploymentId]
-    );
-
-    const rows = result.rows as unknown as DeploymentLogRow[];
+    const rows = await this.repository.listDeploymentLogsByDeployment(deploymentId);
     if (rows.length === 0) {
       return false;
     }
@@ -619,20 +549,5 @@ export class DeploymentStateService {
     } catch {
       return false;
     }
-  }
-
-  private async enforceRetentionForDeployment(deploymentId: string) {
-    await this.pool.query(
-      `delete from deployment_logs
-       where deployment_id = $1
-         and id in (
-           select id
-           from deployment_logs
-           where deployment_id = $1
-           order by timestamp desc, id desc
-           offset $2
-         )`,
-      [deploymentId, env.DEPLOYMENT_LOG_MAX_ROWS_PER_DEPLOYMENT]
-    );
   }
 }

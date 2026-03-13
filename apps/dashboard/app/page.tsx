@@ -1,9 +1,13 @@
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import { DeploymentTable } from '../components/deployment-table';
+import { ConfirmSubmitButton } from '../components/confirm-submit-button';
 import { LogsAutoRefresh } from '../components/logs-auto-refresh';
 import { LogsLiveStream } from '../components/logs-live-stream';
+import { MaskedSecretValue } from '../components/masked-secret-value';
+import { PlatformStatusStrip } from '../components/platform-status-strip';
 import { ProjectCard } from '../components/project-card';
 import { ProjectCreateForm } from '../components/project-create-form';
 import { deployments as mockDeployments, projects as mockProjects } from '../lib/mock-data';
@@ -15,10 +19,12 @@ import {
   deleteEnvironmentVariable,
   demoUserId,
   fetchApiTokensForUser,
+  fetchQueueHealth,
   fetchDeploymentLogs,
   fetchDeploymentsForProject,
   fetchEnvironmentVariables,
   fetchProjectsForDemoUser,
+  fetchWorkerHealth,
   revokeApiToken,
   rotateApiToken,
   type ApiProject,
@@ -45,7 +51,7 @@ interface DashboardPageProps {
     tokenRevoke?: 'success' | 'error';
     tokenRotate?: 'success' | 'error';
     tokenLabel?: string;
-    tokenPlaintext?: string;
+    detailDeploymentId?: string;
   };
 }
 
@@ -228,7 +234,14 @@ async function createApiTokenAction(formData: FormData) {
     });
 
     revalidatePath('/');
-    redirect(`/?tokenCreate=success&tokenLabel=${encodeURIComponent(created.label ?? 'token')}&tokenPlaintext=${encodeURIComponent(created.token)}`);
+    cookies().set('__token_plaintext', created.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 120,
+      path: '/',
+      sameSite: 'strict'
+    });
+    redirect(`/?tokenCreate=success&tokenLabel=${encodeURIComponent(created.label ?? 'token')}`);
   } catch {
     redirect('/?tokenCreate=error');
   }
@@ -274,7 +287,14 @@ async function rotateApiTokenAction(formData: FormData) {
   try {
     const rotated = await rotateApiToken(demoUserId, tokenIdValue);
     revalidatePath('/');
-    redirect(`/?tokenRotate=success&tokenLabel=${encodeURIComponent(rotated.label ?? 'token')}&tokenPlaintext=${encodeURIComponent(rotated.token)}`);
+    cookies().set('__token_plaintext', rotated.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 120,
+      path: '/',
+      sameSite: 'strict'
+    });
+    redirect(`/?tokenRotate=success&tokenLabel=${encodeURIComponent(rotated.label ?? 'token')}`);
   } catch {
     redirect('/?tokenRotate=error');
   }
@@ -292,11 +312,37 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   let logsDeploymentId = '';
   let deploymentLogs: Array<{ level: string; message: string; timestamp: string }> = [];
   let usingLiveData = false;
+  let liveDataErrorMessage: string | null = null;
   let envProjectOptions: Array<{ id: string; name: string }> = [];
   let logDeploymentOptions: Array<{ id: string; projectName: string; status: string }> = [];
   let apiTokens: Array<{ id: string; label: string | null; role: 'admin' | 'user'; tokenPreview: string; revokedAt: string | null; expiresAt: string | null }> = [];
+  let detailDeploymentProjectName = '';
+  let detailDeployment: {
+    id: string;
+    status: string;
+    createdAt: string;
+    startedAt?: string | null;
+    finishedAt?: string | null;
+    commitSha?: string | null;
+    runtimeUrl?: string | null;
+  } | null = null;
+  let detailDeploymentLogs: Array<{ level: string; message: string; timestamp: string }> = [];
+  let detailDeploymentOptions: Array<{ id: string; projectName: string; status: string }> = [];
+
+  let platformApiStatus: 'ok' | 'degraded' | 'unavailable' = 'degraded';
+  let platformQueueStatus: 'ok' | 'degraded' | 'unavailable' = 'unavailable';
+  let platformWorkerStatus: 'ok' | 'stale' | 'unavailable' = 'unavailable';
+  let platformQueueCounts = { waiting: 0, active: 0, completed: 0, failed: 0 };
+  let platformWorkerAgeMs: number | undefined;
+  let lastSuccessfulDeployAt: string | undefined;
 
   const logsAutoRefreshEnabled = searchParams?.logsAutoRefresh === '1';
+
+  const tokenCookie = cookies().get('__token_plaintext');
+  const tokenPlaintextFromCookie = tokenCookie?.value ?? null;
+  if (tokenCookie) {
+    cookies().delete('__token_plaintext');
+  }
 
   if (demoUserId) {
     try {
@@ -335,6 +381,26 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         deployments = mappedDeployments;
       }
 
+      const queueHealth = await fetchQueueHealth();
+      const workerHealth = await fetchWorkerHealth();
+      platformApiStatus = queueHealth.status === 'unavailable' && workerHealth.status === 'unavailable' ? 'degraded' : 'ok';
+      platformQueueStatus = queueHealth.status;
+      platformWorkerStatus = workerHealth.status;
+      platformWorkerAgeMs = workerHealth.ageMs;
+      if (queueHealth.counts) {
+        platformQueueCounts = {
+          waiting: queueHealth.counts.waiting,
+          active: queueHealth.counts.active,
+          completed: queueHealth.counts.completed,
+          failed: queueHealth.counts.failed
+        };
+      }
+
+      const lastSuccessful = sortedDeployments.find((item) => item.deployment.status === 'running');
+      if (lastSuccessful) {
+        lastSuccessfulDeployAt = lastSuccessful.deployment.createdAt;
+      }
+
       envProjectOptions = apiProjects.map((project) => ({ id: project.id, name: project.name }));
 
       const selectedEnvProject =
@@ -363,6 +429,34 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         status: deployment.status
       }));
 
+      detailDeploymentOptions = logDeploymentOptions;
+
+      const selectedDetailDeployment =
+        sortedDeployments.find((item) => item.deployment.id === searchParams?.detailDeploymentId) ?? sortedDeployments[0];
+
+      if (selectedDetailDeployment) {
+        detailDeploymentProjectName = selectedDetailDeployment.project.name;
+        detailDeployment = {
+          id: selectedDetailDeployment.deployment.id,
+          status: selectedDetailDeployment.deployment.status,
+          createdAt: selectedDetailDeployment.deployment.createdAt,
+          startedAt: selectedDetailDeployment.deployment.startedAt ?? null,
+          finishedAt: selectedDetailDeployment.deployment.finishedAt ?? null,
+          commitSha: selectedDetailDeployment.deployment.commitSha,
+          runtimeUrl: selectedDetailDeployment.deployment.runtimeUrl ?? null
+        };
+        const detailLogs = await fetchDeploymentLogs(
+          selectedDetailDeployment.project.id,
+          selectedDetailDeployment.deployment.id,
+          20
+        );
+        detailDeploymentLogs = detailLogs.map((item) => ({
+          level: item.level,
+          message: item.message,
+          timestamp: item.timestamp
+        }));
+      }
+
       const selectedDeployment =
         sortedDeployments.find((item) => item.deployment.id === searchParams?.logsDeploymentId) ?? sortedDeployments[0];
 
@@ -383,8 +477,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       }
 
       usingLiveData = true;
-    } catch {
+    } catch (error) {
       usingLiveData = false;
+      liveDataErrorMessage = error instanceof Error ? error.message : 'Failed to fetch live API data.';
     }
   }
 
@@ -402,7 +497,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         <p>
           Demo user ID: <span className="font-mono">{demoUserId ?? 'not configured'}</span>
         </p>
-        {!usingLiveData && <p className="mt-2 text-amber-300">Live API unavailable. Showing mock projects/deployments only.</p>}
+        {!usingLiveData && (
+          <div className="mt-2 rounded border border-amber-700/70 bg-amber-950/30 p-2 text-amber-200">
+            <p>Live API unavailable. Showing mock projects/deployments only.</p>
+            {liveDataErrorMessage ? <p className="mt-1 font-mono text-[11px] text-amber-300/90">{liveDataErrorMessage}</p> : null}
+          </div>
+        )}
         {searchParams?.deploy === 'success' && (
           <p className="mt-2 text-emerald-300">
             Deployment triggered successfully{searchParams.project ? ` for ${decodeURIComponent(searchParams.project)}` : ''}.
@@ -459,23 +559,37 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         {searchParams?.tokenRotate === 'error' && (
           <p className="mt-2 text-rose-300">Failed to rotate API token.</p>
         )}
-        {searchParams?.tokenPlaintext && (
+        {tokenPlaintextFromCookie && (
           <div className="mt-2 rounded border border-amber-700/80 bg-amber-950/40 p-3">
             <p className="text-xs text-amber-200">Copy this token now. It will not be shown again.</p>
             <code className="mt-1 block break-all font-mono text-xs text-amber-100">
-              {decodeURIComponent(searchParams.tokenPlaintext)}
+              {tokenPlaintextFromCookie}
             </code>
           </div>
         )}
       </section>
+
+      <PlatformStatusStrip
+        apiStatus={platformApiStatus}
+        queueStatus={platformQueueStatus}
+        workerStatus={platformWorkerStatus}
+        queueCounts={platformQueueCounts}
+        workerAgeMs={platformWorkerAgeMs}
+        lastSuccessfulDeployAt={lastSuccessfulDeployAt}
+      />
 
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Projects</h2>
         </div>
         {usingLiveData ? <ProjectCreateForm action={createProjectAction} /> : null}
-        <div className="grid gap-3 md:grid-cols-2">
-          {projects.map((project) => (
+        {projects.length === 0 ? (
+          <div className="rounded-lg border border-slate-800 bg-slate-900 p-5 text-sm text-slate-400">
+            No projects yet. Create your first project to start deployments.
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            {projects.map((project) => (
             <div key={project.id} className="space-y-2">
               <ProjectCard
                 name={project.name}
@@ -497,13 +611,91 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                 </form>
               ) : null}
             </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">Recent Deployments</h2>
-        <DeploymentTable deployments={deployments} />
+        {deployments.length === 0 ? (
+          <div className="rounded-lg border border-slate-800 bg-slate-900 p-5 text-sm text-slate-400">
+            No deployments yet. Trigger a deployment from a project card.
+          </div>
+        ) : (
+          <DeploymentTable deployments={deployments} />
+        )}
+      </section>
+
+      <section className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+        <h2 className="mb-2 text-lg font-semibold">Deployment Detail</h2>
+        {usingLiveData && detailDeployment ? (
+          <>
+            <form className="mb-3 grid gap-2 md:grid-cols-[1fr_auto]">
+              <select
+                name="detailDeploymentId"
+                defaultValue={searchParams?.detailDeploymentId ?? detailDeploymentOptions[0]?.id}
+                className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              >
+                {detailDeploymentOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.projectName} / {option.id} ({option.status})
+                  </option>
+                ))}
+              </select>
+              <button type="submit" className="rounded bg-cyan-700 px-3 py-2 text-sm font-medium hover:bg-cyan-600">
+                Load Deployment
+              </button>
+            </form>
+
+            <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
+              <aside className="rounded border border-slate-800 bg-slate-950 p-3 text-sm text-slate-200">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Deployment ID</p>
+                <p className="mb-2 break-all font-mono text-xs">{detailDeployment.id}</p>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Project</p>
+                <p className="mb-2">{detailDeploymentProjectName}</p>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Status</p>
+                <p className="mb-2">{detailDeployment.status}</p>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Commit</p>
+                <p className="mb-2 font-mono text-xs">{detailDeployment.commitSha ?? 'unknown'}</p>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Runtime URL</p>
+                <p className="mb-2 break-all text-xs text-cyan-300">{detailDeployment.runtimeUrl ?? 'pending'}</p>
+              </aside>
+
+              <div className="rounded border border-slate-800 bg-slate-950 p-3">
+                <h3 className="mb-2 text-sm font-semibold text-slate-200">Timeline and Diagnostics</h3>
+                <ul className="space-y-2 text-xs text-slate-300">
+                  <li className="rounded border border-slate-800 bg-slate-900 px-2 py-2">
+                    <span className="text-cyan-300">Created:</span> {new Date(detailDeployment.createdAt).toLocaleString()}
+                  </li>
+                  <li className="rounded border border-slate-800 bg-slate-900 px-2 py-2">
+                    <span className="text-cyan-300">Started:</span>{' '}
+                    {detailDeployment.startedAt ? new Date(detailDeployment.startedAt).toLocaleString() : 'not started'}
+                  </li>
+                  <li className="rounded border border-slate-800 bg-slate-900 px-2 py-2">
+                    <span className="text-cyan-300">Finished:</span>{' '}
+                    {detailDeployment.finishedAt ? new Date(detailDeployment.finishedAt).toLocaleString() : 'in progress'}
+                  </li>
+                </ul>
+
+                <div className="mt-3 max-h-60 overflow-auto rounded border border-slate-800 bg-slate-900 p-2 font-mono text-xs">
+                  {detailDeploymentLogs.length === 0 ? (
+                    <p className="text-slate-500">No diagnostic logs captured for this deployment yet.</p>
+                  ) : (
+                    detailDeploymentLogs.map((log, index) => (
+                      <p key={`${log.timestamp}-${index}`} className="mb-1 whitespace-pre-wrap break-words text-slate-300">
+                        <span className="text-slate-500">[{log.timestamp}]</span>{' '}
+                        <span className="text-cyan-300">{log.level.toUpperCase()}</span> {log.message}
+                      </p>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-slate-400">Deployment detail needs live API mode and at least one deployment.</p>
+        )}
       </section>
 
       <section className="rounded-lg border border-slate-800 bg-slate-900 p-4">
@@ -559,15 +751,19 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                       <div className="flex items-center gap-2">
                         <form action={rotateApiTokenAction}>
                           <input type="hidden" name="tokenId" value={token.id} readOnly />
-                          <button type="submit" className="rounded border border-amber-700 px-2 py-1 text-xs text-amber-300 hover:bg-amber-900/30">
-                            Rotate
-                          </button>
+                          <ConfirmSubmitButton
+                            label="Rotate"
+                            confirmMessage="Rotate this API token now? The current token will stop working immediately."
+                            className="rounded border border-amber-700 px-2 py-1 text-xs text-amber-300 hover:bg-amber-900/30"
+                          />
                         </form>
                         <form action={revokeApiTokenAction}>
                           <input type="hidden" name="tokenId" value={token.id} readOnly />
-                          <button type="submit" className="rounded border border-rose-700 px-2 py-1 text-xs text-rose-300 hover:bg-rose-900/30">
-                            Revoke
-                          </button>
+                          <ConfirmSubmitButton
+                            label="Revoke"
+                            confirmMessage="Revoke this API token? Any clients using it will lose access immediately."
+                            className="rounded border border-rose-700 px-2 py-1 text-xs text-rose-300 hover:bg-rose-900/30"
+                          />
                         </form>
                       </div>
                     )}
@@ -632,14 +828,16 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                   <div key={item.key} className="flex items-center justify-between rounded border border-slate-800 px-3 py-2">
                     <div>
                       <p className="font-mono text-sm text-cyan-300">{item.key}</p>
-                      <p className="text-xs text-slate-400">{item.value}</p>
+                      <MaskedSecretValue value={item.value} />
                     </div>
                     <form action={removeEnvironmentVariable}>
                       <input type="hidden" name="projectId" value={envProjectId} readOnly />
                       <input type="hidden" name="key" value={item.key} readOnly />
-                      <button type="submit" className="rounded border border-rose-700 px-2 py-1 text-xs text-rose-300 hover:bg-rose-900/30">
-                        Delete
-                      </button>
+                      <ConfirmSubmitButton
+                        label="Delete"
+                        confirmMessage={`Delete environment variable ${item.key}? This may break the running app until next deploy.`}
+                        className="rounded border border-rose-700 px-2 py-1 text-xs text-rose-300 hover:bg-rose-900/30"
+                      />
                     </form>
                   </div>
                 ))

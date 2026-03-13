@@ -1,5 +1,8 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import { resolve } from 'node:path';
 import { defineConfig } from 'drizzle-kit';
+
+dotenv.config({ path: resolve(process.cwd(), 'apps/api/.env'), override: true });
 
 export default defineConfig({
   schema: './src/db/schema.ts',

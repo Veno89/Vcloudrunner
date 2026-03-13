@@ -25,6 +25,7 @@ export interface DeploymentJobPayload {
   deploymentId: string;
   projectId: string;
   projectSlug: string;
+  correlationId?: string;
   gitRepositoryUrl: string;
   branch: string;
   commitSha?: string;

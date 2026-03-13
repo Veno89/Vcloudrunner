@@ -1,7 +1,17 @@
 import dotenv from 'dotenv';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { z } from 'zod';
 
-dotenv.config();
+const rootEnvPath = resolve(process.cwd(), '.env');
+if (existsSync(rootEnvPath)) {
+  dotenv.config({ path: rootEnvPath });
+}
+
+const apiEnvPath = resolve(process.cwd(), 'apps/api/.env');
+if (existsSync(apiEnvPath)) {
+  dotenv.config({ path: apiEnvPath, override: true });
+}
 
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -10,11 +20,30 @@ const EnvSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
   ENCRYPTION_KEY: z.string().min(32, 'ENCRYPTION_KEY must be at least 32 characters'),
+  CORS_ALLOWED_ORIGINS: z.string().default('http://localhost:3000,http://127.0.0.1:3000'),
+  CORS_ALLOW_CREDENTIALS: z.coerce.boolean().default(false),
+  API_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(120),
+  API_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60000),
+  API_RATE_LIMIT_ALLOWLIST: z.string().default('127.0.0.1,::1'),
+  ALERT_WEBHOOK_URL: z.string().default(''),
+  ALERT_WEBHOOK_AUTH_TOKEN: z.string().default(''),
+  ALERT_MONITOR_INTERVAL_MS: z.coerce.number().int().min(5000).default(30000),
+  ALERT_COOLDOWN_MS: z.coerce.number().int().min(1000).default(300000),
+  ALERT_QUEUE_WAITING_THRESHOLD: z.coerce.number().int().min(1).default(50),
+  ALERT_QUEUE_ACTIVE_THRESHOLD: z.coerce.number().int().min(1).default(20),
+  ALERT_QUEUE_FAILED_THRESHOLD: z.coerce.number().int().min(1).default(10),
   DEPLOYMENT_DEFAULT_CONTAINER_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   DEPLOYMENT_DEFAULT_MEMORY_MB: z.coerce.number().int().min(64).default(512),
   DEPLOYMENT_DEFAULT_CPU_MILLICORES: z.coerce.number().int().min(100).default(500),
+  WORKER_HEARTBEAT_KEY: z.string().default('vcloudrunner:worker:heartbeat'),
+  WORKER_HEARTBEAT_STALE_MS: z.coerce.number().int().min(5000).default(45000),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
-  API_TOKENS_JSON: z.string().default('')
+  API_TOKENS_JSON: z.string().default(''),
+  ENABLE_DEV_AUTH: z.coerce.boolean().default(false),
+  DB_POOL_MAX: z.coerce.number().int().min(1).default(20),
+  DB_POOL_IDLE_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30000),
+  DB_POOL_CONNECTION_TIMEOUT_MS: z.coerce.number().int().min(1000).default(5000),
+  DB_POOL_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(0).default(30000)
 });
 
 export type AppEnv = z.infer<typeof EnvSchema>;

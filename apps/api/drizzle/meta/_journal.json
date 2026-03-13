@@ -15,6 +15,20 @@
       "when": 1773257500613,
       "tag": "0001_right_steve_rogers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773332200000,
+      "tag": "0002_token_hash_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1773342600000,
+      "tag": "0003_api_token_scopes",
+      "breakpoints": true
     }
   ]
 }

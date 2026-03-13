@@ -19,4 +19,20 @@ export class DeploymentQueue {
       }
     });
   }
+
+  async cancelQueuedDeployment(deploymentId: string) {
+    const jobs = await this.queue.getJobs(['waiting', 'delayed', 'paused', 'prioritized']);
+
+    let removed = false;
+    for (const job of jobs) {
+      if (job.data.deploymentId !== deploymentId) {
+        continue;
+      }
+
+      await job.remove();
+      removed = true;
+    }
+
+    return removed;
+  }
 }

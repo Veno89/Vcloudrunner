@@ -5,8 +5,10 @@ import { apiTokens } from '../../db/schema.js';
 
 export interface CreateApiTokenInput {
   userId: string;
-  token: string;
+  tokenHash: string;
+  tokenLast4: string;
   role: 'admin' | 'user';
+  scopes: string[];
   label?: string;
   expiresAt?: Date | null;
 }
@@ -17,8 +19,10 @@ export class ApiTokensRepository {
   async create(input: CreateApiTokenInput) {
     const [record] = await this.db.insert(apiTokens).values({
       userId: input.userId,
-      token: input.token,
+      tokenHash: input.tokenHash,
+      tokenLast4: input.tokenLast4,
       role: input.role,
+      scopes: input.scopes,
       label: input.label ?? null,
       expiresAt: input.expiresAt ?? null
     }).returning();
@@ -46,6 +50,12 @@ export class ApiTokensRepository {
   async findActiveByIdForUser(id: string, userId: string) {
     return this.db.query.apiTokens.findFirst({
       where: and(eq(apiTokens.id, id), eq(apiTokens.userId, userId), isNull(apiTokens.revokedAt))
+    });
+  }
+
+  async findActiveByHash(tokenHash: string) {
+    return this.db.query.apiTokens.findFirst({
+      where: and(eq(apiTokens.tokenHash, tokenHash), isNull(apiTokens.revokedAt))
     });
   }
 }

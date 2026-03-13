@@ -1,4 +1,5 @@
 import type { DbClient } from '../../db/client.js';
+import { EnvironmentVariableNotFoundError, ProjectNotFoundError } from '../../server/domain-errors.js';
 import { CryptoService } from '../../services/crypto.service.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { EnvironmentRepository } from './environment.repository.js';
@@ -16,7 +17,7 @@ export class EnvironmentService {
   async list(projectId: string) {
     const project = await this.projectsRepository.findById(projectId);
     if (!project) {
-      throw new Error('PROJECT_NOT_FOUND');
+      throw new ProjectNotFoundError();
     }
 
     const entries = await this.environmentRepository.listByProject(projectId);
@@ -32,7 +33,7 @@ export class EnvironmentService {
   async upsert(projectId: string, key: string, value: string) {
     const project = await this.projectsRepository.findById(projectId);
     if (!project) {
-      throw new Error('PROJECT_NOT_FOUND');
+      throw new ProjectNotFoundError();
     }
 
     const encryptedValue = this.cryptoService.encrypt(value);
@@ -42,12 +43,12 @@ export class EnvironmentService {
   async remove(projectId: string, key: string) {
     const project = await this.projectsRepository.findById(projectId);
     if (!project) {
-      throw new Error('PROJECT_NOT_FOUND');
+      throw new ProjectNotFoundError();
     }
 
     const removed = await this.environmentRepository.delete(projectId, key);
     if (!removed) {
-      throw new Error('ENV_NOT_FOUND');
+      throw new EnvironmentVariableNotFoundError();
     }
 
     return removed;

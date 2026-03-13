@@ -88,6 +88,10 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 ## API Endpoints
 
 - `GET /health`
+- `GET /health/queue`
+- `GET /health/worker`
+- `GET /metrics/queue`
+- `GET /metrics/worker`
 - `POST /v1/projects`
 - `GET /v1/users/:userId/projects`
 - `GET /v1/users/:userId/api-tokens`
@@ -97,6 +101,7 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 - `GET /v1/projects/:projectId`
 - `POST /v1/projects/:projectId/deployments`
 - `GET /v1/projects/:projectId/deployments`
+- `POST /v1/projects/:projectId/deployments/:deploymentId/cancel` (queued/building deployments)
 - `GET /v1/projects/:projectId/environment-variables`
 - `PUT /v1/projects/:projectId/environment-variables`
 - `DELETE /v1/projects/:projectId/environment-variables/:key`
@@ -108,15 +113,46 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 ## Minimal Auth Boundary (MVP)
 
 - All `/v1` project-scoped endpoints require `Authorization: Bearer <token>`.
-- API resolves auth context from DB-backed `api_tokens` first (supports revocation/expiry), with `API_TOKENS_JSON` fallback for bootstrap/dev compatibility.
+- API resolves auth context from DB-backed `api_tokens` (SHA-256 token hash + revocation/expiry checks), with `API_TOKENS_JSON` fallback for bootstrap/dev compatibility.
 - `admin` role can access all projects; `user` role is limited to owned projects.
+- API tokens now support explicit scope sets (e.g. `projects:read`, `deployments:write`, `logs:read`, `tokens:write`) with route-level scope guards.
+- Existing legacy tokens without scope metadata are normalized to compatibility defaults during auth resolution.
 - Dashboard server-side API calls use `API_AUTH_TOKEN` when configured.
+
+
+## API Ingress Hardening
+
+- CORS is now explicit allowlist-based via `CORS_ALLOWED_ORIGINS` (comma-separated origins) instead of permissive wildcard behavior.
+- CORS credentials behavior is controlled by `CORS_ALLOW_CREDENTIALS`.
+- Global API rate limiting is enabled via `@fastify/rate-limit` using:
+   - `API_RATE_LIMIT_MAX`
+   - `API_RATE_LIMIT_WINDOW_MS`
+   - `API_RATE_LIMIT_ALLOWLIST` (comma-separated client IPs)
+
+
+## Operational Alert Hooks
+
+- API can emit webhook alerts for degraded worker heartbeat and queue anomaly thresholds.
+- Configure webhook delivery with:
+   - `ALERT_WEBHOOK_URL`
+   - `ALERT_WEBHOOK_AUTH_TOKEN` (optional bearer token)
+- Configure monitor cadence and alert dedupe with:
+   - `ALERT_MONITOR_INTERVAL_MS`
+   - `ALERT_COOLDOWN_MS`
+- Configure queue anomaly thresholds with:
+   - `ALERT_QUEUE_WAITING_THRESHOLD`
+   - `ALERT_QUEUE_ACTIVE_THRESHOLD`
+   - `ALERT_QUEUE_FAILED_THRESHOLD`
 
 
 ## Deployment Retry Semantics
 
 - Deployment jobs use exponential backoff retries for transient failures.
 - Worker classifies known non-retryable failures (e.g., git auth/repo access and invalid Dockerfile paths) and fails fast without exhausting retries.
+- Worker enforces `DEPLOYMENT_EXECUTION_TIMEOUT_MS` to bound hangs and fail deployments that exceed runtime budget.
+- Worker runs periodic stuck-deployment recovery (`DEPLOYMENT_STUCK_RECOVERY_INTERVAL_MS`) and auto-fails stale `queued`/`building` deployments based on configurable max age thresholds (`DEPLOYMENT_STUCK_QUEUED_MAX_AGE_MINUTES`, `DEPLOYMENT_STUCK_BUILDING_MAX_AGE_MINUTES`).
+- Worker publishes a Redis heartbeat (`WORKER_HEARTBEAT_KEY`) on a fixed cadence (`WORKER_HEARTBEAT_INTERVAL_MS`, TTL via `WORKER_HEARTBEAT_TTL_SECONDS`) consumed by API health/metrics endpoints.
+- Worker runtime execution now goes through an abstraction layer (`RuntimeExecutor`) with env-selectable adapter (`DEPLOYMENT_RUNTIME_EXECUTOR`, currently `docker`).
 
 
 ## CI

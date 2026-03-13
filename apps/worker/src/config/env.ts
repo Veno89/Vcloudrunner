@@ -9,12 +9,20 @@ const WorkerEnvSchema = z.object({
   REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   DOCKER_SOCKET_PATH: z.string().default('/var/run/docker.sock'),
+  DEPLOYMENT_RUNTIME_EXECUTOR: z.enum(['docker']).default('docker'),
   WORK_DIR: z.string().default('.tmp/deployments'),
   PLATFORM_DOMAIN: z.string().default('platform.local'),
   CADDY_ADMIN_URL: z.string().url().default('http://localhost:2019'),
   DEPLOYMENT_DEFAULT_CONTAINER_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   DEPLOYMENT_DEFAULT_MEMORY_MB: z.coerce.number().int().min(64).default(512),
   DEPLOYMENT_DEFAULT_CPU_MILLICORES: z.coerce.number().int().min(100).default(500),
+  DEPLOYMENT_EXECUTION_TIMEOUT_MS: z.coerce.number().int().min(60000).default(1200000),
+  DEPLOYMENT_STUCK_RECOVERY_INTERVAL_MS: z.coerce.number().int().min(60000).default(300000),
+  DEPLOYMENT_STUCK_QUEUED_MAX_AGE_MINUTES: z.coerce.number().int().min(1).default(30),
+  DEPLOYMENT_STUCK_BUILDING_MAX_AGE_MINUTES: z.coerce.number().int().min(1).default(60),
+  WORKER_HEARTBEAT_KEY: z.string().default('vcloudrunner:worker:heartbeat'),
+  WORKER_HEARTBEAT_INTERVAL_MS: z.coerce.number().int().min(1000).default(10000),
+  WORKER_HEARTBEAT_TTL_SECONDS: z.coerce.number().int().min(5).default(45),
   DEPLOYMENT_LOG_RETENTION_DAYS: z.coerce.number().int().min(1).default(14),
   DEPLOYMENT_LOG_MAX_ROWS_PER_DEPLOYMENT: z.coerce.number().int().min(100).default(2000),
   DEPLOYMENT_LOG_PRUNE_INTERVAL_MS: z.coerce.number().int().min(60000).default(300000),
@@ -47,7 +55,11 @@ const WorkerEnvSchema = z.object({
   DEPLOYMENT_LOG_ARCHIVE_DELETE_LOCAL_AFTER_UPLOAD: z.coerce.boolean().default(false),
   DEPLOYMENT_LOG_ARCHIVE_CLEANUP_INTERVAL_MS: z.coerce.number().int().min(60000).default(3600000),
   DEPLOYMENT_LOG_ARCHIVE_LOCAL_MAX_AGE_DAYS: z.coerce.number().int().min(1).default(30),
-  DEPLOYMENT_LOG_ARCHIVE_MARKER_MAX_AGE_DAYS: z.coerce.number().int().min(1).default(90)
+  DEPLOYMENT_LOG_ARCHIVE_MARKER_MAX_AGE_DAYS: z.coerce.number().int().min(1).default(90),
+  DB_POOL_MAX: z.coerce.number().int().min(1).default(10),
+  DB_POOL_IDLE_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30000),
+  DB_POOL_CONNECTION_TIMEOUT_MS: z.coerce.number().int().min(1000).default(5000),
+  DB_POOL_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(0).default(30000)
 });
 
 export type WorkerEnv = z.infer<typeof WorkerEnvSchema>;

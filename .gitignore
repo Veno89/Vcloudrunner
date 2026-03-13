@@ -1,0 +1,12 @@
+node_modules
+dist
+.next
+*.tsbuildinfo
+
+# Environment files (contain secrets)
+.env
+.env.local
+.env.*.local
+
+# Temp scripts
+.tmp-*

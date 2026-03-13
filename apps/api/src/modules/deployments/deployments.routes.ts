@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { db } from '../../db/client.js';
 import { DeploymentQueue } from '../../queue/deployment-queue.js';
-import { ensureProjectAccess, requireActor } from '../auth/auth-utils.js';
+import { ensureProjectAccess, requireActor, requireScope } from '../auth/auth-utils.js';
 import { ProjectsService } from '../projects/projects.service.js';
 import { DeploymentsService } from './deployments.service.js';
 
@@ -27,55 +27,50 @@ const projectIdParamsSchema = z.object({
   projectId: z.string().uuid()
 });
 
+const deploymentParamsSchema = z.object({
+  projectId: z.string().uuid(),
+  deploymentId: z.string().uuid()
+});
+
 export const deploymentsRoutes: FastifyPluginAsync = async (app) => {
   app.post('/projects/:projectId/deployments', async (request, reply) => {
-    try {
-      const actor = requireActor(request)
-      const { projectId } = projectIdParamsSchema.parse(request.params);
-      const payload = createDeploymentBodySchema.parse(request.body);
+    const actor = requireActor(request);
+    const { projectId } = projectIdParamsSchema.parse(request.params);
+    const payload = createDeploymentBodySchema.parse(request.body);
 
-      await ensureProjectAccess(projectsService, { projectId, actor });
-      const deployment = await deploymentsService.createDeployment({
-        projectId,
-        ...payload
-      });
+    requireScope(actor, 'deployments:write');
+    await ensureProjectAccess(projectsService, { projectId, actor });
+    const deployment = await deploymentsService.createDeployment({
+      projectId,
+      correlationId: request.id,
+      ...payload
+    });
 
-      return reply.code(201).send({ data: deployment });
-    } catch (error) {
-      if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-        return reply.unauthorized('Missing or invalid Bearer token');
-      }
-      if (error instanceof Error && error.message === 'PROJECT_NOT_FOUND') {
-        return reply.notFound('Project not found');
-      }
-      if (error instanceof Error && error.message === 'FORBIDDEN_PROJECT_ACCESS') {
-        return reply.forbidden('Project access denied');
-      }
-
-      throw error;
-    }
+    return reply.code(201).send({ data: deployment });
   });
 
-  app.get('/projects/:projectId/deployments', async (request, reply) => {
-    try {
-      const actor = requireActor(request)
-      const { projectId } = projectIdParamsSchema.parse(request.params);
+  app.get('/projects/:projectId/deployments', async (request) => {
+    const actor = requireActor(request);
+    const { projectId } = projectIdParamsSchema.parse(request.params);
 
-      await ensureProjectAccess(projectsService, { projectId, actor });
-      const deployments = await deploymentsService.listDeployments(projectId);
-      return { data: deployments };
-    } catch (error) {
-      if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-        return reply.unauthorized('Missing or invalid Bearer token');
-      }
-      if (error instanceof Error && error.message === 'PROJECT_NOT_FOUND') {
-        return reply.notFound('Project not found');
-      }
-      if (error instanceof Error && error.message === 'FORBIDDEN_PROJECT_ACCESS') {
-        return reply.forbidden('Project access denied');
-      }
+    requireScope(actor, 'deployments:read');
+    await ensureProjectAccess(projectsService, { projectId, actor });
+    const deployments = await deploymentsService.listDeployments(projectId);
+    return { data: deployments };
+  });
 
-      throw error;
-    }
+  app.post('/projects/:projectId/deployments/:deploymentId/cancel', async (request, reply) => {
+    const actor = requireActor(request);
+    const { projectId, deploymentId } = deploymentParamsSchema.parse(request.params);
+
+    requireScope(actor, 'deployments:cancel');
+    await ensureProjectAccess(projectsService, { projectId, actor });
+    const result = await deploymentsService.cancelDeployment({
+      projectId,
+      deploymentId,
+      correlationId: request.id
+    });
+
+    return reply.code(202).send({ data: result });
   });
 };

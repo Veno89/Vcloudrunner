@@ -12,6 +12,39 @@ export interface ApiDeployment {
   status: string;
   commitSha: string | null;
   createdAt: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  runtimeUrl?: string | null;
+}
+
+export interface ApiQueueCounts {
+  waiting: number;
+  active: number;
+  completed: number;
+  failed: number;
+  delayed: number;
+  paused: number;
+  prioritized: number;
+}
+
+export interface ApiQueueHealth {
+  status: 'ok' | 'degraded' | 'unavailable';
+  redis?: string;
+  queue?: string;
+  counts?: ApiQueueCounts;
+  sampledAt?: string;
+  message?: string;
+}
+
+export interface ApiWorkerHealth {
+  status: 'ok' | 'stale' | 'unavailable';
+  heartbeatKey?: string;
+  staleAfterMs?: number;
+  ageMs?: number;
+  timestamp?: string;
+  service?: string;
+  pid?: number | null;
+  message?: string;
 }
 
 export interface ApiEnvironmentVariable {
@@ -33,6 +66,7 @@ export interface ApiTokenRecord {
   id: string;
   userId: string;
   role: 'admin' | 'user';
+  scopes: string[];
   label: string | null;
   expiresAt: string | null;
   revokedAt: string | null;
@@ -45,6 +79,7 @@ export interface CreatedApiTokenRecord {
   id: string;
   userId: string;
   role: 'admin' | 'user';
+  scopes: string[];
   label: string | null;
   expiresAt: string | null;
   revokedAt: string | null;
@@ -244,6 +279,40 @@ export async function fetchDeploymentLogs(
   );
 
   return response.data;
+}
+
+export async function fetchQueueHealth(): Promise<ApiQueueHealth> {
+  const response = await fetch(`${apiBaseUrl}/health/queue`, {
+    cache: 'no-store',
+    headers: buildAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const fallback = await response.json().catch(() => ({}));
+    return {
+      status: 'unavailable',
+      message: typeof fallback?.message === 'string' ? fallback.message : `API_REQUEST_FAILED ${response.status}`
+    };
+  }
+
+  return response.json() as Promise<ApiQueueHealth>;
+}
+
+export async function fetchWorkerHealth(): Promise<ApiWorkerHealth> {
+  const response = await fetch(`${apiBaseUrl}/health/worker`, {
+    cache: 'no-store',
+    headers: buildAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const fallback = await response.json().catch(() => ({}));
+    return {
+      status: 'unavailable',
+      message: typeof fallback?.message === 'string' ? fallback.message : `API_REQUEST_FAILED ${response.status}`
+    };
+  }
+
+  return response.json() as Promise<ApiWorkerHealth>;
 }
 
 export { apiBaseUrl, demoUserId, apiAuthToken };

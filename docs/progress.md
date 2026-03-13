@@ -1,6 +1,6 @@
 # Vcloudrunner MVP Progress Tracker
 
-Last updated: 2026-03-12 (archive idempotency + delete-local integration slice)
+Last updated: 2026-03-12 (Phase 2: Production Reliability — COMPLETE)
 
 ## Legend
 
@@ -10,6 +10,190 @@ Last updated: 2026-03-12 (archive idempotency + delete-local integration slice)
 
 
 ## Implementation Log
+
+### Phase 1: Critical Safety (2026-03-12)
+
+- what was built:
+  - **Centralized API error handling**: extended `DomainError` with a `statusCode` property and updated `error-handler.ts` to auto-map any `DomainError` to the correct HTTP response. Removed all 16+ try/catch blocks from route handlers across 5 route files. Routes now simply throw domain errors; the plugin maps them to structured HTTP responses with appropriate status codes and request IDs. This eliminated ~200 lines of duplicated error-to-HTTP mapping code.
+  - **Added `ApiTokenNotFoundError`**: new domain error (404) for token rotate/revoke not-found cases, replacing inline `notFound()` helper calls.
+  - **Removed `http-errors.ts`**: the file (`unauthorized()`, `forbidden()`, `notFound()`, `conflict()` helpers) is now fully unused and should be deleted. No file imports it.
+  - **Strengthened dev-admin-token bypass**: replaced `NODE_ENV === 'development'` guard with an explicit `ENABLE_DEV_AUTH` env flag (defaults to `false`). The dev bypass is now opt-in only, preventing accidental exposure in production due to missing or misconfigured NODE_ENV.
+  - **Removed legacy plaintext token fallback**: the auth-context plugin no longer attempts a second DB lookup using raw plaintext token matching. All token auth now goes through SHA-256 hash lookup only.
+  - **Fixed shared-types ambient declaration drift**: cleared the ambient `declare module '@vcloudrunner/shared-types'` blocks from both `apps/api/src/types/shared-types.d.ts` and `apps/worker/src/types/shared-types.d.ts`. Types now resolve exclusively from the real `packages/shared-types` package, eliminating silent drift risk between apps.
+  - **Added graceful shutdown to API**: `src/index.ts` now handles SIGTERM and SIGINT signals, calling `app.close()` to drain connections and clean up resources (Redis, queue) before exit. (Worker already had graceful shutdown.)
+- files created or changed:
+  - `apps/api/src/server/domain-errors.ts` — added `statusCode` to `DomainError`, added `ApiTokenNotFoundError`
+  - `apps/api/src/plugins/error-handler.ts` — auto-maps `DomainError` → HTTP with structured logging
+  - `apps/api/src/modules/deployments/deployments.routes.ts` — removed try/catch blocks and unused imports
+  - `apps/api/src/modules/projects/projects.routes.ts` — removed try/catch blocks and unused imports
+  - `apps/api/src/modules/environment/environment.routes.ts` — removed try/catch blocks and unused imports
+  - `apps/api/src/modules/logs/logs.routes.ts` — removed try/catch blocks and unused imports
+  - `apps/api/src/modules/api-tokens/api-tokens.routes.ts` — removed try/catch blocks, uses `ApiTokenNotFoundError`
+  - `apps/api/src/plugins/auth-context.ts` — `ENABLE_DEV_AUTH` flag, removed legacy plaintext fallback
+  - `apps/api/src/config/env.ts` — added `ENABLE_DEV_AUTH` env variable
+  - `apps/api/src/index.ts` — added graceful shutdown (SIGTERM/SIGINT)
+  - `apps/api/src/types/shared-types.d.ts` — cleared ambient declarations
+  - `apps/worker/src/types/shared-types.d.ts` — cleared ambient declarations
+  - `docs/production-readiness-audit.md` — recreated comprehensive audit document
+- what is still missing:
+  - `apps/api/src/server/http-errors.ts` should be deleted (fully unused dead code)
+  - Phase 2: Production Reliability (streaming log export, DB pool limits, state reconciliation, API tests)
+  - Phase 3: UI/UX Polish (dashboard route extraction, shadcn/ui, status badges, toasts, loading states)
+  - Phase 4: Extensibility (alert extraction, worker decomposition, event hooks, multi-user)
+- known issues:
+  - compose runtime cannot be executed in this environment due to missing Docker CLI
+  - `ENABLE_DEV_AUTH=true` must be set explicitly in development `.env` files for the dev-admin-token to work — this is an intentional breaking change for safety
+- next recommended step:
+  - begin Phase 2: Production Reliability (state reconciliation, DB pool limits, streaming log export, API tests)
+
+### Phase 1 completion: token URL fix + type cleanup (2026-03-12)
+
+- what was built:
+  - **Removed token plaintext from URL parameters** (CRITICAL security fix): `createApiTokenAction` and `rotateApiTokenAction` no longer pass the token via `?tokenPlaintext=...` in the redirect URL. Instead, the token is set as a short-lived HTTP-only cookie (`__token_plaintext`, `maxAge: 120`, `sameSite: strict`, `secure` in production). The `DashboardPage` component reads and immediately deletes the cookie on render, displaying the token in the existing amber "copy now" box. This eliminates exposure via browser history, server logs, address bar, and Referer headers.
+  - **Removed `next-shims.d.ts` stub declarations**: cleared the file that declared incomplete stubs for `next/server`, `next/cache`, and `next/navigation`, which were shadowing the real Next.js types. Real types now resolve from the `next` package via `next-env.d.ts`.
+  - **Confirmed `http-errors.ts` already deleted**: the dead code file was removed between sessions.
+- files created or changed:
+  - `apps/dashboard/app/page.tsx` — cookie-based token flash (import `cookies` from `next/headers`, set cookie in server actions, read+delete in page component), removed `tokenPlaintext` from `searchParams` interface
+  - `apps/dashboard/types/next-shims.d.ts` — cleared stub declarations
+  - `docs/production-readiness-audit.md` — marked Phase 1 items 5+6 complete, updated security matrix
+- what is still missing:
+  - Phase 1 is now COMPLETE — all 6 items done
+  - Phase 2: Production Reliability is next
+- known issues:
+  - none
+- next recommended step:
+  - begin Phase 2: Production Reliability
+
+### Phase 2: Production Reliability (2026-03-12)
+
+- what was built:
+  - **State reconciliation on worker startup**: on `ready` event, the worker queries all deployments with `status = 'running'` joined to their containers, inspects each Docker container, and marks any deployment whose container is missing or stopped as `failed` with a `STATE_RECONCILIATION` log entry. New `listRunningDeploymentContainers()` in repository, `reconcileRunningDeployments()` in service.
+  - **Database pool limits and timeouts**: added configurable `DB_POOL_MAX`, `DB_POOL_IDLE_TIMEOUT_MS`, `DB_POOL_CONNECTION_TIMEOUT_MS`, `DB_POOL_STATEMENT_TIMEOUT_MS` to both API and Worker Zod env schemas. Applied to API's Drizzle Pool and Worker's raw pg Pool. Sensible defaults (API: 20 max, Worker: 10 max, 30s idle, 5s connect, 30s statement).
+  - **Streaming log export**: replaced `gzipSync` blocking call in log export route with `createGzip()` + PassThrough stream pipeline. NDJSON lines written to PassThrough, piped through async gzip, and streamed to the response. Eliminates event loop blocking for large log exports.
+  - **API integration tests**: 8 tests using Fastify's `inject()` covering all domain error → HTTP status code mappings, non-domain error → 500, and 404 not-found handler. Uses Node's built-in test runner (`node:test` + `node:assert`).
+  - **Database backup documentation**: created `docs/database-backup.md` with pg_dump strategy, Docker Compose sidecar option, retention tiers (daily/weekly/monthly), restore procedure, verification steps, and encryption recommendations.
+- files created or changed:
+  - `apps/worker/src/index.ts` — startup reconciliation call + Docker import
+  - `apps/worker/src/services/deployment-state.repository.ts` — `listRunningDeploymentContainers()`, pool config
+  - `apps/worker/src/services/deployment-state.service.ts` — `reconcileRunningDeployments()`
+  - `apps/worker/src/config/env.ts` — DB pool config vars
+  - `apps/api/src/config/env.ts` — DB pool config vars
+  - `apps/api/src/db/client.ts` — pool limits applied
+  - `apps/api/src/modules/logs/logs.routes.ts` — streaming gzip export
+  - `apps/api/src/server/api-routes.test.ts` — new test file (8 tests)
+  - `apps/api/package.json` — added `test` script
+  - `docs/database-backup.md` — new backup strategy doc
+  - `docs/production-readiness-audit.md` — Phase 2 items marked complete
+- what is still missing:
+  - Phase 2 is now COMPLETE
+  - Phase 3: UI/UX Polish is next
+- known issues:
+  - none
+- next recommended step:
+  - begin Phase 3: UI/UX Polish
+
+### Phase: Production hardening tranche (2026-03-12)
+
+- what was built:
+  - implemented API token security hardening path: `token_hash` + `token_last4`, new migration (`0002_token_hash_hardening.sql`), hash-based auth lookup, and one-way preview strategy
+  - removed permissive implicit admin fallback from `requireAuthContext` so missing auth now consistently fails
+  - added dashboard secret-safety UX: masked env values by default with reveal/copy controls
+  - added destructive action confirmations for API token rotate/revoke and env variable delete
+  - added deployment execution timeout controls in worker (`DEPLOYMENT_EXECUTION_TIMEOUT_MS`) and non-retryable timeout classification
+  - enabled real lint gates across all workspaces with shared ESLint config and updated package scripts
+  - added API structured error envelope improvements (`code`, `message`, `requestId`) including not-found handler and standardized route-level error responses
+  - added `x-request-id` response header on API replies for request-level diagnostics
+  - implemented end-to-end deployment correlation propagation (`request.id -> deployment queue payload -> worker lifecycle logs`)
+  - replaced string-matching API error handling with typed domain errors across auth/project/deployment/environment/logs service and route boundaries
+  - implemented deployment cancellation flow for queued/building deployments: API cancel endpoint, queued-job removal, cancellation request metadata, and cooperative worker-side stop/cleanup
+  - added scheduled stuck-deployment recovery sweep to auto-fail stale `queued`/`building` deployments using configurable age thresholds
+  - added operational observability endpoints and worker liveness signaling: API queue/worker health + metrics routes and worker Redis heartbeat publishing
+  - hardened API ingress defaults with explicit CORS origin allowlist and global rate limiting controls
+  - added operational alert hooks with webhook delivery, cooldown dedupe, and threshold checks for degraded worker heartbeat and queue backlog/failure anomalies
+  - shipped Phase-3 dashboard trust UX: deployment detail diagnostics panel, platform status strip, and stronger empty/error state messaging across projects/deployments sections
+  - started Phase-4 worker decomposition by extracting database state/log operations from `DeploymentStateService` into dedicated `DeploymentStateRepository`
+  - implemented typed worker deployment failure taxonomy (`DeploymentFailure` + classifier) and switched retryability decisions from ad-hoc message checks to typed code/retryable semantics
+  - implemented API token scopes/permissions model (scope persistence, auth-context scope resolution, route-level scope guards) with backward-compatible defaults for existing tokens
+  - added worker runtime executor abstraction (`RuntimeExecutor` + docker adapter + factory) to decouple worker orchestration from a single concrete runtime implementation
+- files created or changed:
+  - `apps/api/src/modules/api-tokens/token-utils.ts`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/modules/api-tokens/api-tokens.repository.ts`
+  - `apps/api/src/modules/api-tokens/api-tokens.service.ts`
+  - `apps/api/src/modules/api-tokens/api-tokens.routes.ts`
+  - `apps/api/src/plugins/auth-context.ts`
+  - `apps/api/drizzle/0002_token_hash_hardening.sql`
+  - `apps/api/drizzle/meta/_journal.json`
+  - `apps/dashboard/components/confirm-submit-button.tsx`
+  - `apps/dashboard/components/masked-secret-value.tsx`
+  - `apps/dashboard/app/page.tsx`
+  - `apps/worker/src/config/env.ts`
+  - `apps/worker/src/workers/deployment.worker.ts`
+  - `apps/worker/src/workers/deployment-worker.utils.ts`
+  - `apps/worker/.env.example`
+  - `.eslintrc.cjs`
+  - `package.json`
+  - `apps/api/package.json`
+  - `apps/worker/package.json`
+  - `apps/dashboard/package.json`
+  - `packages/shared-types/package.json`
+  - `apps/api/src/plugins/error-handler.ts`
+  - `apps/api/src/server/domain-errors.ts`
+  - `apps/api/src/server/build-server.ts`
+  - `apps/api/src/server/http-errors.ts`
+  - `apps/api/src/modules/auth/auth-scopes.ts`
+  - `apps/api/src/modules/auth/auth-utils.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.routes.ts`
+  - `apps/api/src/modules/deployments/deployments.routes.ts`
+  - `apps/api/src/modules/deployments/deployments.repository.ts`
+  - `apps/api/src/modules/deployments/deployments.service.ts`
+  - `apps/api/src/queue/deployment-queue.ts`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/drizzle/0003_api_token_scopes.sql`
+  - `apps/api/drizzle/meta/_journal.json`
+  - `apps/api/src/server/build-server.ts`
+  - `apps/api/src/config/env.ts`
+  - `apps/api/.env.example`
+  - `apps/api/package.json`
+  - `apps/api/src/types/shared-types.d.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/components/platform-status-strip.tsx`
+  - `apps/dashboard/app/page.tsx`
+  - `apps/api/src/modules/environment/environment.routes.ts`
+  - `apps/api/src/modules/environment/environment.service.ts`
+  - `apps/api/src/modules/logs/logs.routes.ts`
+  - `apps/api/src/modules/logs/logs.service.ts`
+  - `apps/api/src/modules/api-tokens/api-tokens.routes.ts`
+  - `apps/api/src/plugins/auth-context.ts`
+  - `apps/worker/src/index.ts`
+  - `apps/worker/src/types/shared-types.d.ts`
+  - `apps/worker/src/services/deployment-runner.ts`
+  - `apps/worker/src/services/deployment-state.repository.ts`
+  - `apps/worker/src/services/deployment-state.service.ts`
+  - `apps/worker/src/workers/deployment-errors.ts`
+  - `apps/worker/src/workers/deployment.worker.ts`
+  - `apps/worker/src/services/deployment-runner.ts`
+  - `apps/worker/src/workers/deployment-worker.utils.ts`
+  - `apps/worker/src/services/runtime/runtime-executor.ts`
+  - `apps/worker/src/services/runtime/docker-runtime-executor.ts`
+  - `apps/worker/src/services/runtime/runtime-executor.factory.ts`
+  - `apps/worker/src/workers/deployment-worker.utils.test.ts`
+  - `apps/worker/src/config/env.ts`
+  - `apps/worker/.env.example`
+  - `apps/worker/src/index.ts`
+  - `apps/worker/src/workers/deployment.worker.ts`
+  - `packages/shared-types/src/index.ts`
+  - `README.md`
+  - `docs/production-readiness-audit.md`
+  - `docs/progress.md`
+- what is still missing:
+  - optional API hardening follow-ups: route-specific rate-limit tiers and trusted-proxy-aware client IP strategy
+  - phase-4 architecture maturity follow-ups: external runtime adapters beyond docker and scope-aware UI management workflows
+- known issues:
+  - compose runtime cannot be executed in this environment due missing Docker CLI
+- next recommended step:
+  - run API migration `0003_api_token_scopes.sql`, then implement scope-aware token management controls in dashboard UI
 
 ### Phase: Archive idempotency + delete-local integration slice (2026-03-12)
 

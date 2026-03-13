@@ -7,11 +7,17 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run -ws build",
-    "lint": "npm run -ws lint",
-    "typecheck": "npm run -ws typecheck",
+    "build": "npm run --workspaces build",
+    "lint": "npm run --workspaces lint",
+    "typecheck": "npm run --workspaces typecheck",
     "dev:api": "npm --workspace @vcloudrunner/api run dev",
     "dev:worker": "npm --workspace @vcloudrunner/worker run dev",
     "dev:dashboard": "npm --workspace @vcloudrunner/dashboard run dev"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.29.0",
+    "@typescript-eslint/parser": "^8.29.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-react-hooks": "^5.2.0"
   }
 }

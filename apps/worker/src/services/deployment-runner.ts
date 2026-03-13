@@ -8,8 +8,20 @@ import Docker from 'dockerode';
 
 import { env } from '../config/env.js';
 import { logger } from '../logger/logger.js';
+import { DeploymentFailure } from '../workers/deployment-errors.js';
 
 const execFileAsync = promisify(execFile);
+
+const DOCKERFILE_CANDIDATES = [
+  'Dockerfile',
+  'dockerfile',
+  'docker/Dockerfile',
+  'Docker/Dockerfile',
+  'app/Dockerfile',
+  'apps/Dockerfile',
+  'backend/Dockerfile',
+  'server/Dockerfile'
+];
 
 export class DeploymentRunner {
   private readonly docker = new Docker({ socketPath: env.DOCKER_SOCKET_PATH });
@@ -36,8 +48,17 @@ export class DeploymentRunner {
       logger.info('cloning repository', { deploymentId: job.deploymentId });
       await execFileAsync('git', ['clone', '--depth', '1', '--branch', job.branch, job.gitRepositoryUrl, repoDir]);
 
-      logger.info('building docker image', { imageTag });
-      await execFileAsync('docker', ['build', '-t', imageTag, '.'], { cwd: repoDir });
+      const dockerfilePath = await this.findDockerfilePath(repoDir);
+      if (!dockerfilePath) {
+        throw new DeploymentFailure(
+          'DEPLOYMENT_DOCKERFILE_NOT_FOUND',
+          'DEPLOYMENT_DOCKERFILE_NOT_FOUND: no Dockerfile found in repository root or common subpaths',
+          false
+        );
+      }
+
+      logger.info('building docker image', { imageTag, dockerfilePath });
+      await execFileAsync('docker', ['build', '-f', dockerfilePath, '-t', imageTag, '.'], { cwd: repoDir });
       imageBuilt = true;
 
       logger.info('starting container', { containerName, containerPort, memoryMb, cpuMillicores });
@@ -84,6 +105,56 @@ export class DeploymentRunner {
       throw error;
     } finally {
       await rm(workspaceDir, { recursive: true, force: true });
+    }
+  }
+
+  async cleanupCancelledRun(input: {
+    deploymentId: string;
+    containerId: string;
+    imageTag: string;
+  }) {
+    try {
+      await this.docker.getContainer(input.containerId).remove({ force: true });
+    } catch (error) {
+      logger.warn('failed removing container after cancellation', {
+        deploymentId: input.deploymentId,
+        containerId: input.containerId,
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+
+    try {
+      await execFileAsync('docker', ['image', 'rm', '-f', input.imageTag]);
+    } catch (error) {
+      logger.warn('failed removing image after cancellation', {
+        deploymentId: input.deploymentId,
+        imageTag: input.imageTag,
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  private async findDockerfilePath(repoDir: string): Promise<string | null> {
+    for (const candidate of DOCKERFILE_CANDIDATES) {
+      try {
+        await execFileAsync('git', ['-C', repoDir, 'cat-file', '-e', `HEAD:${candidate}`]);
+        return candidate;
+      } catch {
+        // Candidate path not present in the checked-out commit.
+      }
+    }
+
+    try {
+      const { stdout } = await execFileAsync('git', ['-C', repoDir, 'ls-tree', '-r', '--name-only', 'HEAD']);
+      const files = stdout
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+
+      const dockerfile = files.find((file) => /(^|\/)dockerfile$/i.test(file));
+      return dockerfile ?? null;
+    } catch {
+      return null;
     }
   }
 

@@ -33,8 +33,11 @@ export const users = pgTable('users', {
 export const apiTokens = pgTable('api_tokens', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id),
-  token: text('token').notNull(),
+  token: text('token'),
+  tokenHash: text('token_hash').notNull(),
+  tokenLast4: varchar('token_last4', { length: 4 }).notNull(),
   role: varchar('role', { length: 16 }).notNull().default('user'),
+  scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
   label: varchar('label', { length: 128 }),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
@@ -42,6 +45,7 @@ export const apiTokens = pgTable('api_tokens', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 }, (table) => ({
   apiTokensTokenUnique: uniqueIndex('api_tokens_token_unique').on(table.token),
+  apiTokensTokenHashUnique: uniqueIndex('api_tokens_token_hash_unique').on(table.tokenHash),
   apiTokensUserIdIdx: index('api_tokens_user_id_idx').on(table.userId)
 }));
 

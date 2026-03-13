@@ -1,4 +1,5 @@
 import type { DbClient } from '../../db/client.js';
+import { ProjectSlugTakenError } from '../../server/domain-errors.js';
 
 interface PostgresError {
   code?: string;
@@ -19,7 +20,7 @@ export class ProjectsService {
     } catch (error) {
       const pgError = error as PostgresError;
       if (pgError.code === '23505' && pgError.constraint === 'projects_slug_unique') {
-        throw new Error('PROJECT_SLUG_TAKEN');
+        throw new ProjectSlugTakenError();
       }
 
       throw error;
