@@ -1,3 +1,5 @@
+import { Badge } from '@/components/ui/badge';
+
 interface QueueCounts {
   waiting: number;
   active: number;
@@ -14,54 +16,54 @@ interface PlatformStatusStripProps {
   lastSuccessfulDeployAt?: string;
 }
 
-function statusClass(status: 'ok' | 'degraded' | 'stale' | 'unavailable') {
-  if (status === 'ok') {
-    return 'border-emerald-700/60 bg-emerald-950/30 text-emerald-200';
-  }
-
-  if (status === 'degraded' || status === 'stale') {
-    return 'border-amber-700/60 bg-amber-950/30 text-amber-200';
-  }
-
-  return 'border-rose-700/60 bg-rose-950/30 text-rose-200';
+function statusVariant(status: 'ok' | 'degraded' | 'stale' | 'unavailable') {
+  if (status === 'ok') return 'success' as const;
+  if (status === 'degraded' || status === 'stale') return 'warning' as const;
+  return 'destructive' as const;
 }
 
 export function PlatformStatusStrip(props: PlatformStatusStripProps) {
   return (
-    <section className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+    <section>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">Platform Status</h2>
-        <p className="text-xs text-slate-400">Operational heartbeat and queue pressure signals</p>
+        <h2 className="text-sm font-semibold">Platform Status</h2>
+        <p className="text-xs text-muted-foreground">Operational heartbeat and queue pressure signals</p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <article className={`rounded border px-3 py-2 ${statusClass(props.apiStatus)}`}>
-          <p className="text-[11px] uppercase tracking-wide opacity-90">API</p>
-          <p className="mt-1 text-sm font-semibold">{props.apiStatus}</p>
+        <article className="rounded-md border px-3 py-2">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">API</p>
+          <div className="mt-1">
+            <Badge variant={statusVariant(props.apiStatus)}>{props.apiStatus}</Badge>
+          </div>
         </article>
 
-        <article className={`rounded border px-3 py-2 ${statusClass(props.workerStatus)}`}>
-          <p className="text-[11px] uppercase tracking-wide opacity-90">Worker</p>
-          <p className="mt-1 text-sm font-semibold">{props.workerStatus}</p>
-          <p className="text-[11px] opacity-80">
+        <article className="rounded-md border px-3 py-2">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Worker</p>
+          <div className="mt-1">
+            <Badge variant={statusVariant(props.workerStatus)}>{props.workerStatus}</Badge>
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">
             {typeof props.workerAgeMs === 'number' ? `Heartbeat age ${Math.round(props.workerAgeMs / 1000)}s` : 'No heartbeat telemetry'}
           </p>
         </article>
 
-        <article className={`rounded border px-3 py-2 ${statusClass(props.queueStatus)}`}>
-          <p className="text-[11px] uppercase tracking-wide opacity-90">Queue</p>
-          <p className="mt-1 text-sm font-semibold">{props.queueStatus}</p>
-          <p className="text-[11px] opacity-80">
+        <article className="rounded-md border px-3 py-2">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Queue</p>
+          <div className="mt-1">
+            <Badge variant={statusVariant(props.queueStatus)}>{props.queueStatus}</Badge>
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">
             waiting {props.queueCounts.waiting} / active {props.queueCounts.active}
           </p>
         </article>
 
-        <article className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-slate-200">
-          <p className="text-[11px] uppercase tracking-wide text-slate-400">Last Successful Deploy</p>
+        <article className="rounded-md border px-3 py-2">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Last Successful Deploy</p>
           <p className="mt-1 text-sm font-semibold">
             {props.lastSuccessfulDeployAt ? new Date(props.lastSuccessfulDeployAt).toLocaleString() : 'None recorded'}
           </p>
-          <p className="text-[11px] text-slate-500">failed {props.queueCounts.failed} / completed {props.queueCounts.completed}</p>
+          <p className="text-[11px] text-muted-foreground">failed {props.queueCounts.failed} / completed {props.queueCounts.completed}</p>
         </article>
       </div>
     </section>

@@ -1,3 +1,7 @@
+import { Badge } from '@/components/ui/badge';
+import { truncateUuid } from '@/lib/helpers';
+import Link from 'next/link';
+
 interface DeploymentItem {
   id: string;
   project: string;
@@ -6,11 +10,18 @@ interface DeploymentItem {
   createdAt: string;
 }
 
+function statusVariant(status: string) {
+  if (status === 'running') return 'success' as const;
+  if (status === 'building' || status === 'queued') return 'warning' as const;
+  if (status === 'failed') return 'destructive' as const;
+  return 'secondary' as const;
+}
+
 export function DeploymentTable({ deployments }: { deployments: DeploymentItem[] }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-800">
+    <div className="overflow-hidden rounded-lg border">
       <table className="w-full text-left text-sm">
-        <thead className="bg-slate-900 text-slate-300">
+        <thead className="bg-muted/50 text-muted-foreground">
           <tr>
             <th className="px-3 py-2">Deployment</th>
             <th className="px-3 py-2">Project</th>
@@ -19,14 +30,23 @@ export function DeploymentTable({ deployments }: { deployments: DeploymentItem[]
             <th className="px-3 py-2">Created</th>
           </tr>
         </thead>
-        <tbody className="bg-slate-950 text-slate-100">
+        <tbody>
           {deployments.map((item) => (
-            <tr key={item.id} className="border-t border-slate-800">
-              <td className="px-3 py-2">{item.id}</td>
+            <tr key={item.id} className="border-t">
+              <td className="px-3 py-2">
+                <Link
+                  href={`/deployments/${item.id}`}
+                  className="font-mono text-xs text-primary hover:underline"
+                >
+                  {truncateUuid(item.id)}
+                </Link>
+              </td>
               <td className="px-3 py-2">{item.project}</td>
-              <td className="px-3 py-2">{item.status}</td>
+              <td className="px-3 py-2">
+                <Badge variant={statusVariant(item.status)}>{item.status}</Badge>
+              </td>
               <td className="px-3 py-2 font-mono text-xs">{item.commitSha}</td>
-              <td className="px-3 py-2 text-xs text-slate-400">{item.createdAt}</td>
+              <td className="px-3 py-2 text-xs text-muted-foreground">{item.createdAt}</td>
             </tr>
           ))}
         </tbody>

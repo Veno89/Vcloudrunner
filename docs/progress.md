@@ -1,6 +1,6 @@
 # Vcloudrunner MVP Progress Tracker
 
-Last updated: 2026-03-12 (Phase 2: Production Reliability — COMPLETE)
+Last updated: 2026-03-12 (Phase 3: UI/UX Polish — COMPLETE)
 
 ## Legend
 
@@ -92,9 +92,80 @@ Last updated: 2026-03-12 (Phase 2: Production Reliability — COMPLETE)
 - next recommended step:
   - begin Phase 3: UI/UX Polish
 
-### Phase: Production hardening tranche (2026-03-12)
+### Phase 3: UI/UX Polish (2026-03-12)
 
 - what was built:
+  - **shadcn/ui component library**: installed CVA, clsx, tailwind-merge, Radix primitives, Lucide icons, tailwindcss-animate, Sonner toast library. Created Button, Badge (with success/warning/info/destructive variants), Card, Input, Label, and Toaster UI primitives under `components/ui/`. Configured CSS-variable-based dark theme in `globals.css` and `tailwind.config.ts`.
+  - **Sidebar navigation**: created `components/sidebar.tsx` client component with 5 nav items (Projects, Deployments, API Tokens, Environment, Logs) using Lucide icons and `usePathname()` for active state highlighting.
+  - **Route extraction from monolithic page.tsx**: decomposed the ~920-line single-page dashboard into proper Next.js route segments:
+    - `/projects` — project list, create form, deploy trigger actions
+    - `/deployments` — deployment table with status badges and quick links
+    - `/deployments/[id]` — deployment detail with timeline, metadata, and logs
+    - `/tokens` — API token CRUD (create/rotate/revoke) with cookie-based token flash
+    - `/environment` — environment variable management per project
+    - `/logs` — deployment log viewer with auto-refresh, live stream, and NDJSON/GZIP export
+  - **Server actions per route**: extracted 7 server actions into dedicated `actions.ts` files (`projects/actions.ts`, `tokens/actions.ts`, `environment/actions.ts`) with route-scoped redirects.
+  - **Shared data loader**: created `lib/loaders.ts` with `loadDashboardData()` to centralize project/deployment/health data fetching, used by multiple route pages.
+  - **Shared helpers**: created `lib/helpers.ts` with `deriveDomain()`, `slugifyProjectName()`, `extractApiStatusCode()`, `createProjectErrorReason()`, and `truncateUuid()`.
+  - **Root page redirect**: replaced monolithic page.tsx with a simple redirect to `/projects`.
+  - **PlatformStatusStrip in layout**: created `components/platform-status.tsx` server component wrapper, rendered in `layout.tsx` above all route content with Suspense skeleton fallback.
+  - **Status badges**: updated `DeploymentTable`, `ProjectCard`, `PlatformStatusStrip` to use semantic Badge variants (success/warning/destructive/secondary) mapped to deployment/platform status strings.
+  - **UUID truncation**: `truncateUuid()` helper used in deployment table and detail breadcrumb. Deployment IDs link to detail pages.
+  - **Loading states**: created `loading.tsx` skeleton files for all 5 routes (projects, deployments, tokens, environment, logs) with appropriately shaped pulse animations.
+  - **Error boundaries**: created `error.tsx` and `global-error.tsx` with "Try again" reset buttons using Card components.
+  - **Not-found page**: created `not-found.tsx` with link back to Projects.
+  - **Empty states with guidance**: all route pages have Card-based empty states with contextual help text.
+  - **Design tokens**: migrated all hardcoded `slate-800/900/950` colors to CSS-variable-based `border`, `background`, `muted`, `primary`, `accent` tokens for consistent theming.
+- files created:
+  - `apps/dashboard/lib/helpers.ts` — shared helper functions
+  - `apps/dashboard/lib/loaders.ts` — centralized data loader
+  - `apps/dashboard/lib/utils.ts` — `cn()` className merge utility
+  - `apps/dashboard/components/ui/button.tsx` — CVA Button
+  - `apps/dashboard/components/ui/badge.tsx` — CVA Badge with semantic variants
+  - `apps/dashboard/components/ui/card.tsx` — Card components
+  - `apps/dashboard/components/ui/input.tsx` — Input component
+  - `apps/dashboard/components/ui/label.tsx` — Label component
+  - `apps/dashboard/components/ui/sonner.tsx` — Toaster wrapper
+  - `apps/dashboard/components/sidebar.tsx` — navigation sidebar
+  - `apps/dashboard/components/platform-status.tsx` — layout-level status wrapper
+  - `apps/dashboard/app/projects/page.tsx` — projects route
+  - `apps/dashboard/app/projects/actions.ts` — project server actions
+  - `apps/dashboard/app/projects/loading.tsx` — projects skeleton
+  - `apps/dashboard/app/deployments/page.tsx` — deployments route
+  - `apps/dashboard/app/deployments/loading.tsx` — deployments skeleton
+  - `apps/dashboard/app/deployments/[id]/page.tsx` — deployment detail
+  - `apps/dashboard/app/tokens/page.tsx` — tokens route
+  - `apps/dashboard/app/tokens/actions.ts` — token server actions
+  - `apps/dashboard/app/tokens/loading.tsx` — tokens skeleton
+  - `apps/dashboard/app/environment/page.tsx` — environment route
+  - `apps/dashboard/app/environment/actions.ts` — env var server actions
+  - `apps/dashboard/app/environment/loading.tsx` — environment skeleton
+  - `apps/dashboard/app/logs/page.tsx` — logs route
+  - `apps/dashboard/app/logs/loading.tsx` — logs skeleton
+  - `apps/dashboard/app/error.tsx` — route error boundary
+  - `apps/dashboard/app/global-error.tsx` — root error boundary
+  - `apps/dashboard/app/not-found.tsx` — 404 page
+- files changed:
+  - `apps/dashboard/app/page.tsx` — replaced with redirect to `/projects`
+  - `apps/dashboard/app/layout.tsx` — added Sidebar, PlatformStatus, Toaster, Suspense
+  - `apps/dashboard/app/globals.css` — CSS variable dark theme
+  - `apps/dashboard/tailwind.config.ts` — CSS variable colors, animate plugin
+  - `apps/dashboard/tsconfig.json` — `@/*` path alias
+  - `apps/dashboard/package.json` — shadcn/ui dependencies
+  - `apps/dashboard/components/deployment-table.tsx` — Badge status, UUID truncation, detail links
+  - `apps/dashboard/components/project-card.tsx` — Card + Badge integration
+  - `apps/dashboard/components/platform-status-strip.tsx` — Badge variants, design tokens
+  - `docs/production-readiness-audit.md` — Phase 3 marked complete
+  - `docs/progress.md` — Phase 3 entry
+- what is still missing:
+  - Phase 3 is now COMPLETE — all 10 items done
+  - Phase 4: Extensibility is next
+- known issues:
+  - `page.tsx.bak` backup file exists and should be deleted manually
+- next recommended step:
+  - begin Phase 4: Extensibility
+
+### Phase: Production hardening tranche (2026-03-12)
   - implemented API token security hardening path: `token_hash` + `token_last4`, new migration (`0002_token_hash_hardening.sql`), hash-based auth lookup, and one-way preview strategy
   - removed permissive implicit admin fallback from `requireAuthContext` so missing auth now consistently fails
   - added dashboard secret-safety UX: masked env values by default with reveal/copy controls

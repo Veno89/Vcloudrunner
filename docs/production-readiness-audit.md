@@ -332,16 +332,16 @@ Set to `http://api:3001` pointing to Docker internal network, but as a `NEXT_PUB
 6. ~~**Database backup documentation**~~ ✅ — `docs/database-backup.md` with pg_dump strategy, Docker sidecar option, retention tiers, restore procedure, and verification steps
 
 ### Phase 3: UI/UX Polish
-1. Extract dashboard into proper Next.js routes with hierarchy
-2. Add shadcn/ui component library
-3. Status badges with semantic colors
-4. Toast/notification system for action feedback
-5. Loading states (spinners, skeletons)
-6. Replace raw JS event handlers with React patterns
-7. UUID truncation with copy-on-click
-8. Empty states with guidance
-9. Error boundaries per route
-10. Navigation with breadcrumbs
+1. ~~Extract dashboard into proper Next.js routes with hierarchy~~ ✅ DONE
+2. ~~Add shadcn/ui component library~~ ✅ DONE
+3. ~~Status badges with semantic colors~~ ✅ DONE
+4. ~~Toast/notification system for action feedback~~ ✅ DONE (Sonner)
+5. ~~Loading states (spinners, skeletons)~~ ✅ DONE
+6. ~~Replace raw JS event handlers with React patterns~~ ✅ DONE (route extraction removed them)
+7. ~~UUID truncation with copy-on-click~~ ✅ DONE
+8. ~~Empty states with guidance~~ ✅ DONE
+9. ~~Error boundaries per route~~ ✅ DONE
+10. ~~Navigation with breadcrumbs~~ ✅ DONE (sidebar nav + deployment detail breadcrumb)
 
 ### Phase 4: Extensibility
 1. Extract alert monitoring from `build-server.ts` into dedicated module
@@ -361,12 +361,12 @@ Set to `http://api:3001` pointing to Docker internal network, but as a `NEXT_PUB
 2. ~~Add `ENABLE_DEV_AUTH` env flag~~ ✅ DONE
 3. ~~Clear ambient shared-types `.d.ts` files~~ ✅ DONE
 4. ~~Add SIGTERM handler to API `index.ts`~~ ✅ DONE
-5. ✅→⬜ Truncate UUIDs in dashboard display
-6. ✅→⬜ Add color-coded status badges (CSS-only change)
-7. ✅→⬜ Replace `onchange="this.form.submit()"` with React handlers
+5. ~~Truncate UUIDs in dashboard display~~ ✅ DONE
+6. ~~Add color-coded status badges (CSS-only change)~~ ✅ DONE
+7. ~~Replace `onchange="this.form.submit()"` with React handlers~~ ✅ DONE
 8. ✅→⬜ Add `rel="noopener noreferrer"` to external links
-9. ✅→⬜ Configure DB pool limits in Drizzle client
-10. ✅→⬜ Document backup strategy
+9. ~~Configure DB pool limits in Drizzle client~~ ✅ DONE
+10. ~~Document backup strategy~~ ✅ DONE
 
 ---
 
