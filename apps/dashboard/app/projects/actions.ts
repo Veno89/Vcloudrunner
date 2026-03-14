@@ -56,11 +56,11 @@ export async function triggerDeploymentAction(formData: FormData) {
   const projectName = typeof projectNameValue === 'string' ? projectNameValue : '';
 
   try {
-    await createDeployment(projectId);
+    const deployment = await createDeployment(projectId);
     revalidatePath('/projects');
     revalidatePath('/deployments');
-    redirect(`/projects?status=success&message=${encodeURIComponent(`Deployment triggered for "${projectName}"`)}`);
+    redirect(`/deployments/${deployment.id}`);
   } catch {
-    redirect('/projects?status=error&message=Deploy+failed');
+    redirect(`/projects?status=error&message=${encodeURIComponent(`Failed to deploy "${projectName}"`)}`);
   }
 }

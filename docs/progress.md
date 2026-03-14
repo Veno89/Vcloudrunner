@@ -11,6 +11,81 @@ Last updated: 2026-03-12 (Phase 3: UI/UX Polish — COMPLETE)
 
 ## Implementation Log
 
+### Phase: UI/UX implementation tranche (2026-03-14)
+
+- progress marker:
+  - **Phase 1.8 complete**: standardized action feedback and pending states across projects/tokens/environment, fixed live-vs-mock fallback behavior, and redirected deploy trigger directly to deployment detail.
+  - **Phase 2.1 started**: introduced project-centric navigation with new `/projects/[id]` page and loading skeleton.
+  - **Phase 2.2 advanced**: deployment detail now includes pipeline step visualization (queued/build/start/route), inferred failed-step highlighting, and a human-readable failure summary extracted from recent error logs.
+  - **Phase 2.3 started**: project-centric IA migration now has true nested routes for environment and logs under `/projects/[id]`.
+- what was built in this tranche:
+  - added shared client helpers:
+    - `apps/dashboard/components/action-toast.tsx` for `status/message` toast delivery + URL cleanup
+    - `apps/dashboard/components/form-submit-button.tsx` for consistent pending submit behavior
+    - `apps/dashboard/components/deployment-auto-refresh.tsx` for active deployment polling
+  - migrated key interactions to pending-aware flows:
+    - projects deploy/create, token create/rotate/revoke, environment save/delete
+  - improved UI consistency and accessibility:
+    - moved several raw buttons to `Button` variants
+    - added sr-only labels for form controls in projects/tokens/environment/logs
+    - removed duplicate log rendering and unified live log panel styling with design tokens
+    - made deployment runtime URL clickable
+  - added project overview route:
+    - `apps/dashboard/app/projects/[id]/page.tsx`
+    - `apps/dashboard/app/projects/[id]/loading.tsx`
+  - added cross-navigation affordances:
+    - project links from deployments/logs/environment contexts
+  - expanded deployment trust UX:
+    - pipeline progress card on deployment detail with dynamic step states
+    - failure summary card that normalizes raw error log messages into actionable text
+  - improved project-centric navigation from project overview:
+    - added Project Actions shortcuts to environment, logs, and deployments feed
+  - introduced nested project routes:
+    - `apps/dashboard/app/projects/[id]/environment/page.tsx` + route-local actions and loading state
+    - `apps/dashboard/app/projects/[id]/logs/page.tsx` + loading state
+    - rewired project/deployment links to use project-scoped logs/environment paths
+  - refined top-level routes as global shortcuts:
+    - added explicit CTA from `/environment` to `/projects/[id]/environment`
+    - added explicit CTA from `/logs` to `/projects/[id]/logs`
+  - added project-scoped sub-navigation component (`Overview`, `Environment`, `Logs`) and integrated it across nested project pages for faster context switching
+  - expanded project sub-navigation and IA:
+    - added `/projects/[id]/deployments` (+ loading state)
+    - updated subnav to include `Deployments`
+    - rewired project overview action to stay in project-scoped deployments view
+  - implemented one-click deploy/redeploy actions in project-scoped surfaces:
+    - added shared server action `apps/dashboard/app/deployments/actions.ts`
+    - wired `Deploy` on project overview/deployments pages and `Redeploy` on deployment detail
+  - completed stale-data feedback loop:
+    - added reusable `LastRefreshedIndicator` component
+    - integrated last-refresh + stale warning messaging on deployment detail and logs views
+  - completed relative-time readability update:
+    - added shared `formatRelativeTime` helper
+    - switched deployment list timestamps to relative format with absolute hover tooltips
+- what is still missing:
+  - complete project-centric IA migration (move environment/log workflows under project route tree)
+  - deployment step visualization (clone/build/start/route) and human-readable failure summaries
+  - replace remaining native control patterns with consistent shadcn primitives where needed
+- known issues:
+  - live browser session may show stale UI until dashboard container/process is rebuilt and restarted
+- next recommended step:
+  - continue Phase 2 with deployment progress model (step timeline + failure summary card), then refactor logs/environment into project-scoped routes
+
+### Validation checkpoint (2026-03-14, combined pass)
+
+- full verification run completed across changed dashboard + API + worker + infra files:
+  - `npm run typecheck` passed for all workspaces
+  - `npm run lint` passed after fixing OTEL lint guard + dashboard input typing lint rule
+  - `npm run build` passed for all workspaces (including Next.js production build)
+  - API tests passed (`8/8`)
+  - worker tests passed (`18/18`) after aligning one stale unit-test expectation with current error-log insertion signature
+  - worker `npm test` script made Windows-compatible (removed POSIX-only inline env assignment)
+  - `docker compose config` parsed successfully (with non-blocking warnings about unset `CLOUDFLARED_TOKEN` and obsolete compose `version` key)
+- files updated during this validation checkpoint:
+  - `apps/api/src/telemetry/otel.ts`
+  - `apps/dashboard/components/ui/input.tsx`
+  - `apps/worker/src/services/deployment-state.service.test.ts`
+  - `apps/worker/package.json`
+
 ### Phase 1: Critical Safety (2026-03-12)
 
 - what was built:

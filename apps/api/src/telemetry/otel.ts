@@ -26,22 +26,24 @@ export async function initTelemetry(): Promise<void> {
 
   try {
     /* eslint-disable @typescript-eslint/no-require-imports */
+    /* eslint-disable @typescript-eslint/ban-ts-comment */
     // Dynamic imports for optional OTEL packages — suppressed because they
     // are optional dependencies that may not be installed.
-    // @ts-expect-error optional dependency
+    // @ts-ignore optional dependency
     const { NodeSDK } = await import('@opentelemetry/sdk-node');
-    // @ts-expect-error optional dependency
+    // @ts-ignore optional dependency
     const { OTLPTraceExporter } = await import('@opentelemetry/exporter-trace-otlp-http');
-    // @ts-expect-error optional dependency
+    // @ts-ignore optional dependency
     const { OTLPMetricExporter } = await import('@opentelemetry/exporter-metrics-otlp-http');
-    // @ts-expect-error optional dependency
+    // @ts-ignore optional dependency
     const { PeriodicExportingMetricReader } = await import('@opentelemetry/sdk-metrics');
-    // @ts-expect-error optional dependency
+    // @ts-ignore optional dependency
     const { getNodeAutoInstrumentations } = await import('@opentelemetry/auto-instrumentations-node');
-    // @ts-expect-error optional dependency
+    // @ts-ignore optional dependency
     const { ATTR_SERVICE_NAME } = await import('@opentelemetry/semantic-conventions');
-    // @ts-expect-error optional dependency
+    // @ts-ignore optional dependency
     const { Resource } = await import('@opentelemetry/resources');
+    /* eslint-enable @typescript-eslint/ban-ts-comment */
 
     const endpoint = process.env['OTEL_EXPORTER_OTLP_ENDPOINT'] ?? 'http://localhost:4318';
     const serviceName = process.env['OTEL_SERVICE_NAME'] ?? 'vcloudrunner-api';

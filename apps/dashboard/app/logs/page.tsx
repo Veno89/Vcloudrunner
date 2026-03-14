@@ -1,6 +1,10 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import { LogsAutoRefresh } from '@/components/logs-auto-refresh';
 import { LogsLiveStream } from '@/components/logs-live-stream';
+import { LastRefreshedIndicator } from '@/components/last-refreshed-indicator';
+import Link from 'next/link';
 import {
   demoUserId,
   fetchProjectsForDemoUser,
@@ -28,6 +32,7 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
   let selectedLabel = '';
 
   const logsAutoRefreshEnabled = searchParams?.logsAutoRefresh === '1';
+  const refreshedAt = new Date().toISOString();
 
   if (demoUserId) {
     try {
@@ -81,16 +86,19 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Deployment Logs</h1>
         <p className="text-sm text-muted-foreground">
-          View and export logs for any deployment.
+          Global shortcut for log access. Prefer project-scoped logs while investigating a single project.
         </p>
       </div>
 
       {hasLiveData ? (
         <>
           <LogsAutoRefresh enabled={logsAutoRefreshEnabled} />
+          <LastRefreshedIndicator refreshedAt={refreshedAt} staleAfterSeconds={15} />
 
           <form className="grid gap-2 md:grid-cols-[1fr_auto_auto]">
+            <Label htmlFor="logs-deployment-id" className="sr-only">Deployment selection</Label>
             <select
+              id="logs-deployment-id"
               name="logsDeploymentId"
               defaultValue={searchParams?.logsDeploymentId ?? deploymentOptions[0]?.id}
               className="rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -110,12 +118,7 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
               />
               Auto-refresh (5s)
             </label>
-            <button
-              type="submit"
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              Apply
-            </button>
+            <Button type="submit">Apply</Button>
           </form>
 
           <div className="flex items-center justify-between gap-2">
@@ -123,47 +126,37 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
               Showing logs for: <span className="font-medium text-foreground">{selectedLabel}</span>
             </p>
             {selectedProjectId && selectedDeploymentId && (
-              <div className="flex gap-2">
-                <a
-                  href={`/api/log-export?projectId=${encodeURIComponent(selectedProjectId)}&deploymentId=${encodeURIComponent(selectedDeploymentId)}`}
-                  className="rounded-md border px-2.5 py-1 text-xs transition-colors hover:bg-accent"
+              <div className="flex flex-wrap gap-2">
+                <Button asChild variant="ghost" size="sm">
+                  <Link href={`/projects/${selectedProjectId}/logs?logsDeploymentId=${selectedDeploymentId}`}>Project Logs</Link>
+                </Button>
+                <Button asChild variant="ghost" size="sm">
+                  <Link href={`/projects/${selectedProjectId}`}>Project</Link>
+                </Button>
+                <Button asChild variant="ghost" size="sm">
+                  <Link href={`/deployments/${selectedDeploymentId}`}>Deployment</Link>
+                </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
                 >
-                  Export NDJSON
-                </a>
-                <a
-                  href={`/api/log-export?projectId=${encodeURIComponent(selectedProjectId)}&deploymentId=${encodeURIComponent(selectedDeploymentId)}&format=ndjson.gz`}
-                  className="rounded-md border px-2.5 py-1 text-xs transition-colors hover:bg-accent"
+                  <a href={`/api/log-export?projectId=${encodeURIComponent(selectedProjectId)}&deploymentId=${encodeURIComponent(selectedDeploymentId)}`}>
+                    Export NDJSON
+                  </a>
+                </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
                 >
-                  Export GZIP
-                </a>
+                  <a href={`/api/log-export?projectId=${encodeURIComponent(selectedProjectId)}&deploymentId=${encodeURIComponent(selectedDeploymentId)}&format=ndjson.gz`}>
+                    Export GZIP
+                  </a>
+                </Button>
               </div>
             )}
           </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Log Output</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="max-h-72 overflow-auto rounded-md border bg-background p-2 font-mono text-xs">
-                {deploymentLogs.length === 0 ? (
-                  <p className="text-muted-foreground">
-                    No logs found for this deployment yet.
-                  </p>
-                ) : (
-                  deploymentLogs.map((log, index) => (
-                    <p
-                      key={`${log.timestamp}-${index}`}
-                      className="mb-1 whitespace-pre-wrap break-words"
-                    >
-                      <span className="text-muted-foreground">[{log.timestamp}]</span>{' '}
-                      <span className="text-primary">{log.level.toUpperCase()}</span> {log.message}
-                    </p>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
 
           {selectedProjectId && selectedDeploymentId && (
             <LogsLiveStream

@@ -35,6 +35,16 @@ function parseBearerToken(value: string | undefined): string | null {
   return match?.[1]?.trim() ?? null;
 }
 
+function parseDevUserIdHeader(value: string | string[] | undefined): string | null {
+  const headerValue = Array.isArray(value) ? value[0] : value;
+  if (!headerValue) {
+    return null;
+  }
+
+  const parsed = z.string().uuid().safeParse(headerValue);
+  return parsed.success ? parsed.data : null;
+}
+
 function buildStaticTokenLookup() {
   const raw = env.API_TOKENS_JSON.trim();
   if (raw.length === 0) {
@@ -94,6 +104,16 @@ export const authContextPlugin: FastifyPluginAsync = async (app) => {
 
     const token = parseBearerToken(request.headers.authorization);
     if (!token) {
+      if (env.ENABLE_DEV_AUTH) {
+        const devUserId = parseDevUserIdHeader(request.headers['x-user-id'])
+          ?? '00000000-0000-0000-0000-000000000001';
+
+        request.auth = {
+          userId: devUserId,
+          role: 'admin',
+          scopes: ['*']
+        };
+      }
       return;
     }
 
@@ -120,6 +140,17 @@ export const authContextPlugin: FastifyPluginAsync = async (app) => {
 };
 
 export function requireAuthContext(request: FastifyRequest): AuthContext {
+  if (!request.auth && env.ENABLE_DEV_AUTH) {
+    const devUserId = parseDevUserIdHeader(request.headers['x-user-id'])
+      ?? '00000000-0000-0000-0000-000000000001';
+
+    return {
+      userId: devUserId,
+      role: 'admin',
+      scopes: ['*']
+    };
+  }
+
   if (!request.auth) {
     throw new UnauthorizedError();
   }

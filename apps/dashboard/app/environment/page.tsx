@@ -1,11 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import { MaskedSecretValue } from '@/components/masked-secret-value';
+import { ActionToast } from '@/components/action-toast';
+import { FormSubmitButton } from '@/components/form-submit-button';
 import {
   demoUserId,
   fetchProjectsForDemoUser,
   fetchEnvironmentVariables,
 } from '@/lib/api';
+import Link from 'next/link';
 import { saveEnvironmentVariableAction, removeEnvironmentVariableAction } from './actions';
 
 interface EnvironmentPageProps {
@@ -48,25 +54,22 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Environment Variables</h1>
         <p className="text-sm text-muted-foreground">
-          Manage environment variables per project.
+          Global shortcut for environment management. Prefer project-scoped view for day-to-day work.
         </p>
       </div>
 
-      {searchParams?.status === 'success' && searchParams.message && (
-        <div className="rounded-md border border-emerald-700/60 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-200">
-          {decodeURIComponent(searchParams.message)}
-        </div>
-      )}
-      {searchParams?.status === 'error' && (
-        <div className="rounded-md border border-rose-700/60 bg-rose-950/30 px-4 py-3 text-sm text-rose-200">
-          {searchParams.message ? decodeURIComponent(searchParams.message) : 'Operation failed'}
-        </div>
-      )}
+      <ActionToast
+        status={searchParams?.status}
+        message={searchParams?.message}
+        fallbackErrorMessage="Environment variable operation failed."
+      />
 
       {hasLiveData ? (
         <>
           <form className="grid gap-2 md:grid-cols-[1fr_auto]">
+            <Label htmlFor="env-project-id" className="sr-only">Select project</Label>
             <select
+              id="env-project-id"
               name="envProjectId"
               defaultValue={selectedProjectId}
               className="rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -77,17 +80,20 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
                 </option>
               ))}
             </select>
-            <button
-              type="submit"
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              Select Project
-            </button>
+            <Button type="submit">Select Project</Button>
           </form>
 
-          <p className="text-xs text-muted-foreground">
-            Editing project: <span className="font-medium text-foreground">{selectedProjectName}</span>
-          </p>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <p>
+              Editing project: <span className="font-medium text-foreground">{selectedProjectName}</span>
+            </p>
+            <Link href={`/projects/${selectedProjectId}/environment`} className="text-primary hover:underline">
+              Open project-scoped environment
+            </Link>
+            <Link href={`/projects/${selectedProjectId}`} className="text-primary hover:underline">
+              Open project
+            </Link>
+          </div>
 
           <Card>
             <CardHeader>
@@ -99,26 +105,24 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
                 className="grid gap-2 md:grid-cols-[1fr_1fr_auto]"
               >
                 <input type="hidden" name="projectId" value={selectedProjectId} readOnly />
-                <input
+                <Label htmlFor="env-key" className="sr-only">Environment key</Label>
+                <Input
+                  id="env-key"
                   type="text"
                   name="key"
                   placeholder="KEY_NAME"
                   required
-                  className="rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+                  className="font-mono"
                 />
-                <input
+                <Label htmlFor="env-value" className="sr-only">Environment value</Label>
+                <Input
+                  id="env-value"
                   type="text"
                   name="value"
                   placeholder="value"
                   required
-                  className="rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
-                <button
-                  type="submit"
-                  className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-                >
-                  Save
-                </button>
+                <FormSubmitButton idleText="Save" pendingText="Saving..." />
               </form>
             </CardContent>
           </Card>
@@ -134,7 +138,7 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
               environmentVariables.map((item) => (
                 <div
                   key={item.key}
-                  className="flex items-center justify-between rounded-md border px-4 py-3"
+                  className="flex items-center justify-between rounded-md border px-4 py-3 transition-colors hover:bg-accent/20"
                 >
                   <div>
                     <p className="font-mono text-sm text-primary">{item.key}</p>
@@ -146,7 +150,9 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
                     <ConfirmSubmitButton
                       label="Delete"
                       confirmMessage={`Delete environment variable ${item.key}? This may break the running app until next deploy.`}
-                      className="rounded-md border border-destructive px-2.5 py-1 text-xs text-destructive hover:bg-destructive/10 transition-colors"
+                      variant="outline"
+                      size="sm"
+                      pendingLabel="Deleting..."
                     />
                   </form>
                 </div>

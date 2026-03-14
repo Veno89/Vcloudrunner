@@ -103,6 +103,10 @@ function buildAuthHeaders(extra?: Record<string, string>): Record<string, string
     headers.authorization = `Bearer ${apiAuthToken}`;
   }
 
+  if (demoUserId) {
+    headers['x-user-id'] = demoUserId;
+  }
+
   return headers;
 }
 

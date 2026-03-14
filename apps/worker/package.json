@@ -9,7 +9,7 @@
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src --ext .ts",
-    "test": "REDIS_URL=redis://localhost:6379 DATABASE_URL=postgres://postgres:postgres@localhost:5432/vcloudrunner tsx --test src/**/*.test.ts"
+    "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "@vcloudrunner/shared-types": "0.1.0",

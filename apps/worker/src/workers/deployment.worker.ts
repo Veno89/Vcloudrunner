@@ -187,7 +187,7 @@ export const deploymentWorker = new Worker<DeploymentJobPayload>(
 
       await stateService.markFailed(job.data.deploymentId, `[${failure.code}] ${failure.message}`);
       emitDeploymentEvent({ type: 'deployment.failed', deploymentId: job.data.deploymentId, projectId: job.data.projectId, projectSlug: job.data.projectSlug, correlationId, timestamp: new Date().toISOString(), details: { code: failure.code, message: failure.message, retriesExhausted: true } });
-      logger.error('deployment failed (retries exhausted)',' {
+      logger.error('deployment failed (retries exhausted)', {
         deploymentId: job.data.deploymentId,
         correlationId,
         code: failure.code,

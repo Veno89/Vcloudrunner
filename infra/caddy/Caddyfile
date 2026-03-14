@@ -3,15 +3,15 @@
   auto_https disable_redirects
 }
 
-api.platform.example.com {
+http://api.platform.example.com {
   reverse_proxy api:4000
 }
 
-platform.example.com {
+http://platform.example.com {
   reverse_proxy dashboard:3001
 }
 
-*.apps.platform.example.com {
+http://*.apps.platform.example.com {
   respond "No deployment route found yet" 404
 }
 

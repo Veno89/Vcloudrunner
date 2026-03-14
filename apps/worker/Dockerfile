@@ -19,6 +19,8 @@ ENV NODE_ENV=production
 
 COPY --from=base /workspace/package.json ./package.json
 COPY --from=base /workspace/node_modules ./node_modules
+COPY --from=base /workspace/packages/shared-types/package.json ./packages/shared-types/package.json
+COPY --from=base /workspace/packages/shared-types/dist ./packages/shared-types/dist
 COPY --from=base /workspace/apps/worker/package.json ./apps/worker/package.json
 COPY --from=base /workspace/apps/worker/dist ./apps/worker/dist
 

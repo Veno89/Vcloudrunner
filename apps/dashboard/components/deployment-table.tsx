@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge';
-import { truncateUuid } from '@/lib/helpers';
+import { formatRelativeTime, truncateUuid } from '@/lib/helpers';
 import Link from 'next/link';
 
 interface DeploymentItem {
@@ -32,7 +32,7 @@ export function DeploymentTable({ deployments }: { deployments: DeploymentItem[]
         </thead>
         <tbody>
           {deployments.map((item) => (
-            <tr key={item.id} className="border-t">
+            <tr key={item.id} className="border-t transition-colors hover:bg-accent/30">
               <td className="px-3 py-2">
                 <Link
                   href={`/deployments/${item.id}`}
@@ -46,7 +46,9 @@ export function DeploymentTable({ deployments }: { deployments: DeploymentItem[]
                 <Badge variant={statusVariant(item.status)}>{item.status}</Badge>
               </td>
               <td className="px-3 py-2 font-mono text-xs">{item.commitSha}</td>
-              <td className="px-3 py-2 text-xs text-muted-foreground">{item.createdAt}</td>
+              <td className="px-3 py-2 text-xs text-muted-foreground" title={new Date(item.createdAt).toLocaleString()}>
+                {formatRelativeTime(item.createdAt)}
+              </td>
             </tr>
           ))}
         </tbody>

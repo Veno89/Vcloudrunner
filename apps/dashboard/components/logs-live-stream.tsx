@@ -67,21 +67,21 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
   }, [projectId, deploymentId, initialAfter, initialLogs]);
 
   return (
-    <div className="mt-3 rounded border border-slate-800 bg-slate-950 p-2 font-mono text-xs">
-      <p className="mb-2 text-slate-500">
+    <div className="mt-3 rounded-md border bg-card p-3 font-mono text-xs text-card-foreground">
+      <p className="mb-2 text-muted-foreground">
         Live stream status:{' '}
-        <span className={status === 'live' ? 'text-emerald-300' : status === 'error' ? 'text-rose-300' : 'text-amber-300'}>
+        <span className={status === 'live' ? 'text-emerald-500' : status === 'error' ? 'text-destructive' : 'text-amber-500'}>
           {status}
         </span>
       </p>
-      <div className="max-h-72 overflow-auto">
+      <div className="max-h-96 overflow-auto rounded-md border bg-background p-2">
         {logs.length === 0 ? (
-          <p className="text-slate-500">No logs received yet.</p>
+          <p className="text-muted-foreground">No logs received yet.</p>
         ) : (
           logs.map((log, index) => (
-            <p key={`${log.timestamp}-${index}`} className="mb-1 whitespace-pre-wrap break-words text-slate-300">
-              <span className="text-slate-500">[{log.timestamp}]</span>{' '}
-              <span className="text-cyan-300">{log.level.toUpperCase()}</span> {log.message}
+            <p key={`${log.timestamp}-${index}`} className="mb-1 whitespace-pre-wrap break-words">
+              <span className="text-muted-foreground">[{log.timestamp}]</span>{' '}
+              <span className="text-primary">{log.level.toUpperCase()}</span> {log.message}
             </p>
           ))
         )}

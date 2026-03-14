@@ -1,9 +1,12 @@
 import { cookies } from 'next/headers';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
+import { ActionToast } from '@/components/action-toast';
+import { FormSubmitButton } from '@/components/form-submit-button';
 import { fetchApiTokensForUser, demoUserId } from '@/lib/api';
-import { truncateUuid } from '@/lib/helpers';
 import { createApiTokenAction, revokeApiTokenAction, rotateApiTokenAction } from './actions';
 
 interface TokensPageProps {
@@ -56,16 +59,11 @@ export default async function TokensPage({ searchParams }: TokensPageProps) {
         </p>
       </div>
 
-      {searchParams?.status === 'success' && searchParams.message && (
-        <div className="rounded-md border border-emerald-700/60 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-200">
-          {decodeURIComponent(searchParams.message)}
-        </div>
-      )}
-      {searchParams?.status === 'error' && (
-        <div className="rounded-md border border-rose-700/60 bg-rose-950/30 px-4 py-3 text-sm text-rose-200">
-          {searchParams.message ? decodeURIComponent(searchParams.message) : 'Operation failed'}
-        </div>
-      )}
+      <ActionToast
+        status={searchParams?.status}
+        message={searchParams?.message}
+        fallbackErrorMessage="Token operation failed."
+      />
 
       {tokenPlaintextFromCookie && (
         <div className="rounded-md border border-amber-700/80 bg-amber-950/40 p-4">
@@ -90,13 +88,16 @@ export default async function TokensPage({ searchParams }: TokensPageProps) {
                 className="space-y-4"
               >
                 <div className="grid gap-2 md:grid-cols-[1fr_140px_180px_auto]">
-                  <input
+                  <Label htmlFor="token-label" className="sr-only">Token label</Label>
+                  <Input
+                    id="token-label"
                     type="text"
                     name="label"
                     placeholder="Label (optional)"
-                    className="rounded-md border border-input bg-background px-3 py-2 text-sm"
                   />
+                  <Label htmlFor="token-role" className="sr-only">Role</Label>
                   <select
+                    id="token-role"
                     name="role"
                     defaultValue="user"
                     className="rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -104,22 +105,18 @@ export default async function TokensPage({ searchParams }: TokensPageProps) {
                     <option value="user">user</option>
                     <option value="admin">admin</option>
                   </select>
-                  <input
+                  <Label htmlFor="token-expires-at" className="sr-only">Expiration date</Label>
+                  <Input
+                    id="token-expires-at"
                     type="datetime-local"
                     name="expiresAt"
-                    className="rounded-md border border-input bg-background px-3 py-2 text-sm"
                   />
-                  <button
-                    type="submit"
-                    className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-                  >
-                    Create Token
-                  </button>
+                  <FormSubmitButton idleText="Create Token" pendingText="Creating..." />
                 </div>
-                <div>
-                  <p className="mb-2 text-xs font-medium text-muted-foreground">
+                <fieldset>
+                  <legend className="mb-2 text-xs font-medium text-muted-foreground">
                     Scopes (leave unchecked for default)
-                  </p>
+                  </legend>
                   <div className="flex flex-wrap gap-x-4 gap-y-1.5">
                     {[
                       'projects:read', 'projects:write',
@@ -134,7 +131,7 @@ export default async function TokensPage({ searchParams }: TokensPageProps) {
                       </label>
                     ))}
                   </div>
-                </div>
+                </fieldset>
               </form>
             </CardContent>
           </Card>
@@ -150,7 +147,7 @@ export default async function TokensPage({ searchParams }: TokensPageProps) {
               apiTokens.map((token) => (
                 <div
                   key={token.id}
-                  className="flex items-center justify-between rounded-md border px-4 py-3"
+                  className="flex items-center justify-between rounded-md border px-4 py-3 transition-colors hover:bg-accent/20"
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
@@ -189,7 +186,9 @@ export default async function TokensPage({ searchParams }: TokensPageProps) {
                         <ConfirmSubmitButton
                           label="Rotate"
                           confirmMessage="Rotate this API token now? The current token will stop working immediately."
-                          className="rounded-md border border-amber-700 px-2.5 py-1 text-xs text-amber-300 hover:bg-amber-900/30 transition-colors"
+                          variant="outline"
+                          size="sm"
+                          pendingLabel="Rotating..."
                         />
                       </form>
                       <form action={revokeApiTokenAction}>
@@ -197,7 +196,9 @@ export default async function TokensPage({ searchParams }: TokensPageProps) {
                         <ConfirmSubmitButton
                           label="Revoke"
                           confirmMessage="Revoke this API token? Any clients using it will lose access immediately."
-                          className="rounded-md border border-destructive px-2.5 py-1 text-xs text-destructive hover:bg-destructive/10 transition-colors"
+                          variant="destructive"
+                          size="sm"
+                          pendingLabel="Revoking..."
                         />
                       </form>
                     </div>

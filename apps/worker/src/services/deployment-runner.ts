@@ -22,7 +22,7 @@ export class DeploymentRunner {
     if (this.networkEnsured) return networkName;
 
     const networks = await this.docker.listNetworks({ filters: { name: [networkName] } });
-    const exact = networks.find((n) => n.Name === networkName);
+    const exact = networks.find((network: { Name?: string }) => network.Name === networkName);
     if (!exact) {
       await this.docker.createNetwork({
         Name: networkName,

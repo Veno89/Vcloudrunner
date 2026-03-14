@@ -8,8 +8,7 @@ import Link from 'next/link';
 
 export default async function DeploymentsPage() {
   const data = await loadDashboardData();
-  const deployments =
-    data.usingLiveData && data.deployments.length > 0 ? data.deployments : mockDeployments;
+  const deployments = data.usingLiveData ? data.deployments : mockDeployments;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -19,6 +18,12 @@ export default async function DeploymentsPage() {
           Recent deployments across all projects.
         </p>
       </div>
+
+      {!data.usingLiveData && (
+        <div className="rounded-md border border-amber-700/60 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
+          Demo mode: API data unavailable, showing sample deployment data.
+        </div>
+      )}
 
       {deployments.length === 0 ? (
         <Card>

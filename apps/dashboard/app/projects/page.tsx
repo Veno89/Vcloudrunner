@@ -1,8 +1,12 @@
 import { ProjectCard } from '@/components/project-card';
 import { ProjectCreateForm } from '@/components/project-create-form';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { ActionToast } from '@/components/action-toast';
+import { FormSubmitButton } from '@/components/form-submit-button';
 import { loadDashboardData } from '@/lib/loaders';
 import { projects as mockProjects } from '@/lib/mock-data';
+import Link from 'next/link';
 import { createProjectAction, triggerDeploymentAction } from './actions';
 
 interface ProjectsPageProps {
@@ -15,7 +19,7 @@ interface ProjectsPageProps {
 
 export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
   const data = await loadDashboardData();
-  const projects = data.usingLiveData && data.projects.length > 0 ? data.projects : mockProjects;
+  const projects = data.usingLiveData ? data.projects : mockProjects;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -26,20 +30,21 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
         </p>
       </div>
 
-      {searchParams?.status === 'success' && searchParams.message && (
-        <div className="rounded-md border border-emerald-700/60 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-200">
-          {decodeURIComponent(searchParams.message)}
-        </div>
-      )}
-      {searchParams?.status === 'error' && (
-        <div className="rounded-md border border-rose-700/60 bg-rose-950/30 px-4 py-3 text-sm text-rose-200">
-          {searchParams.reason === 'slug_taken'
-            ? 'Project name creates a slug that already exists. Try a more specific name.'
-            : searchParams.reason === 'invalid_input'
-              ? 'Invalid project input. Ensure name/repository URL are valid.'
-              : searchParams.message
-                ? decodeURIComponent(searchParams.message)
-                : 'Operation failed. Check API availability and try again.'}
+      <ActionToast
+        status={searchParams?.status}
+        message={
+          searchParams?.reason === 'slug_taken'
+            ? encodeURIComponent('Project name creates a slug that already exists. Try a more specific name.')
+            : searchParams?.reason === 'invalid_input'
+              ? encodeURIComponent('Invalid project input. Ensure name/repository URL are valid.')
+              : searchParams?.message
+        }
+        fallbackErrorMessage="Operation failed. Check API availability and try again."
+      />
+
+      {!data.usingLiveData && (
+        <div className="rounded-md border border-amber-700/60 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
+          Demo mode: API data unavailable, showing sample project data.
         </div>
       )}
 
@@ -63,15 +68,21 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
                 buttonLabel={data.usingLiveData ? 'Deploy now' : 'Deploy (mock mode)'}
               />
               {data.usingLiveData && (
+                <Button asChild variant="ghost" size="sm" className="w-full justify-start">
+                  <Link href={`/projects/${project.id}`}>Open Project</Link>
+                </Button>
+              )}
+              {data.usingLiveData && (
                 <form action={triggerDeploymentAction}>
                   <input name="projectId" value={project.id} type="hidden" readOnly />
                   <input name="projectName" value={project.name} type="hidden" readOnly />
-                  <button
-                    type="submit"
-                    className="w-full rounded-md border border-primary/50 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors"
-                  >
-                    Trigger Deployment Job
-                  </button>
+                  <FormSubmitButton
+                    idleText="Deploy"
+                    pendingText="Deploying..."
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                  />
                 </form>
               )}
             </div>

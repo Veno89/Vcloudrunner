@@ -1,15 +1,28 @@
 'use client';
 
 import type { MouseEvent } from 'react';
+import { useFormStatus } from 'react-dom';
+import { Button, type ButtonProps } from '@/components/ui/button';
 
-interface ConfirmSubmitButtonProps {
+interface ConfirmSubmitButtonProps extends Omit<ButtonProps, 'type' | 'onClick' | 'children'> {
   label: string;
   confirmMessage: string;
-  className?: string;
+  pendingLabel?: string;
 }
 
-export function ConfirmSubmitButton({ label, confirmMessage, className }: ConfirmSubmitButtonProps) {
+export function ConfirmSubmitButton({
+  label,
+  confirmMessage,
+  pendingLabel,
+  ...buttonProps
+}: ConfirmSubmitButtonProps) {
+  const { pending } = useFormStatus();
+
   const onClick = (event: MouseEvent<HTMLButtonElement>) => {
+    if (pending) {
+      return;
+    }
+
     const accepted = window.confirm(confirmMessage);
     if (!accepted) {
       event.preventDefault();
@@ -17,8 +30,8 @@ export function ConfirmSubmitButton({ label, confirmMessage, className }: Confir
   };
 
   return (
-    <button type="submit" onClick={onClick} className={className}>
-      {label}
-    </button>
+    <Button type="submit" onClick={onClick} disabled={pending} {...buttonProps}>
+      {pending ? (pendingLabel ?? 'Working...') : label}
+    </Button>
   );
 }

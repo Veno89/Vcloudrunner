@@ -44,7 +44,7 @@ test('markFailed writes failed status, error log, and applies retention cap', as
   assert.deepEqual(pool.queries[0].params, ['dep-456']);
 
   assert.match(pool.queries[1].text, /insert into deployment_logs/i);
-  assert.deepEqual(pool.queries[1].params, ['dep-456', 'fatal failure']);
+  assert.deepEqual(pool.queries[1].params, ['dep-456', 'error', 'fatal failure']);
 
   assert.match(pool.queries[2].text, /delete from deployment_logs/i);
   assert.deepEqual(pool.queries[2].params, ['dep-456', env.DEPLOYMENT_LOG_MAX_ROWS_PER_DEPLOYMENT]);
