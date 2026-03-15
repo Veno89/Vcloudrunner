@@ -1,9 +1,11 @@
 import { ProjectCard } from '@/components/project-card';
-import { ProjectCreateForm } from '@/components/project-create-form';
+import { ProjectCreatePanel } from '@/components/project-create-panel';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { ActionToast } from '@/components/action-toast';
+import { EmptyState } from '@/components/empty-state';
 import { FormSubmitButton } from '@/components/form-submit-button';
+import { PageHeader } from '@/components/page-header';
+import { PageLayout } from '@/components/page-layout';
 import { loadDashboardData } from '@/lib/loaders';
 import { projects as mockProjects } from '@/lib/mock-data';
 import Link from 'next/link';
@@ -22,13 +24,11 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
   const projects = data.usingLiveData ? data.projects : mockProjects;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your projects and trigger deployments.
-        </p>
-      </div>
+    <PageLayout>
+      <PageHeader
+        title="Projects"
+        description="Manage your projects and trigger deployments."
+      />
 
       <ActionToast
         status={searchParams?.status}
@@ -48,14 +48,18 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
         </div>
       )}
 
-      {data.usingLiveData && <ProjectCreateForm action={createProjectAction} />}
+      {data.usingLiveData && (
+        <ProjectCreatePanel
+          action={createProjectAction}
+          defaultOpen={projects.length === 0 || searchParams?.status === 'error'}
+        />
+      )}
 
       {projects.length === 0 ? (
-        <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            No projects yet. Create your first project to start deployments.
-          </CardContent>
-        </Card>
+        <EmptyState
+          title="No projects yet"
+          description="Create your first project to start deployments."
+        />
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {projects.map((project) => (
@@ -89,6 +93,6 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
           ))}
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }
