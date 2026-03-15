@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { LogsAutoRefresh } from '@/components/logs-auto-refresh';
 import { LogsLiveStream } from '@/components/logs-live-stream';
 import { LastRefreshedIndicator } from '@/components/last-refreshed-indicator';
@@ -13,6 +14,7 @@ import {
   fetchDeploymentsForProject,
   fetchDeploymentLogs,
 } from '@/lib/api';
+import { formatRelativeTime, truncateUuid } from '@/lib/helpers';
 
 interface ProjectLogsPageProps {
   params: {
@@ -78,18 +80,17 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
 
           <form className="grid gap-2 md:grid-cols-[1fr_auto_auto]">
             <Label htmlFor="project-logs-deployment-id" className="sr-only">Deployment selection</Label>
-            <select
+            <Select
               id="project-logs-deployment-id"
               name="logsDeploymentId"
               defaultValue={selectedDeployment.id}
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
               {sortedDeployments.map((deployment) => (
                 <option key={deployment.id} value={deployment.id}>
-                  {deployment.id} ({deployment.status})
+                  {truncateUuid(deployment.id)} • {formatRelativeTime(deployment.createdAt)} • {deployment.status}
                 </option>
               ))}
-            </select>
+            </Select>
             <label className="flex items-center gap-2 rounded-md border border-input px-3 py-2 text-xs">
               <input
                 type="checkbox"
@@ -104,7 +105,7 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
 
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground">
-              Showing logs for deployment: <span className="font-medium text-foreground">{selectedDeployment.id}</span>
+              Showing logs for deployment: <span className="font-medium text-foreground">{truncateUuid(selectedDeployment.id)}</span>
             </p>
             <div className="flex flex-wrap gap-2">
               <Button asChild variant="ghost" size="sm">
