@@ -61,7 +61,7 @@ export function ProjectCreateForm({ action }: ProjectCreateFormProps) {
   const formInvalid = Boolean(nameError || slugError || urlError || branchError || gitRepositoryUrl.trim().length === 0);
 
   return (
-    <form action={action} className="mb-4 grid gap-2 rounded-lg border bg-card p-3 md:grid-cols-[1fr_1fr_160px_auto]">
+    <form action={action} className="grid gap-2 rounded-lg border bg-card p-3 md:grid-cols-[1fr_1fr_160px_auto]">
       <Label htmlFor="project-name" className="sr-only">Project name</Label>
       <Input
         id="project-name"

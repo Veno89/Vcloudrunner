@@ -1,23 +1,50 @@
 import { DeploymentTable } from '@/components/deployment-table';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
+import { EmptyState } from '@/components/empty-state';
+import { PageHeader } from '@/components/page-header';
+import { PageLayout } from '@/components/page-layout';
 import { loadDashboardData } from '@/lib/loaders';
 import { deployments as mockDeployments } from '@/lib/mock-data';
 import { truncateUuid } from '@/lib/helpers';
 import Link from 'next/link';
 
-export default async function DeploymentsPage() {
+interface DeploymentsPageProps {
+  searchParams?: {
+    status?: 'all' | 'queued' | 'building' | 'running' | 'failed' | 'cancelled';
+    projectId?: string;
+  };
+}
+
+export default async function DeploymentsPage({ searchParams }: DeploymentsPageProps) {
   const data = await loadDashboardData();
   const deployments = data.usingLiveData ? data.deployments : mockDeployments;
+  const normalizedDeployments = deployments.map((deployment) => ({
+    ...deployment,
+    projectId: 'projectId' in deployment ? deployment.projectId : deployment.project,
+  }));
+
+  const selectedStatus = searchParams?.status ?? 'all';
+  const selectedProjectId = searchParams?.projectId ?? 'all';
+
+  const projectOptions = Array.from(
+    new Map(normalizedDeployments.map((deployment) => [deployment.projectId, deployment.project])).entries()
+  ).map(([id, name]) => ({ id: String(id), name: String(name) }));
+
+  const filteredDeployments = normalizedDeployments.filter((deployment) => {
+    const statusMatch = selectedStatus === 'all' || deployment.status === selectedStatus;
+    const projectMatch = selectedProjectId === 'all' || deployment.projectId === selectedProjectId;
+    return statusMatch && projectMatch;
+  });
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Deployments</h1>
-        <p className="text-sm text-muted-foreground">
-          Recent deployments across all projects.
-        </p>
-      </div>
+    <PageLayout>
+      <PageHeader
+        title="Deployments"
+        description="Recent deployments across all projects."
+      />
 
       {!data.usingLiveData && (
         <div className="rounded-md border border-amber-700/60 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
@@ -25,15 +52,52 @@ export default async function DeploymentsPage() {
         </div>
       )}
 
-      {deployments.length === 0 ? (
-        <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            No deployments yet. Trigger a deployment from the Projects page.
-          </CardContent>
-        </Card>
+      <form className="grid gap-2 md:grid-cols-[220px_220px_auto]">
+        <Label htmlFor="deployment-status-filter" className="sr-only">Filter deployments by status</Label>
+        <Select id="deployment-status-filter" name="status" defaultValue={selectedStatus}>
+          <option value="all">All statuses</option>
+          <option value="queued">queued</option>
+          <option value="building">building</option>
+          <option value="running">running</option>
+          <option value="failed">failed</option>
+          <option value="cancelled">cancelled</option>
+        </Select>
+        <Label htmlFor="deployment-project-filter" className="sr-only">Filter deployments by project</Label>
+        <Select id="deployment-project-filter" name="projectId" defaultValue={selectedProjectId}>
+          <option value="all">All projects</option>
+          {projectOptions.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
+          ))}
+        </Select>
+        <Button type="submit" variant="outline" className="w-fit">Apply filter</Button>
+      </form>
+
+      {filteredDeployments.length === 0 ? (
+        <EmptyState
+          title={selectedStatus === 'all' ? 'No deployments yet' : 'No matching deployments'}
+          description={
+            selectedStatus === 'all'
+              ? 'Trigger a deployment from the Projects page to see activity here.'
+              : 'Try adjusting filters or open Projects to trigger a new deployment.'
+          }
+          actions={
+            <>
+              {(selectedStatus !== 'all' || selectedProjectId !== 'all') && (
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/deployments?status=all&projectId=all">Clear filters</Link>
+                </Button>
+              )}
+              <Button asChild size="sm">
+                <Link href="/projects">Open Projects</Link>
+              </Button>
+            </>
+          }
+        />
       ) : (
         <>
-          <DeploymentTable deployments={deployments} />
+          <DeploymentTable deployments={filteredDeployments} />
 
           {data.usingLiveData && data.sortedDeployments.length > 0 && (
             <div className="space-y-2">
@@ -55,7 +119,7 @@ export default async function DeploymentsPage() {
           )}
         </>
       )}
-    </div>
+    </PageLayout>
   );
 }
 
