@@ -24,22 +24,39 @@ export function LastRefreshedIndicator({
   className,
 }: LastRefreshedIndicatorProps) {
   const refreshedMs = useMemo(() => Date.parse(refreshedAt), [refreshedAt]);
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  const refreshedIso = useMemo(() => {
+    const parsed = new Date(refreshedAt);
+    return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : undefined;
+  }, [refreshedAt]);
+  const refreshedDisplay = useMemo(() => {
+    const parsed = new Date(refreshedAt);
+    return Number.isFinite(parsed.getTime()) ? parsed.toLocaleString() : undefined;
+  }, [refreshedAt]);
+  const [nowMs, setNowMs] = useState(() => (Number.isFinite(refreshedMs) ? refreshedMs : Date.now()));
 
   useEffect(() => {
-    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    const id = window.setInterval(() => setNowMs(Date.now()), 5000);
     return () => window.clearInterval(id);
   }, []);
 
-  const ageSeconds = Number.isFinite(refreshedMs)
+  const hasValidRefreshTime = Number.isFinite(refreshedMs);
+  const ageSeconds = hasValidRefreshTime
     ? Math.max(0, Math.floor((nowMs - refreshedMs) / 1000))
-    : 0;
+    : null;
 
-  const stale = ageSeconds > staleAfterSeconds;
+  const stale = typeof ageSeconds === 'number' && ageSeconds > staleAfterSeconds;
+
+  if (!hasValidRefreshTime || ageSeconds === null) {
+    return (
+      <p className={`text-xs text-muted-foreground ${className ?? ''}`} aria-live="polite">
+        Last refreshed time unavailable.
+      </p>
+    );
+  }
 
   return (
-    <p className={`text-xs ${stale ? 'text-amber-600' : 'text-muted-foreground'} ${className ?? ''}`}>
-      Last refreshed {formatAge(ageSeconds)} ago.
+    <p className={`text-xs ${stale ? 'text-foreground' : 'text-muted-foreground'} ${className ?? ''}`} aria-live="polite">
+      Last refreshed <time dateTime={refreshedIso} title={refreshedDisplay}>{formatAge(ageSeconds)} ago</time>.
       {stale ? ' Data may be stale; refresh if values look outdated.' : ''}
     </p>
   );

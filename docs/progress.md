@@ -74,6 +74,14 @@ Last updated: 2026-03-12 (Phase 3: UI/UX Polish — COMPLETE)
   - started shared page-header pattern adoption:
     - added reusable `components/page-header.tsx` for consistent page titles/descriptions
     - migrated Projects, Deployments, and Settings top headers to shared component
+  - completed shared page-layout pattern adoption:
+    - reused `components/page-layout.tsx` in remaining global/detail pages (`/logs`, `/environment`, `/projects/[id]`, `/deployments/[id]`) to remove repeated `mx-auto max-w-5xl space-y-6` wrappers
+  - expanded shared EmptyState adoption for global shortcuts:
+    - migrated `/environment` empty project/variable states to `components/empty-state.tsx` with clearer guidance + CTA
+    - migrated `/logs` empty deployments state to `components/empty-state.tsx` with CTA back to Projects
+  - completed destructive-action dialog migration:
+    - added reusable `components/ui/dialog.tsx` primitive for modal confirmations
+    - refactored `components/confirm-submit-button.tsx` to use the shared dialog wrapper instead of inline modal markup
   - reduced token-page duplication:
     - extracted token manager UI into reusable `components/token-management-page.tsx`
     - simplified `/settings/tokens` route to compose shared token manager component

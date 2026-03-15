@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Button } from '@/components/ui/button';
+import { TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface ProjectSubnavProps {
   projectId: string;
@@ -19,7 +19,7 @@ export function ProjectSubnav({ projectId }: ProjectSubnavProps) {
   ];
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <TabsList className="w-full justify-start">
       {items.map((item) => {
         const active =
           item.href === `/projects/${projectId}`
@@ -27,11 +27,11 @@ export function ProjectSubnav({ projectId }: ProjectSubnavProps) {
             : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
         return (
-          <Button key={item.href} asChild size="sm" variant={active ? 'default' : 'outline'}>
+          <TabsTrigger key={item.href} asChild active={active}>
             <Link href={item.href}>{item.label}</Link>
-          </Button>
+          </TabsTrigger>
         );
       })}
-    </div>
+    </TabsList>
   );
 }

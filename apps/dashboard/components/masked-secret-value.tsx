@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { Button } from '@/components/ui/button';
 
 interface MaskedSecretValueProps {
   value: string;
@@ -29,23 +30,27 @@ export function MaskedSecretValue({ value }: MaskedSecretValueProps) {
 
   return (
     <div className="flex items-center gap-2">
-      <p className="text-xs text-slate-400">{revealed ? value : masked}</p>
-      <button
+      <p className="font-mono text-xs text-muted-foreground">{revealed ? value : masked}</p>
+      <Button
         type="button"
+        variant="outline"
+        size="sm"
         onClick={() => setRevealed((current) => !current)}
-        className="rounded border border-slate-700 px-2 py-0.5 text-[10px] text-slate-300 hover:bg-slate-800"
+        className="h-6 px-2 text-[10px]"
       >
         {revealed ? 'Hide' : 'Reveal'}
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="outline"
+        size="sm"
         onClick={() => {
           void onCopy();
         }}
-        className="rounded border border-slate-700 px-2 py-0.5 text-[10px] text-slate-300 hover:bg-slate-800"
+        className="h-6 px-2 text-[10px]"
       >
         {copied ? 'Copied' : 'Copy'}
-      </button>
+      </Button>
     </div>
   );
 }

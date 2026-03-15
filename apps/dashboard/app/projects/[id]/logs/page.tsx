@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -8,6 +7,8 @@ import { LogsAutoRefresh } from '@/components/logs-auto-refresh';
 import { LogsLiveStream } from '@/components/logs-live-stream';
 import { LastRefreshedIndicator } from '@/components/last-refreshed-indicator';
 import { ProjectSubnav } from '@/components/project-subnav';
+import { PageLayout } from '@/components/page-layout';
+import { EmptyState } from '@/components/empty-state';
 import {
   demoUserId,
   fetchProjectsForDemoUser,
@@ -23,6 +24,7 @@ interface ProjectLogsPageProps {
   searchParams?: {
     logsDeploymentId?: string;
     logsAutoRefresh?: '0' | '1';
+    logsPage?: string;
   };
 }
 
@@ -47,15 +49,34 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
     sortedDeployments.find((item) => item.id === searchParams?.logsDeploymentId) ??
     sortedDeployments[0];
 
-  const deploymentLogs = selectedDeployment
-    ? await fetchDeploymentLogs(project.id, selectedDeployment.id, 100)
+  const logsPageSize = 100;
+  const currentLogsPage = Math.max(1, Number.parseInt(searchParams?.logsPage ?? '1', 10) || 1);
+
+  const allDeploymentLogs = selectedDeployment
+    ? await fetchDeploymentLogs(project.id, selectedDeployment.id, 500)
     : [];
+  const totalLogPages = Math.max(1, Math.ceil(allDeploymentLogs.length / logsPageSize));
+  const safeLogsPage = Math.min(currentLogsPage, totalLogPages);
+  const pageStart = (safeLogsPage - 1) * logsPageSize;
+  const deploymentLogs = allDeploymentLogs.slice(pageStart, pageStart + logsPageSize);
 
   const logsAutoRefreshEnabled = searchParams?.logsAutoRefresh === '1';
   const refreshedAt = new Date().toISOString();
 
+  const buildProjectLogsHref = (page: number) => {
+    const params = new URLSearchParams();
+    if (selectedDeployment) {
+      params.set('logsDeploymentId', selectedDeployment.id);
+    }
+    if (logsAutoRefreshEnabled) {
+      params.set('logsAutoRefresh', '1');
+    }
+    params.set('logsPage', String(page));
+    return `/projects/${project.id}/logs?${params.toString()}`;
+  };
+
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <PageLayout>
       <div className="flex items-center gap-3 text-sm text-muted-foreground">
         <Link href="/projects" className="hover:text-foreground">Projects</Link>
         <span>/</span>
@@ -100,6 +121,7 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
               />
               Auto-refresh (5s)
             </label>
+            <input type="hidden" name="logsPage" value="1" />
             <Button type="submit">Apply</Button>
           </form>
 
@@ -130,6 +152,26 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
             initialLogs={deploymentLogs}
           />
 
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-card/40 px-3 py-2 text-xs text-muted-foreground">
+            <span>Log page {safeLogsPage} of {totalLogPages}</span>
+            <div className="flex items-center gap-2">
+              {safeLogsPage <= 1 ? (
+                <Button variant="outline" size="sm" disabled>Previous logs</Button>
+              ) : (
+                <Button asChild variant="outline" size="sm">
+                  <Link href={buildProjectLogsHref(safeLogsPage - 1)}>Previous logs</Link>
+                </Button>
+              )}
+              {safeLogsPage >= totalLogPages ? (
+                <Button variant="outline" size="sm" disabled>Next logs</Button>
+              ) : (
+                <Button asChild variant="outline" size="sm">
+                  <Link href={buildProjectLogsHref(safeLogsPage + 1)}>Next logs</Link>
+                </Button>
+              )}
+            </div>
+          </div>
+
           <p className="text-xs text-muted-foreground">
             {logsAutoRefreshEnabled
               ? 'Auto-refresh is enabled. Log entries refresh every 5 seconds.'
@@ -137,12 +179,16 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
           </p>
         </>
       ) : (
-        <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            No deployments found for this project.
-          </CardContent>
-        </Card>
+        <EmptyState
+          title="No deployments yet"
+          description="Trigger a deployment for this project to start collecting logs."
+          actions={
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/projects/${project.id}`}>Open Project</Link>
+            </Button>
+          }
+        />
       )}
-    </div>
+    </PageLayout>
   );
 }

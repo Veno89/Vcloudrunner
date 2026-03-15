@@ -14,25 +14,30 @@ import { PageLayout } from '@/components/page-layout';
 import { fetchApiTokensForUser, demoUserId } from '@/lib/api';
 import { createApiTokenAction, revokeApiTokenAction, rotateApiTokenAction } from '@/app/tokens/actions';
 
-const scopeGroups: Array<{ label: string; scopes: string[] }> = [
+const scopeGroups: Array<{ label: string; description: string; scopes: string[] }> = [
   {
     label: 'Projects',
+    description: 'Project listing and modification access.',
     scopes: ['projects:read', 'projects:write'],
   },
   {
     label: 'Deployments',
+    description: 'Deployment history, trigger, and cancellation controls.',
     scopes: ['deployments:read', 'deployments:write', 'deployments:cancel'],
   },
   {
     label: 'Environment',
+    description: 'Read and manage project environment variables.',
     scopes: ['environment:read', 'environment:write'],
   },
   {
     label: 'Logs',
+    description: 'Read deployment and runtime logs.',
     scopes: ['logs:read'],
   },
   {
     label: 'Tokens',
+    description: 'Read and manage API token lifecycle.',
     scopes: ['tokens:read', 'tokens:write'],
   },
 ];
@@ -94,11 +99,11 @@ export async function TokenManagementPage({ searchParams }: TokenManagementPageP
       />
 
       {tokenPlaintextFromCookie && (
-        <div className="rounded-md border border-amber-700/80 bg-amber-950/40 p-4">
-          <p className="text-sm font-medium text-amber-200">
+        <div className="rounded-md border bg-muted/40 p-4">
+          <p className="text-sm font-medium text-foreground">
             Copy this token now. It will not be shown again.
           </p>
-          <code className="mt-2 block break-all rounded bg-background px-3 py-2 font-mono text-xs text-amber-100">
+          <code className="mt-2 block break-all rounded border bg-background px-3 py-2 font-mono text-xs text-foreground">
             {tokenPlaintextFromCookie}
           </code>
         </div>
@@ -144,21 +149,29 @@ export async function TokenManagementPage({ searchParams }: TokenManagementPageP
                   <legend className="mb-2 text-xs font-medium text-muted-foreground">
                     Scopes (leave unchecked for default)
                   </legend>
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {scopeGroups.map((group) => (
-                      <div key={group.label} className="rounded-md border border-input/70 p-2.5">
-                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      <fieldset key={group.label} className="rounded-md border border-input/70 p-3">
+                        <legend className="px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                           {group.label}
-                        </p>
-                        <div className="space-y-1.5">
+                        </legend>
+                        <p className="mb-2 text-[11px] text-muted-foreground">{group.description}</p>
+                        <ul className="space-y-1.5">
                           {group.scopes.map((scope) => (
-                            <label key={scope} className="flex items-center gap-1.5 text-xs">
-                              <input type="checkbox" name="scopes" value={scope} className="rounded border-input" />
-                              <span className="font-mono">{scope}</span>
-                            </label>
+                            <li key={scope}>
+                              <label className="flex items-center gap-2 text-xs">
+                                <input
+                                  type="checkbox"
+                                  name="scopes"
+                                  value={scope}
+                                  className="h-3.5 w-3.5 rounded border-input bg-background text-primary"
+                                />
+                                <span className="font-mono">{scope}</span>
+                              </label>
+                            </li>
                           ))}
-                        </div>
-                      </div>
+                        </ul>
+                      </fieldset>
                     ))}
                   </div>
                 </fieldset>

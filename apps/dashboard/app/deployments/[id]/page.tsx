@@ -3,9 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DeploymentAutoRefresh } from '@/components/deployment-auto-refresh';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import { LastRefreshedIndicator } from '@/components/last-refreshed-indicator';
+import { PageLayout } from '@/components/page-layout';
 import { loadDashboardData } from '@/lib/loaders';
 import { fetchDeploymentLogs } from '@/lib/api';
-import { truncateUuid } from '@/lib/helpers';
+import { logLevelTextClassName, truncateUuid } from '@/lib/helpers';
 import { deployProjectAction } from '../actions';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -27,7 +28,7 @@ export default async function DeploymentDetailPage({ params }: DeploymentDetailP
 
   if (!match) {
     return (
-      <div className="mx-auto max-w-5xl space-y-6">
+      <PageLayout>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Deployment Not Found</h1>
           <p className="text-sm text-muted-foreground">
@@ -37,7 +38,7 @@ export default async function DeploymentDetailPage({ params }: DeploymentDetailP
         <Link href="/deployments" className="text-sm text-primary hover:underline">
           &larr; Back to Deployments
         </Link>
-      </div>
+      </PageLayout>
     );
   }
 
@@ -74,7 +75,7 @@ export default async function DeploymentDetailPage({ params }: DeploymentDetailP
             : 'Deployment state is unknown. Check recent logs for details.';
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <PageLayout>
       <div className="flex items-center gap-3">
         <Link href="/deployments" className="text-sm text-muted-foreground hover:text-foreground">
           &larr; Deployments
@@ -169,18 +170,13 @@ export default async function DeploymentDetailPage({ params }: DeploymentDetailP
                 {timelineSteps.map((step) => (
                   <li
                     key={step.id}
-                    className={`rounded-md border px-2.5 py-2 ${step.state === 'complete'
-                      ? 'border-emerald-500/40 bg-emerald-500/5'
-                      : step.state === 'current'
-                        ? 'border-amber-500/40 bg-amber-500/5'
-                        : step.state === 'failed'
-                          ? 'border-destructive/40 bg-destructive/5'
-                          : 'bg-background'
-                      }`}
+                    className="rounded-md border bg-background px-2.5 py-2"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium">{step.label}</span>
-                      <span className="uppercase tracking-wide text-muted-foreground">{step.state}</span>
+                      <Badge variant={stepStateVariant(step.state)} className="uppercase tracking-wide">
+                        {step.state}
+                      </Badge>
                     </div>
                     {step.detail ? <p className="mt-1 text-muted-foreground">{step.detail}</p> : null}
                   </li>
@@ -218,7 +214,7 @@ export default async function DeploymentDetailPage({ params }: DeploymentDetailP
                       className="mb-1 whitespace-pre-wrap break-words"
                     >
                       <span className="text-muted-foreground">[{log.timestamp}]</span>{' '}
-                      <span className="text-primary">{log.level.toUpperCase()}</span> {log.message}
+                      <span className={logLevelTextClassName(log.level)}>{log.level.toUpperCase()}</span> {log.message}
                     </p>
                   ))
                 )}
@@ -227,7 +223,7 @@ export default async function DeploymentDetailPage({ params }: DeploymentDetailP
           </Card>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }
 
@@ -238,6 +234,14 @@ interface DeploymentStep {
   label: string;
   state: DeploymentStepState;
   detail?: string;
+}
+
+
+function stepStateVariant(state: DeploymentStepState) {
+  if (state === 'complete') return 'success' as const;
+  if (state === 'current') return 'warning' as const;
+  if (state === 'failed') return 'destructive' as const;
+  return 'secondary' as const;
 }
 
 function buildDeploymentSteps({
@@ -380,6 +384,7 @@ function deriveFailureSummary(logs: Array<{ level: string; message: string }>): 
 
   return message;
 }
+
 
 function DetailRow({
   label,

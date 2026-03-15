@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProjectSubnav } from '@/components/project-subnav';
 import { FormSubmitButton } from '@/components/form-submit-button';
+import { PageLayout } from '@/components/page-layout';
 import {
   fetchProjectsForDemoUser,
   fetchDeploymentsForProject,
@@ -12,7 +13,7 @@ import {
   fetchDeploymentLogs,
   demoUserId,
 } from '@/lib/api';
-import { formatRelativeTime, truncateUuid } from '@/lib/helpers';
+import { formatRelativeTime, logLevelTextClassName, truncateUuid } from '@/lib/helpers';
 import { deployProjectAction } from '@/app/deployments/actions';
 
 interface ProjectDetailPageProps {
@@ -27,6 +28,7 @@ function deploymentStatusVariant(status: string) {
   if (status === 'failed') return 'destructive' as const;
   return 'secondary' as const;
 }
+
 
 export default async function ProjectDetailPage({ params }: ProjectDetailPageProps) {
   if (!demoUserId) {
@@ -56,7 +58,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
       : [];
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <PageLayout>
       <div className="flex items-center gap-3 text-sm text-muted-foreground">
         <Link href="/projects" className="hover:text-foreground">
           Projects
@@ -189,7 +191,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
                   latestLogs.map((log, index) => (
                     <p key={`${log.timestamp}-${index}`} className="mb-1 whitespace-pre-wrap break-words">
                       <span className="text-muted-foreground">[{log.timestamp}]</span>{' '}
-                      <span className="text-primary">{log.level.toUpperCase()}</span> {log.message}
+                      <span className={logLevelTextClassName(log.level)}>{log.level.toUpperCase()}</span> {log.message}
                     </p>
                   ))
                 )}
@@ -200,6 +202,6 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
           )}
         </CardContent>
       </Card>
-    </div>
+    </PageLayout>
   );
 }

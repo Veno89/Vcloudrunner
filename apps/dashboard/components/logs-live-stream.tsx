@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { logLevelTextClassName } from '@/lib/helpers';
 
 interface LogItem {
   level: string;
@@ -90,6 +92,7 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
   const [status, setStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
   const [levelFilter, setLevelFilter] = useState<'all' | 'error' | 'warn' | 'info' | 'debug'>('all');
   const [query, setQuery] = useState('');
+  const [expanded, setExpanded] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const autoFollowRef = useRef(true);
   const initialAfterRef = useRef('');
@@ -144,6 +147,7 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
     setStatus('connecting');
     setLevelFilter('all');
     setQuery('');
+    setExpanded(false);
     autoFollowRef.current = true;
   }, [projectId, deploymentId]);
 
@@ -220,16 +224,20 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
     autoFollowRef.current = distanceFromBottom < 24;
   };
 
+
+  const streamStatusVariant =
+    status === 'live' ? 'success' : status === 'error' ? 'destructive' : 'warning';
+
   return (
     <div className="mt-3 rounded-md border bg-card p-3 font-mono text-xs text-card-foreground">
       <div className="mb-2 space-y-2 text-muted-foreground">
         <div className="flex flex-wrap items-center gap-2">
-          <p>
-            Live stream status:{' '}
-            <span className={status === 'live' ? 'text-emerald-500' : status === 'error' ? 'text-destructive' : 'text-amber-500'}>
+          <div className="flex items-center gap-2" role="status" aria-live="polite">
+            <span>Live stream status:</span>
+            <Badge variant={streamStatusVariant} className="font-sans text-[10px]">
               {status}
-            </span>
-          </p>
+            </Badge>
+          </div>
           <span aria-hidden>•</span>
           <p>
             Showing {filteredLogs.length} / {logs.length}
@@ -251,6 +259,16 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
           <Button type="button" size="sm" variant="outline" onClick={scrollToBottom} className="h-7 px-2 text-[11px]">
             Scroll to bottom
           </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setExpanded((current) => !current)}
+            className="h-7 px-2 text-[11px]"
+            aria-pressed={expanded}
+          >
+            {expanded ? 'Collapse panel' : 'Expand panel'}
+          </Button>
         </div>
         <div className="flex items-center gap-2">
           <label htmlFor="logs-search" className="sr-only">Search logs</label>
@@ -264,7 +282,12 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
           />
         </div>
       </div>
-      <div ref={listRef} onScroll={handleListScroll} className="max-h-96 overflow-auto rounded-md border bg-background p-2">
+      <div
+        ref={listRef}
+        onScroll={handleListScroll}
+        aria-live="off"
+        className={`overflow-auto rounded-md border bg-background p-2 ${expanded ? 'max-h-[36rem]' : 'max-h-96'}`}
+      >
         {filteredLogs.length === 0 ? (
           <p className="text-muted-foreground">
             {logs.length === 0
@@ -277,7 +300,7 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
           filteredLogs.map((log) => (
             <p key={logSignature(log)} className="mb-1 whitespace-pre-wrap break-words">
               <span className="text-muted-foreground">[{log.timestamp}]</span>{' '}
-              <span className="text-primary">{log.level.toUpperCase()}</span> {log.message}
+              <span className={logLevelTextClassName(log.level)}>{log.level.toUpperCase()}</span> {log.message}
             </p>
           ))
         )}

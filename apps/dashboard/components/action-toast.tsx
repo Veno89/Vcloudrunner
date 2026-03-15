@@ -4,6 +4,14 @@ import { useEffect, useRef } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 
+function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 interface ActionToastProps {
   status?: 'success' | 'error';
   message?: string;
@@ -23,7 +31,7 @@ export function ActionToast({ status, message, fallbackErrorMessage = 'Operation
 
     const resolvedMessage =
       typeof message === 'string' && message.length > 0
-        ? decodeURIComponent(message)
+        ? safeDecodeURIComponent(message)
         : status === 'success'
           ? 'Operation completed successfully.'
           : fallbackErrorMessage;

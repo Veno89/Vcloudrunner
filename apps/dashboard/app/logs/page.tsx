@@ -1,10 +1,11 @@
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { LogsAutoRefresh } from '@/components/logs-auto-refresh';
 import { LogsLiveStream } from '@/components/logs-live-stream';
 import { LastRefreshedIndicator } from '@/components/last-refreshed-indicator';
+import { PageLayout } from '@/components/page-layout';
+import { EmptyState } from '@/components/empty-state';
 import Link from 'next/link';
 import {
   demoUserId,
@@ -18,6 +19,7 @@ interface LogsPageProps {
   searchParams?: {
     logsDeploymentId?: string;
     logsAutoRefresh?: '0' | '1';
+    logsPage?: string;
   };
 }
 
@@ -33,8 +35,11 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
   let selectedProjectId = '';
   let selectedDeploymentId = '';
   let selectedLabel = '';
+  let totalLogPages = 1;
+  const logsPageSize = 100;
 
   const logsAutoRefreshEnabled = searchParams?.logsAutoRefresh === '1';
+  const currentLogsPage = Math.max(1, Number.parseInt(searchParams?.logsPage ?? '1', 10) || 1);
   const refreshedAt = new Date().toISOString();
 
   if (demoUserId) {
@@ -70,13 +75,17 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
         const logs = await fetchDeploymentLogs(
           selected.project.id,
           selected.deployment.id,
-          100
+          500
         );
-        deploymentLogs = logs.map((item) => ({
+        const mappedLogs = logs.map((item) => ({
           level: item.level,
           message: item.message,
           timestamp: item.timestamp,
         }));
+        totalLogPages = Math.max(1, Math.ceil(mappedLogs.length / logsPageSize));
+        const safeLogsPage = Math.min(currentLogsPage, totalLogPages);
+        const pageStart = (safeLogsPage - 1) * logsPageSize;
+        deploymentLogs = mappedLogs.slice(pageStart, pageStart + logsPageSize);
       }
     } catch {
       // will show empty state
@@ -85,8 +94,20 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
 
   const hasLiveData = Boolean(demoUserId && selectedDeploymentId);
 
+  const buildLogsHref = (page: number) => {
+    const params = new URLSearchParams();
+    if (selectedDeploymentId) {
+      params.set('logsDeploymentId', selectedDeploymentId);
+    }
+    if (logsAutoRefreshEnabled) {
+      params.set('logsAutoRefresh', '1');
+    }
+    params.set('logsPage', String(page));
+    return `/logs?${params.toString()}`;
+  };
+
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <PageLayout>
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Deployment Logs</h1>
         <p className="text-sm text-muted-foreground">
@@ -121,6 +142,7 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
               />
               Auto-refresh (5s)
             </label>
+            <input type="hidden" name="logsPage" value="1" />
             <Button type="submit">Apply</Button>
           </form>
 
@@ -169,6 +191,28 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
             />
           )}
 
+          {selectedProjectId && selectedDeploymentId ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-card/40 px-3 py-2 text-xs text-muted-foreground">
+              <span>Log page {Math.min(currentLogsPage, totalLogPages)} of {totalLogPages}</span>
+              <div className="flex items-center gap-2">
+                {currentLogsPage <= 1 ? (
+                  <Button variant="outline" size="sm" disabled>Previous logs</Button>
+                ) : (
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={buildLogsHref(currentLogsPage - 1)}>Previous logs</Link>
+                  </Button>
+                )}
+                {currentLogsPage >= totalLogPages ? (
+                  <Button variant="outline" size="sm" disabled>Next logs</Button>
+                ) : (
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={buildLogsHref(currentLogsPage + 1)}>Next logs</Link>
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : null}
+
           <p className="text-xs text-muted-foreground">
             {logsAutoRefreshEnabled
               ? 'Auto-refresh is enabled. Log entries refresh every 5 seconds.'
@@ -176,14 +220,22 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
           </p>
         </>
       ) : (
-        <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            {demoUserId
-              ? 'No deployments found. Trigger a deployment first.'
-              : 'Log viewer requires a demo user context. Set NEXT_PUBLIC_DEMO_USER_ID.'}
-          </CardContent>
-        </Card>
+        <EmptyState
+          title={demoUserId ? 'No deployments yet' : 'Demo user context required'}
+          description={
+            demoUserId
+              ? 'Trigger a deployment from the Projects page, then return here to inspect live logs.'
+              : 'Set NEXT_PUBLIC_DEMO_USER_ID to enable the global log viewer in local development.'
+          }
+          actions={
+            demoUserId ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href="/projects">Open Projects</Link>
+              </Button>
+            ) : null
+          }
+        />
       )}
-    </div>
+    </PageLayout>
   );
 }

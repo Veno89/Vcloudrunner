@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Box, Layers, Settings, FolderGit2, ScrollText, Key, Menu, X } from 'lucide-react';
+import { Box, Layers, Settings, FolderGit2, ScrollText, Key, Activity, Menu, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -11,6 +12,7 @@ const navItems = [
   { href: '/deployments', label: 'Deployments', icon: Layers },
   { href: '/environment', label: 'Environment', icon: Settings },
   { href: '/logs', label: 'Logs', icon: ScrollText },
+  { href: '/status', label: 'Status', icon: Activity },
 ];
 
 const settingsItems = [
@@ -82,20 +84,23 @@ export function Sidebar() {
 
   return (
     <>
-      <button
+      <Button
         type="button"
-        className="fixed left-3 top-3 z-40 rounded-md border bg-card p-2 text-muted-foreground shadow-sm md:hidden"
+        variant="outline"
+        size="icon"
+        className="fixed left-3 top-3 z-40 h-9 w-9 md:hidden"
         onClick={() => setMobileOpen(true)}
         aria-label="Open navigation menu"
       >
         <Menu className="h-4 w-4" />
-      </button>
+      </Button>
 
       {mobileOpen ? (
         <div className="fixed inset-0 z-50 md:hidden" aria-hidden={!mobileOpen}>
-          <button
+          <Button
             type="button"
-            className="absolute inset-0 bg-background/80"
+            variant="ghost"
+            className="absolute inset-0 h-full w-full rounded-none bg-background/80 p-0 hover:bg-background/80"
             aria-label="Close navigation menu overlay"
             onClick={() => setMobileOpen(false)}
           />
@@ -105,14 +110,16 @@ export function Sidebar() {
                 <Box className="h-5 w-5 text-primary" />
                 <span className="text-sm font-semibold tracking-tight">Vcloudrunner</span>
               </div>
-              <button
+              <Button
                 type="button"
-                className="rounded-md p-1 text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
                 onClick={() => setMobileOpen(false)}
                 aria-label="Close navigation menu"
               >
                 <X className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
             <NavSections pathname={pathname} onNavigate={() => setMobileOpen(false)} />
           </aside>
