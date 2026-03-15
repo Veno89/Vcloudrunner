@@ -4,6 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProjectSubnav } from '@/components/project-subnav';
+import { PageLayout } from '@/components/page-layout';
+import { EmptyState } from '@/components/empty-state';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import {
   demoUserId,
@@ -44,7 +46,7 @@ export default async function ProjectDeploymentsPage({ params }: ProjectDeployme
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <PageLayout>
       <div className="flex items-center gap-3 text-sm text-muted-foreground">
         <Link href="/projects" className="hover:text-foreground">Projects</Link>
         <span>/</span>
@@ -76,11 +78,10 @@ export default async function ProjectDeploymentsPage({ params }: ProjectDeployme
       </div>
 
       {sortedDeployments.length === 0 ? (
-        <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            No deployments yet for this project.
-          </CardContent>
-        </Card>
+        <EmptyState
+          title="No deployments yet"
+          description="Trigger a deployment to create the first deployment record for this project."
+        />
       ) : (
         <Card>
           <CardHeader>
@@ -109,6 +110,6 @@ export default async function ProjectDeploymentsPage({ params }: ProjectDeployme
           </CardContent>
         </Card>
       )}
-    </div>
+    </PageLayout>
   );
 }

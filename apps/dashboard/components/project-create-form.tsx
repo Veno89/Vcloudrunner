@@ -4,16 +4,7 @@ import { useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FormSubmitButton } from '@/components/form-submit-button';
-
-function slugifyProjectName(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-}
+import { slugifyProjectName } from '@/lib/helpers';
 
 function isValidGitUrl(value: string): boolean {
   try {

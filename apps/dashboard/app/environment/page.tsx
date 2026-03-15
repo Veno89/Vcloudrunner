@@ -6,6 +6,8 @@ import { Select } from '@/components/ui/select';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import { MaskedSecretValue } from '@/components/masked-secret-value';
 import { ActionToast } from '@/components/action-toast';
+import { PageLayout } from '@/components/page-layout';
+import { EmptyState } from '@/components/empty-state';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import {
   demoUserId,
@@ -51,7 +53,7 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
   const hasLiveData = Boolean(demoUserId && selectedProjectId);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <PageLayout>
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Environment Variables</h1>
         <p className="text-sm text-muted-foreground">
@@ -129,11 +131,10 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
 
           <div className="space-y-2">
             {environmentVariables.length === 0 ? (
-              <Card>
-                <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                  No variables set yet. Add your first variable above.
-                </CardContent>
-              </Card>
+              <EmptyState
+                title="No environment variables yet"
+                description="Add your first variable above, then redeploy to apply it to runtime containers."
+              />
             ) : (
               environmentVariables.map((item) => (
                 <div
@@ -161,14 +162,22 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
           </div>
         </>
       ) : (
-        <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            {demoUserId
-              ? 'No projects found. Create a project first.'
-              : 'Environment editor requires a demo user context. Set NEXT_PUBLIC_DEMO_USER_ID.'}
-          </CardContent>
-        </Card>
+        <EmptyState
+          title={demoUserId ? 'No projects found' : 'Demo user context required'}
+          description={
+            demoUserId
+              ? 'Create a project first, then manage variables from this global shortcut or project-scoped environment page.'
+              : 'Set NEXT_PUBLIC_DEMO_USER_ID to enable environment management routes in local development.'
+          }
+          actions={
+            demoUserId ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href="/projects">Open Projects</Link>
+              </Button>
+            ) : null
+          }
+        />
       )}
-    </div>
+    </PageLayout>
   );
 }

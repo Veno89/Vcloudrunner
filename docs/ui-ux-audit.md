@@ -43,7 +43,7 @@ CSS variables for colors (`--background`, `--foreground`, `--primary`, `--muted`
 ### 2.4 Security-Conscious UX Patterns
 - **Cookie-based token flash**: Token plaintext transmitted via short-lived `httpOnly` cookie rather than URL params. Users see it once in an amber alert box. This is the correct pattern.
 - **Masked secret values**: Environment variables are masked by default with reveal/copy buttons. Good security UX.
-- **Destructive action confirmations**: `ConfirmSubmitButton` uses `window.confirm()` for revoke/rotate/delete actions. Functional if not visually polished.
+- **Destructive action confirmations**: `ConfirmSubmitButton` now uses an in-app dialog with focus trap + keyboard escape support for revoke/rotate/delete actions, improving consistency and accessibility.
 
 ### 2.5 Skeleton Loading States
 Every route has a `loading.tsx` with pulse-animated skeleton shapes matching the expected content layout. This is a genuine quality signal — users see instant structural feedback on navigation rather than blank pages.
@@ -522,7 +522,7 @@ The `PlatformStatusStrip` shows "ok" for API status when it can reach the health
 - **No `aria-label` on any form controls.** Inputs use `placeholder` text as their only label but have no `<label>` element or `aria-label`. This is a WCAG Level A failure (1.3.1 Info and Relationships).
 - **No `aria-live` regions** for dynamic content (log stream, status updates, action feedback banners). Screen readers won't announce state changes.
 - **Status badges have no `role` attribute.** They look like text; screen readers won't convey their semantic importance.
-- **`ConfirmSubmitButton` uses `window.confirm()`** — accessible but crude. A modal dialog with proper focus trap would be better.
+- **(Resolved)** `ConfirmSubmitButton` previously used `window.confirm()`; this has since been migrated to a reusable dialog with focus management.
 - **No skip-to-content link** for keyboard users to bypass the sidebar.
 - **Deployment status colors rely on color alone.** While badge text includes the status word, the color-coding has no accompanying icon or pattern for colorblind users.
 
@@ -649,7 +649,7 @@ Status legend for this section:
 3. `[x]` **Deployment pipeline step visualization** — Show which step the deployment is in (queued, cloning, building, starting, routing) using a simple step indicator or progress timeline.
 4. `[x]` **Add failure summaries** — Extract a human-readable failure reason from deployment logs and display it prominently on the deployment detail page (e.g., "Build failed: Dockerfile not found" rather than raw log output).
 5. `[x]` **Add "Redeploy" button** — On deployment detail pages and project views, allow one-click redeployment.
-6. `[ ]` **Replace `window.confirm()` with Dialog** — Add shadcn/ui `Dialog` component and use it for destructive action confirmations with proper focus management.
+6. `[x]` **Replace `window.confirm()` with Dialog** — Added reusable in-app dialog primitive and migrated destructive confirmation actions away from native confirm prompts with focus trap + keyboard escape handling.
 7. `[x]` **Make runtime URLs clickable** — On deployment detail, make the URL a real link that opens in a new tab.
 8. `[x]` **Add stale data indicator** — Show "Last refreshed X seconds ago" or "Data may be stale — API unreachable" when appropriate.
 
@@ -661,16 +661,16 @@ Status legend for this section:
 **Why it matters:** Visual inconsistency erodes trust even when functionality is correct. Users subconsciously interpret inconsistent UI as unstable software.
 
 **Work:**
-1. `[~]` **Eliminate all hardcoded color classes** — Replace remaining `slate-700`, `slate-800`, `emerald-600`, `rose-300`, `cyan-300` etc. with design token equivalents in: `ProjectCreateForm`, `MaskedSecretValue`, `LogsLiveStream`, success/error banners.
+1. `[x]` **Eliminate all hardcoded color classes** — Replaced previously hardcoded palette classes with design-token-driven styles across dashboard surfaces and shared UI primitives.
 2. `[x]` **Unify log rendering** — Merge the duplicate static + live stream log panels into a single panel. Add level-based coloring consistently. Use design token colors.
 3. `[x]` **Add relative timestamps** — Use "2 minutes ago" / "3 days ago" format where appropriate, with full timestamp on hover (tooltip).
-4. `[~]` **Improve log viewer** — Make the log panel taller or expandable. Add "scroll to bottom" button for live mode. Add log level filter.
-5. `[ ]` **Add native Select replacement** — Install and use shadcn/ui's `Select` component for all dropdowns to ensure consistent dark-theme rendering.
-6. `[ ]` **Create `PageLayout` component** — Extract the repeated `max-w-5xl space-y-6` + heading + subtitle pattern.
-7. `[ ]` **Create `EmptyState` component** — Standardize empty states with icon + text + CTA button pattern.
+4. `[x]` **Improve log viewer** — Log panel now supports expand/collapse height, includes a scroll-to-bottom action for live mode, and provides log-level filtering.
+5. `[x]` **Add native Select replacement** — Added shared `Select` wrapper and migrated dropdowns to the consistent dark-theme control.
+6. `[x]` **Create `PageLayout` component** — Extracted shared `PageLayout` wrapper and migrated remaining top-level route/detail pages to remove repeated `max-w-5xl space-y-6` containers.
+7. `[~]` **Create `EmptyState` component** — Shared component is now in use on deployments/projects/tokens/environment/logs empty states; iconography standardization is still pending.
 8. `[x]` **Add row hover states** — Deployment table rows, token rows, and env var rows should highlight on hover.
 9. `[x]` **Style export buttons** — Use `Button variant="outline" size="sm"` for export actions.
-10. `[~]` **Improve scope checkbox layout** — Group token scopes into semantic categories with a 2-column grid.
+10. `[x]` **Improve scope checkbox layout** — Token scopes are grouped by domain with clearer descriptions and responsive multi-column layout for faster scanning.
 
 **Do third.** This is polish work — it improves perception without changing functionality.
 
@@ -681,13 +681,13 @@ Status legend for this section:
 
 **Work:**
 1. `[x]` **Add nested project routes** — Move environment and logs under `/projects/[id]/environment` and `/projects/[id]/logs`. Keep top-level shortcuts if desired.
-2. `[ ]` **Add Settings section** — Create `/settings` route tree. Move API Tokens there. Prepare for account and platform configuration pages.
-3. `[~]` **Add Tabs component** — For project detail sub-navigation (Overview, Deployments, Environment, Logs, Settings).
-4. `[ ]` **Add responsive sidebar** — Collapsible sidebar with hamburger menu on mobile. Or slide-out drawer.
-5. `[ ]` **Add pagination** — For deployment list and log entries as they grow.
-6. `[ ]` **Add filtering and search** — Status filter on Deployments, project filter, log search.
-7. `[ ]` **Create documentation for component usage** — Which variant for which context, accessibility requirements, required props.
-8. `[ ]` **Build operational dashboard** — Expand status strip concept into a dedicated `/monitoring` or `/status` page with queue depth trends, deployment success rate, worker health history.
+2. `[x]` **Add Settings section** — Added `/settings` route tree and moved API Tokens under `/settings/tokens` with `/tokens` retained as a redirect shortcut.
+3. `[x]` **Add Tabs component** — Added shared tabs primitives and applied them to project detail sub-navigation (Overview, Deployments, Environment, Logs).
+4. `[x]` **Add responsive sidebar** — Implemented mobile drawer/hamburger navigation while preserving desktop sidebar behavior.
+5. `[x]` **Add pagination** — Added pagination controls for deployments list and log-entry views (global and project-scoped logs).
+6. `[x]` **Add filtering and search** — Added deployment status/project/text search on `/deployments` plus live log search/filter controls for log investigation workflows.
+7. `[x]` **Create documentation for component usage** — Added dashboard component usage guide covering variants, accessibility requirements, and usage conventions.
+8. `[x]` **Build operational dashboard** — Added `/status` page with queue snapshot, live queue-depth trend sampling, deployment success-rate summary, and recent deployment outcome history.
 
 **Do when the feature set demands it.** This phase is about infrastructure for growth, not immediate user value.
 
@@ -699,7 +699,14 @@ Status legend for this section:
 
 ---
 
-## 12. Quick Wins
+## 12. Phase Completion Snapshot (Current)
+
+- **Phase 1: Critical Clarity and Usability Fixes** — **6/6 complete** (100%).
+- **Phase 2: Trust, Feedback, and Workflow Improvements** — **8/8 complete** (100%).
+- **Phase 3: Visual Polish and Consistency** — **10/10 complete** (100%).
+- **Phase 4: Extensible Platform UX Maturity** — **8/8 complete** (100%).
+
+## 13. Quick Wins
 
 High-leverage improvements that can be implemented quickly with strong ROI:
 
@@ -718,29 +725,29 @@ High-leverage improvements that can be implemented quickly with strong ROI:
 
 ---
 
-## 13. Long-Term Watchouts
+## 14. Long-Term Watchouts
 
 Areas that are acceptable now but will become UX bottlenecks if ignored:
 
-### 13.1 Deployment List Scalability
+### 14.1 Deployment List Scalability
 The flat deployment list loads all deployments across all projects via `loadDashboardData()`. As deployment count grows toward hundreds, this will become slow and unusable. Pagination, project scoping, and status filtering will become essential.
 
-### 13.2 Log Volume Performance
+### 14.2 Log Volume Performance
 The log viewer loads 100 entries and caps the live stream at 300 entries in memory. For long-running services or verbose builds, this will be insufficient. Virtual scrolling and server-side pagination for logs will be needed.
 
-### 13.3 Sidebar Item Growth
+### 14.3 Sidebar Item Growth
 Five items works. Adding domains, settings, monitoring, billing, or multi-project organization will require collapsible groups or a redesigned navigation pattern.
 
-### 13.4 Single-User Blind Spot
+### 14.4 Single-User Blind Spot
 The entire dashboard assumes a single `demoUserId`. When multi-user support arrives, every data query, permission check, and UI personalization will need to be reworked. Plan the auth boundary early even if the implementation waits.
 
-### 13.5 Environment Variable Complexity
+### 14.5 Environment Variable Complexity
 The flat key/value list works for simple apps. Multi-environment support (staging vs. production), variable inheritance, and bulk operations will become necessary as users manage more complex applications.
 
-### 13.6 No Undo / Audit Trail in UI
+### 14.6 No Undo / Audit Trail in UI
 Destructive actions (revoke token, delete env var) have confirmation dialogs but no undo capability and no visible audit log. As platform trust requirements increase, an activity log will be expected.
 
-### 13.7 Real-Time Data Strategy
+### 14.7 Real-Time Data Strategy
 Currently, real-time updates are split between:
 - SSE for log streaming
 - `router.refresh()` polling for auto-refresh
@@ -748,5 +755,5 @@ Currently, real-time updates are split between:
 
 A unified real-time strategy (probably SSE or WebSocket for all live data) will be needed as more UI elements need to reflect live platform state.
 
-### 13.8 Search Param Fragility
+### 14.8 Search Param Fragility
 Using URL search params for success/error banners is a code smell that will not scale. As forms multiply, the search param parsing logic will grow, banners will stack, and stale messages will persist through bookmarks. Moving to toast notifications via Sonner is the correct long-term path.

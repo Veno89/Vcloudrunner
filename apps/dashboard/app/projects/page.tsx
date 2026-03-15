@@ -3,6 +3,7 @@ import { ProjectCreatePanel } from '@/components/project-create-panel';
 import { Button } from '@/components/ui/button';
 import { ActionToast } from '@/components/action-toast';
 import { EmptyState } from '@/components/empty-state';
+import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
@@ -43,9 +44,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
       />
 
       {!data.usingLiveData && (
-        <div className="rounded-md border border-amber-700/60 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
-          Demo mode: API data unavailable, showing sample project data.
-        </div>
+        <DemoModeBanner>API data unavailable, showing sample project data.</DemoModeBanner>
       )}
 
       {data.usingLiveData && (

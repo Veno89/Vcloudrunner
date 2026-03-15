@@ -8,6 +8,8 @@ import { MaskedSecretValue } from '@/components/masked-secret-value';
 import { ActionToast } from '@/components/action-toast';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import { ProjectSubnav } from '@/components/project-subnav';
+import { PageLayout } from '@/components/page-layout';
+import { EmptyState } from '@/components/empty-state';
 import {
   demoUserId,
   fetchProjectsForDemoUser,
@@ -44,7 +46,7 @@ export default async function ProjectEnvironmentPage({ params, searchParams }: P
   const environmentVariables = envItems.map((item) => ({ key: item.key, value: item.value }));
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <PageLayout>
       <div className="flex items-center gap-3 text-sm text-muted-foreground">
         <Link href="/projects" className="hover:text-foreground">Projects</Link>
         <span>/</span>
@@ -102,11 +104,10 @@ export default async function ProjectEnvironmentPage({ params, searchParams }: P
 
       <div className="space-y-2">
         {environmentVariables.length === 0 ? (
-          <Card>
-            <CardContent className="py-10 text-center text-sm text-muted-foreground">
-              No variables set yet. Add your first variable above.
-            </CardContent>
-          </Card>
+          <EmptyState
+            title="No environment variables yet"
+            description="Add your first variable above, then redeploy to apply it to the runtime."
+          />
         ) : (
           environmentVariables.map((item) => (
             <div
@@ -132,6 +133,6 @@ export default async function ProjectEnvironmentPage({ params, searchParams }: P
           ))
         )}
       </div>
-    </div>
+    </PageLayout>
   );
 }

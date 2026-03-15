@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
 export default function Error({
@@ -17,12 +18,9 @@ export default function Error({
           <p className="text-sm text-muted-foreground">
             {error.message || 'An unexpected error occurred.'}
           </p>
-          <button
-            onClick={reset}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
+          <Button type="button" onClick={reset}>
             Try again
-          </button>
+          </Button>
         </CardContent>
       </Card>
     </div>

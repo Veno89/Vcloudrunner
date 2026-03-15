@@ -80,3 +80,22 @@ export function formatRelativeTime(input: string | Date): string {
 
   return date.toLocaleDateString();
 }
+
+
+export function logLevelTextClassName(level: string): string {
+  const normalized = level.toLowerCase();
+
+  if (normalized === 'error' || normalized === 'fatal') {
+    return 'text-destructive';
+  }
+
+  if (normalized === 'warn' || normalized === 'warning') {
+    return 'text-foreground';
+  }
+
+  if (normalized === 'debug' || normalized === 'trace') {
+    return 'text-muted-foreground';
+  }
+
+  return 'text-primary';
+}
