@@ -1,6 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { LogsAutoRefresh } from '@/components/logs-auto-refresh';
 import { LogsLiveStream } from '@/components/logs-live-stream';
 import { LastRefreshedIndicator } from '@/components/last-refreshed-indicator';
@@ -11,6 +12,7 @@ import {
   fetchDeploymentsForProject,
   fetchDeploymentLogs,
 } from '@/lib/api';
+import { formatRelativeTime, truncateUuid } from '@/lib/helpers';
 
 interface LogsPageProps {
   searchParams?: {
@@ -25,6 +27,7 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
     projectId: string;
     projectName: string;
     status: string;
+    label: string;
   }> = [];
   let deploymentLogs: Array<{ level: string; message: string; timestamp: string }> = [];
   let selectedProjectId = '';
@@ -53,6 +56,7 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
         projectId: project.id,
         projectName: project.name,
         status: deployment.status,
+        label: `${project.name} • ${truncateUuid(deployment.id)} • ${formatRelativeTime(deployment.createdAt)} • ${deployment.status}`,
       }));
 
       const selected =
@@ -62,7 +66,7 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
       if (selected) {
         selectedProjectId = selected.project.id;
         selectedDeploymentId = selected.deployment.id;
-        selectedLabel = `${selected.project.name} / ${selected.deployment.id}`;
+        selectedLabel = `${selected.project.name} / ${truncateUuid(selected.deployment.id)}`;
         const logs = await fetchDeploymentLogs(
           selected.project.id,
           selected.deployment.id,
@@ -97,18 +101,17 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
 
           <form className="grid gap-2 md:grid-cols-[1fr_auto_auto]">
             <Label htmlFor="logs-deployment-id" className="sr-only">Deployment selection</Label>
-            <select
+            <Select
               id="logs-deployment-id"
               name="logsDeploymentId"
               defaultValue={searchParams?.logsDeploymentId ?? deploymentOptions[0]?.id}
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
               {deploymentOptions.map((option) => (
                 <option key={option.id} value={option.id}>
-                  {option.projectName} / {option.id} ({option.status})
+                  {option.label}
                 </option>
               ))}
-            </select>
+            </Select>
             <label className="flex items-center gap-2 rounded-md border border-input px-3 py-2 text-xs">
               <input
                 type="checkbox"

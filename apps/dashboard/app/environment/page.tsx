@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import { MaskedSecretValue } from '@/components/masked-secret-value';
 import { ActionToast } from '@/components/action-toast';
@@ -68,18 +69,17 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
         <>
           <form className="grid gap-2 md:grid-cols-[1fr_auto]">
             <Label htmlFor="env-project-id" className="sr-only">Select project</Label>
-            <select
+            <Select
               id="env-project-id"
               name="envProjectId"
               defaultValue={selectedProjectId}
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
               {projects.map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.name}
                 </option>
               ))}
-            </select>
+            </Select>
             <Button type="submit">Select Project</Button>
           </form>
 

@@ -7,7 +7,7 @@ import { createApiToken, revokeApiToken, rotateApiToken, demoUserId } from '@/li
 
 export async function createApiTokenAction(formData: FormData) {
   if (!demoUserId) {
-    redirect('/tokens?status=error&message=No+user+context');
+    redirect('/settings/tokens?status=error&message=No+user+context');
     return;
   }
 
@@ -16,7 +16,7 @@ export async function createApiTokenAction(formData: FormData) {
   const expiresAtValue = formData.get('expiresAt');
 
   if (typeof roleValue !== 'string' || (roleValue !== 'admin' && roleValue !== 'user')) {
-    redirect('/tokens?status=error&message=Invalid+role');
+    redirect('/settings/tokens?status=error&message=Invalid+role');
     return;
   }
 
@@ -36,6 +36,7 @@ export async function createApiTokenAction(formData: FormData) {
       expiresAt: expiresAt.length > 0 ? new Date(expiresAt).toISOString() : undefined,
     });
 
+    revalidatePath('/settings/tokens');
     revalidatePath('/tokens');
     cookies().set('__token_plaintext', created.token, {
       httpOnly: true,
@@ -45,48 +46,50 @@ export async function createApiTokenAction(formData: FormData) {
       sameSite: 'strict',
     });
     redirect(
-      `/tokens?status=success&message=${encodeURIComponent(`Token "${created.label ?? 'token'}" created`)}`
+      `/settings/tokens?status=success&message=${encodeURIComponent(`Token "${created.label ?? 'token'}" created`)}`
     );
   } catch {
-    redirect('/tokens?status=error&message=Failed+to+create+token');
+    redirect('/settings/tokens?status=error&message=Failed+to+create+token');
   }
 }
 
 export async function revokeApiTokenAction(formData: FormData) {
   if (!demoUserId) {
-    redirect('/tokens?status=error&message=No+user+context');
+    redirect('/settings/tokens?status=error&message=No+user+context');
     return;
   }
 
   const tokenIdValue = formData.get('tokenId');
   if (typeof tokenIdValue !== 'string' || tokenIdValue.length === 0) {
-    redirect('/tokens?status=error&message=Invalid+token');
+    redirect('/settings/tokens?status=error&message=Invalid+token');
     return;
   }
 
   try {
     await revokeApiToken(demoUserId, tokenIdValue);
+    revalidatePath('/settings/tokens');
     revalidatePath('/tokens');
-    redirect('/tokens?status=success&message=Token+revoked');
+    redirect('/settings/tokens?status=success&message=Token+revoked');
   } catch {
-    redirect('/tokens?status=error&message=Failed+to+revoke+token');
+    redirect('/settings/tokens?status=error&message=Failed+to+revoke+token');
   }
 }
 
 export async function rotateApiTokenAction(formData: FormData) {
   if (!demoUserId) {
-    redirect('/tokens?status=error&message=No+user+context');
+    redirect('/settings/tokens?status=error&message=No+user+context');
     return;
   }
 
   const tokenIdValue = formData.get('tokenId');
   if (typeof tokenIdValue !== 'string' || tokenIdValue.length === 0) {
-    redirect('/tokens?status=error&message=Invalid+token');
+    redirect('/settings/tokens?status=error&message=Invalid+token');
     return;
   }
 
   try {
     const rotated = await rotateApiToken(demoUserId, tokenIdValue);
+    revalidatePath('/settings/tokens');
     revalidatePath('/tokens');
     cookies().set('__token_plaintext', rotated.token, {
       httpOnly: true,
@@ -96,9 +99,9 @@ export async function rotateApiTokenAction(formData: FormData) {
       sameSite: 'strict',
     });
     redirect(
-      `/tokens?status=success&message=${encodeURIComponent(`Token "${rotated.label ?? 'token'}" rotated`)}`
+      `/settings/tokens?status=success&message=${encodeURIComponent(`Token "${rotated.label ?? 'token'}" rotated`)}`
     );
   } catch {
-    redirect('/tokens?status=error&message=Failed+to+rotate+token');
+    redirect('/settings/tokens?status=error&message=Failed+to+rotate+token');
   }
 }

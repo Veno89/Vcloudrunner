@@ -47,6 +47,59 @@ Last updated: 2026-03-12 (Phase 3: UI/UX Polish — COMPLETE)
   - refined top-level routes as global shortcuts:
     - added explicit CTA from `/environment` to `/projects/[id]/environment`
     - added explicit CTA from `/logs` to `/projects/[id]/logs`
+  - normalized dropdown UX with shared design-system Select styling:
+    - added shared `components/ui/select.tsx` wrapper for consistent dark-theme select controls
+    - migrated deployment/project/token role dropdowns to the shared Select component
+  - improved log and token form readability:
+    - shortened deployment labels in log selectors (truncated id + relative age + status)
+    - grouped API token scopes into semantic categories with two-column layout
+  - improved Projects page action ergonomics:
+    - added a collapsible `ProjectCreatePanel` with a clear `New Project` primary CTA
+    - default-open create form when there are zero projects or after create validation errors
+  - established Settings route tree for account-level concerns:
+    - added `/settings` overview page and moved token management to `/settings/tokens`
+    - kept `/tokens` as a backward-compatible redirect shortcut to `/settings/tokens`
+  - improved deployments list scanability:
+    - added status filtering on `/deployments` with `all/queued/building/running/failed/cancelled` options
+    - wired filtered table rendering without changing existing deployment detail links
+  - improved deployments empty-state guidance:
+    - added contextual filtered-empty messaging (e.g., `No failed deployments`)
+    - added explicit CTA buttons to `Clear filter` and `Open Projects` when no deployments match
+  - expanded deployments filtering controls:
+    - added project filter to `/deployments` in addition to status filtering
+    - updated empty-state recovery action to clear both filters together
+  - started shared EmptyState pattern adoption:
+    - added reusable `components/empty-state.tsx`
+    - migrated deployments empty-state rendering to shared component with CTA slot
+  - started shared page-header pattern adoption:
+    - added reusable `components/page-header.tsx` for consistent page titles/descriptions
+    - migrated Projects, Deployments, and Settings top headers to shared component
+  - reduced token-page duplication:
+    - extracted token manager UI into reusable `components/token-management-page.tsx`
+    - simplified `/settings/tokens` route to compose shared token manager component
+  - improved settings IA orientation:
+    - added reusable `components/settings-subnav.tsx` for settings-local navigation
+    - integrated settings sub-navigation on both `/settings` and `/settings/tokens`
+  - aligned Settings routes with loading-state standards:
+    - added `/settings/loading.tsx` skeleton
+    - added `/settings/tokens/loading.tsx` skeleton
+  - improved global keyboard accessibility:
+    - added a skip-to-content link in root dashboard layout
+    - added `id="main-content"` main landmark target for keyboard navigation
+  - improved badge semantics for assistive technology:
+    - updated shared `Badge` primitive to render as inline `<span>` instead of `<div>`
+  - expanded shared EmptyState adoption:
+    - migrated Projects empty state to reusable `EmptyState`
+    - migrated token-manager empty/no-context states to reusable `EmptyState`
+  - improved destructive-action accessibility:
+    - replaced `window.confirm()` flow in `ConfirmSubmitButton` with a modal dialog confirmation
+    - added focus trap + focus return behavior for keyboard users in confirmation dialog
+  - started shared PageLayout adoption:
+    - added reusable `components/page-layout.tsx` (`max-w-5xl` + vertical rhythm wrapper)
+    - migrated Projects, Deployments, Settings, and token-manager pages to use shared layout wrapper
+  - improved mobile navigation ergonomics:
+    - added responsive/collapsible sidebar drawer for small screens with overlay + close controls
+    - kept desktop sidebar behavior unchanged on `md+` breakpoints
   - added project-scoped sub-navigation component (`Overview`, `Environment`, `Logs`) and integrated it across nested project pages for faster context switching
   - expanded project sub-navigation and IA:
     - added `/projects/[id]/deployments` (+ loading state)
@@ -61,6 +114,12 @@ Last updated: 2026-03-12 (Phase 3: UI/UX Polish — COMPLETE)
   - completed relative-time readability update:
     - added shared `formatRelativeTime` helper
     - switched deployment list timestamps to relative format with absolute hover tooltips
+  - improved live log filtering ergonomics:
+    - added log-level filter control (`all/error/warn/info/debug`) to `LogsLiveStream`
+    - added visible filtered-count indicator and empty-filter messaging
+  - improved live log investigation workflow:
+    - added text search input in `LogsLiveStream` (message/level/timestamp match)
+    - added `Scroll to bottom` control for quicker tail-following during live streams
 - what is still missing:
   - complete project-centric IA migration (move environment/log workflows under project route tree)
   - deployment step visualization (clone/build/start/route) and human-readable failure summaries

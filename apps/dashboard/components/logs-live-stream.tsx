@@ -1,6 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Select } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 interface LogItem {
   level: string;
@@ -14,46 +17,164 @@ interface LogsLiveStreamProps {
   initialLogs: LogItem[];
 }
 
-export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiveStreamProps) {
-  const [logs, setLogs] = useState<LogItem[]>(initialLogs);
-  const [status, setStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
+const MAX_LOG_WINDOW = 300;
 
-  const initialAfter = useMemo(() => {
-    if (initialLogs.length === 0) {
-      return '';
+const logSignature = (log: LogItem) => `${log.timestamp}|${log.level}|${log.message}`;
+
+const compareTimestamps = (left: string, right: string) => {
+  const leftMs = Date.parse(left);
+  const rightMs = Date.parse(right);
+
+  if (Number.isFinite(leftMs) && Number.isFinite(rightMs) && leftMs !== rightMs) {
+    return leftMs - rightMs;
+  }
+
+  return left.localeCompare(right);
+};
+
+const sortLogsByTimestamp = (left: LogItem, right: LogItem) => {
+  const timestampComparison = compareTimestamps(left.timestamp, right.timestamp);
+  if (timestampComparison !== 0) {
+    return timestampComparison;
+  }
+
+  return logSignature(left).localeCompare(logSignature(right));
+};
+
+const normalizeLogWindow = (logs: LogItem[]) => {
+  const uniqueLogs = new Map<string, LogItem>();
+
+  for (const log of logs) {
+    const signature = logSignature(log);
+    if (!uniqueLogs.has(signature)) {
+      uniqueLogs.set(signature, log);
+    }
+  }
+
+  return [...uniqueLogs.values()].sort(sortLogsByTimestamp).slice(-MAX_LOG_WINDOW);
+};
+
+const latestTimestamp = (logs: LogItem[]) => logs[logs.length - 1]?.timestamp ?? '';
+
+const toSignatureSet = (logs: LogItem[]) => new Set(logs.map(logSignature));
+
+const isLogItem = (value: unknown): value is LogItem => {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as Partial<LogItem>;
+  return typeof candidate.level === 'string' && typeof candidate.message === 'string' && typeof candidate.timestamp === 'string';
+};
+
+
+const parseLogItem = (raw: string): LogItem | null => {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return isLogItem(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const areLogsEqual = (left: LogItem[], right: LogItem[]) => {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((log, index) => logSignature(log) === logSignature(right[index]));
+};
+
+export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiveStreamProps) {
+  const [logs, setLogs] = useState<LogItem[]>(() => normalizeLogWindow(initialLogs));
+  const [status, setStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
+  const [levelFilter, setLevelFilter] = useState<'all' | 'error' | 'warn' | 'info' | 'debug'>('all');
+  const [query, setQuery] = useState('');
+  const listRef = useRef<HTMLDivElement>(null);
+  const autoFollowRef = useRef(true);
+  const initialAfterRef = useRef('');
+  const contextKey = `${projectId}:${deploymentId}`;
+  const contextKeyRef = useRef(contextKey);
+  const seenSignaturesRef = useRef(toSignatureSet(logs));
+
+  const normalizedInitialLogs = useMemo(() => normalizeLogWindow(initialLogs), [initialLogs]);
+
+  const filteredLogs = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return logs.filter((log) => {
+      const levelMatch = levelFilter === 'all' || log.level.toLowerCase() === levelFilter;
+      const queryMatch =
+        normalizedQuery.length === 0 ||
+        log.message.toLowerCase().includes(normalizedQuery) ||
+        log.timestamp.toLowerCase().includes(normalizedQuery) ||
+        log.level.toLowerCase().includes(normalizedQuery);
+      return levelMatch && queryMatch;
+    });
+  }, [logs, levelFilter, query]);
+
+  const applyLogWindow = (previous: LogItem[], next: LogItem[]) => {
+    const nextSignatures = toSignatureSet(next);
+    seenSignaturesRef.current = nextSignatures;
+
+    if (areLogsEqual(previous, next)) {
+      return previous;
     }
 
-    return initialLogs[initialLogs.length - 1]?.timestamp ?? '';
-  }, [initialLogs]);
+    return next;
+  };
 
   useEffect(() => {
-    setLogs(initialLogs);
-    setStatus('connecting');
+    if (contextKeyRef.current !== contextKey) {
+      contextKeyRef.current = contextKey;
+      const next = normalizedInitialLogs;
+      setLogs(next);
+      seenSignaturesRef.current = toSignatureSet(next);
+      return;
+    }
 
+    setLogs((previous) => applyLogWindow(previous, normalizeLogWindow([...previous, ...normalizedInitialLogs])));
+  }, [contextKey, normalizedInitialLogs]);
+
+  useEffect(() => {
+    initialAfterRef.current = latestTimestamp(normalizedInitialLogs);
+  }, [normalizedInitialLogs]);
+
+  useEffect(() => {
+    setStatus('connecting');
+    setLevelFilter('all');
+    setQuery('');
+    autoFollowRef.current = true;
+  }, [projectId, deploymentId]);
+
+  useEffect(() => {
     const streamUrl = new URL('/api/log-stream', window.location.origin);
     streamUrl.searchParams.set('projectId', projectId);
     streamUrl.searchParams.set('deploymentId', deploymentId);
 
-    if (initialAfter) {
-      streamUrl.searchParams.set('after', initialAfter);
+    if (initialAfterRef.current) {
+      streamUrl.searchParams.set('after', initialAfterRef.current);
     }
 
-    const eventSource = new EventSource(streamUrl);
+    const eventSource = new EventSource(streamUrl.toString());
 
     eventSource.onopen = () => {
       setStatus('live');
     };
 
     eventSource.onmessage = (event) => {
-      try {
-        const parsed = JSON.parse(event.data) as LogItem;
-        setLogs((previous) => {
-          const next = [...previous, parsed];
-          return next.slice(-300);
-        });
-      } catch {
-        setStatus('error');
+      const parsed = parseLogItem(event.data);
+      if (!parsed) {
+        return;
       }
+
+      const parsedSignature = logSignature(parsed);
+
+      if (seenSignaturesRef.current.has(parsedSignature)) {
+        return;
+      }
+
+      setLogs((previous) => applyLogWindow(previous, normalizeLogWindow([...previous, parsed])));
     };
 
     eventSource.onerror = () => {
@@ -64,22 +185,97 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
     return () => {
       eventSource.close();
     };
-  }, [projectId, deploymentId, initialAfter, initialLogs]);
+  }, [projectId, deploymentId]);
+
+  useEffect(() => {
+    if (!autoFollowRef.current) {
+      return;
+    }
+
+    const list = listRef.current;
+    if (!list) {
+      return;
+    }
+
+    list.scrollTop = list.scrollHeight;
+  }, [logs]);
+
+  const scrollToBottom = () => {
+    const list = listRef.current;
+    if (!list) {
+      return;
+    }
+
+    autoFollowRef.current = true;
+    list.scrollTop = list.scrollHeight;
+  };
+
+  const handleListScroll = () => {
+    const list = listRef.current;
+    if (!list) {
+      return;
+    }
+
+    const distanceFromBottom = list.scrollHeight - (list.scrollTop + list.clientHeight);
+    autoFollowRef.current = distanceFromBottom < 24;
+  };
 
   return (
     <div className="mt-3 rounded-md border bg-card p-3 font-mono text-xs text-card-foreground">
-      <p className="mb-2 text-muted-foreground">
-        Live stream status:{' '}
-        <span className={status === 'live' ? 'text-emerald-500' : status === 'error' ? 'text-destructive' : 'text-amber-500'}>
-          {status}
-        </span>
-      </p>
-      <div className="max-h-96 overflow-auto rounded-md border bg-background p-2">
-        {logs.length === 0 ? (
-          <p className="text-muted-foreground">No logs received yet.</p>
+      <div className="mb-2 space-y-2 text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2">
+          <p>
+            Live stream status:{' '}
+            <span className={status === 'live' ? 'text-emerald-500' : status === 'error' ? 'text-destructive' : 'text-amber-500'}>
+              {status}
+            </span>
+          </p>
+          <span aria-hidden>•</span>
+          <p>
+            Showing {filteredLogs.length} / {logs.length}
+          </p>
+          <span aria-hidden>•</span>
+          <label htmlFor="logs-level-filter" className="sr-only">Filter logs by level</label>
+          <Select
+            id="logs-level-filter"
+            value={levelFilter}
+            onChange={(event) => setLevelFilter(event.target.value as typeof levelFilter)}
+            className="h-7 w-36 text-[11px]"
+          >
+            <option value="all">all levels</option>
+            <option value="error">error</option>
+            <option value="warn">warn</option>
+            <option value="info">info</option>
+            <option value="debug">debug</option>
+          </Select>
+          <Button type="button" size="sm" variant="outline" onClick={scrollToBottom} className="h-7 px-2 text-[11px]">
+            Scroll to bottom
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <label htmlFor="logs-search" className="sr-only">Search logs</label>
+          <Input
+            id="logs-search"
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search message, level, or timestamp"
+            className="h-8 text-xs"
+          />
+        </div>
+      </div>
+      <div ref={listRef} onScroll={handleListScroll} className="max-h-96 overflow-auto rounded-md border bg-background p-2">
+        {filteredLogs.length === 0 ? (
+          <p className="text-muted-foreground">
+            {logs.length === 0
+              ? 'No logs received yet.'
+              : query.trim().length > 0
+                ? 'No logs match your search.'
+                : `No ${levelFilter} logs in current window.`}
+          </p>
         ) : (
-          logs.map((log, index) => (
-            <p key={`${log.timestamp}-${index}`} className="mb-1 whitespace-pre-wrap break-words">
+          filteredLogs.map((log) => (
+            <p key={logSignature(log)} className="mb-1 whitespace-pre-wrap break-words">
               <span className="text-muted-foreground">[{log.timestamp}]</span>{' '}
               <span className="text-primary">{log.level.toUpperCase()}</span> {log.message}
             </p>
