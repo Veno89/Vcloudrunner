@@ -170,6 +170,36 @@ test('cancelQueuedDeployment removes matching jobs via fallback queue scan', asy
   assert.deepEqual(removed, ['dep-a', 'dep-a-2']);
 });
 
+test('cancelQueuedDeployment continues fallback scan when one matching remove races away', async () => {
+  const DeploymentQueue = await loadDeploymentQueue();
+  const removed: string[] = [];
+
+  const queue = new DeploymentQueue({
+    add: async () => ({} as never),
+    getJob: async () => undefined,
+    getJobs: async () =>
+      [
+        {
+          data: { deploymentId: 'dep-race' },
+          remove: async () => {
+            throw new Error('already claimed');
+          }
+        },
+        {
+          data: { deploymentId: 'dep-race' },
+          remove: async () => {
+            removed.push('dep-race-second');
+          }
+        }
+      ] as never
+  });
+
+  const result = await queue.cancelQueuedDeployment('dep-race');
+
+  assert.equal(result, true);
+  assert.deepEqual(removed, ['dep-race-second']);
+});
+
 test('cancelQueuedDeployment returns false when no matching queued jobs exist', async () => {
   const DeploymentQueue = await loadDeploymentQueue();
   const jobs: TestJob[] = [
@@ -186,6 +216,28 @@ test('cancelQueuedDeployment returns false when no matching queued jobs exist', 
   });
 
   const result = await queue.cancelQueuedDeployment('dep-missing');
+
+  assert.equal(result, false);
+});
+
+test('cancelQueuedDeployment returns false when every matching fallback removal races away', async () => {
+  const DeploymentQueue = await loadDeploymentQueue();
+
+  const queue = new DeploymentQueue({
+    add: async () => ({} as never),
+    getJob: async () => undefined,
+    getJobs: async () =>
+      [
+        {
+          data: { deploymentId: 'dep-race-all' },
+          remove: async () => {
+            throw new Error('already removed');
+          }
+        }
+      ] as never
+  });
+
+  const result = await queue.cancelQueuedDeployment('dep-race-all');
 
   assert.equal(result, false);
 });

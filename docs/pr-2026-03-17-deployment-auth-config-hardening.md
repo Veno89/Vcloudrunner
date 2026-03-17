@@ -7,6 +7,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Exact Changes
 
 - fall back to queued-job scanning when BullMQ direct `getJob(deploymentId)` lookup fails during cancellation
+- continue fallback queued-job scanning when individual remove calls race, returning `completed` if any compatible queued entry is still removable
 - keep cancellation responses stable when the state change succeeds but the follow-up deployment log insert fails
 - add API unit coverage for queue lookup failure fallback and cancellation log partial-failure behavior
 - align dashboard deployment filtering/status badges with the backend `stopped` status while preserving backward compatibility for legacy `status=cancelled` URLs

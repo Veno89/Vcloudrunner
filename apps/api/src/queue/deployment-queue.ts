@@ -57,8 +57,12 @@ export class DeploymentQueue {
         continue;
       }
 
-      await job.remove();
-      removed = true;
+      try {
+        await job.remove();
+        removed = true;
+      } catch {
+        // Continue scanning: another matching queued entry may still be removable.
+      }
     }
 
     return removed;
