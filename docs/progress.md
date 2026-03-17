@@ -1,4 +1,4 @@
-# Vcloudrunner MVP Progress Tracker
+﻿# Vcloudrunner MVP Progress Tracker
 
 Last updated: 2026-03-17 (Deployment/auth/config hardening follow-through)
 
@@ -10,17 +10,17 @@ Last updated: 2026-03-17 (Deployment/auth/config hardening follow-through)
 
 
 
-## Phase Status Snapshot (2026-03-16)
+## Phase Status Snapshot (2026-03-17)
 
-- **Phase 1: Critical stabilization** — ~85% complete
-  - done: deployment concurrency invariant (service + DB), queue enqueue failure mapping/state correction, safer compose defaults, production dev-auth startup guard, dashboard conflict/queue messaging, broader unit coverage
-  - left (~15%): rotate any legacy local secrets in existing environments and remove remaining bootstrap-only auth fallback usage from regular dev flows
-- **Phase 2: Production readiness foundation** — ~35% complete
-  - done: improved failure taxonomy coverage and regression tests around constraint/error mapping paths
-  - left (~65%): deeper observability dimensions, migration safety gates, backup/restore automation checks, worker/service decomposition
-- **Phase 3: UI/UX trust and polish** — ~60% complete
-  - done: route architecture, loading/error boundaries, action feedback helpers, clearer deployment error messages
-  - left (~40%): richer deployment progress visibility, stronger logs ergonomics (filter/search), more operational guidance states
+- **Phase 1: Critical stabilization** — ~92% complete
+  - done: deployment concurrency invariant (service + DB), queue enqueue failure mapping/state correction, queued-cancel race/idempotency hardening, safer compose defaults, production dev-auth startup guard, root auth/error plugin inheritance fix, broader API auth/deployment regression coverage, clearer dashboard auth/config failure states
+  - left (~8%): rotate any legacy local secrets in existing environments, keep reducing bootstrap-only auth fallback usage in regular dev flows, and add a small amount of end-to-end compose/runtime validation beyond unit coverage
+- **Phase 2: Production readiness foundation** — ~42% complete
+  - done: improved failure taxonomy coverage, regression tests around constraint/error mapping paths, stronger cancellation/auth/config resilience under partial failures, and clearer operator-facing startup/config guidance
+  - left (~58%): deeper observability dimensions, migration safety gates, backup/restore automation checks, worker/service decomposition, and broader operational validation
+- **Phase 3: UI/UX trust and polish** — ~72% complete
+  - done: route architecture, loading/error boundaries, action feedback helpers, clearer deployment error messages, stopped-status consistency, in-context failure handling, and live-data unavailable/degraded states across the dashboard
+  - left (~28%): richer deployment progress visibility, stronger logs ergonomics for investigation workflows, and a few remaining operational guidance states
 - **Phase 4: Extensibility and platform maturity** — ~15% complete
   - done: runtime and deployment lifecycle seams exist, basic domain boundaries in place
   - left (~85%): broader auth/user model evolution, runtime adapter expansion, advanced day-2 operational tooling
@@ -40,6 +40,7 @@ Last updated: 2026-03-17 (Deployment/auth/config hardening follow-through)
   - expanded API unit coverage for queue-cancel race/idempotency behavior and cancellation partial-failure behavior
   - aligned README quick-start guidance with actual compose expectations (required secrets, optional dashboard auth vars, and separation between compose runtime vs direct workspace `.env` files)
   - aligned the production-readiness audit wording with the current compose/auth defaults so it no longer claims compose enables dev auth by default
+  - recalibrated the top-level phase snapshot so the reported percentages reflect the hardening and dashboard resilience work already landed
   - refreshed deployment-flow/progress wording so cancellation semantics and auth safety notes match the current implementation
 - files created or changed:
   - `apps/api/src/queue/deployment-queue.ts`
@@ -58,7 +59,7 @@ Last updated: 2026-03-17 (Deployment/auth/config hardening follow-through)
   - `docs/production-readiness-audit.md`
   - `docs/progress.md`
 - what is still missing:
-  - phase percentages remain unchanged from the 2026-03-16 snapshot; broader production-readiness and auth-model work is still pending
+  - broader production-readiness and auth-model work is still pending, especially observability depth, worker decomposition, backup/restore validation, and longer-term user/runtime model evolution
 - known issues:
   - API test execution in the default sandbox hits a Windows `spawn EPERM` restriction and requires elevated validation
 - next recommended step:
@@ -217,19 +218,19 @@ Last updated: 2026-03-17 (Deployment/auth/config hardening follow-through)
   - **Fixed shared-types ambient declaration drift**: cleared the ambient `declare module '@vcloudrunner/shared-types'` blocks from both `apps/api/src/types/shared-types.d.ts` and `apps/worker/src/types/shared-types.d.ts`. Types now resolve exclusively from the real `packages/shared-types` package, eliminating silent drift risk between apps.
   - **Added graceful shutdown to API**: `src/index.ts` now handles SIGTERM and SIGINT signals, calling `app.close()` to drain connections and clean up resources (Redis, queue) before exit. (Worker already had graceful shutdown.)
 - files created or changed:
-  - `apps/api/src/server/domain-errors.ts` — added `statusCode` to `DomainError`, added `ApiTokenNotFoundError`
-  - `apps/api/src/plugins/error-handler.ts` — auto-maps `DomainError` → HTTP with structured logging
-  - `apps/api/src/modules/deployments/deployments.routes.ts` — removed try/catch blocks and unused imports
-  - `apps/api/src/modules/projects/projects.routes.ts` — removed try/catch blocks and unused imports
-  - `apps/api/src/modules/environment/environment.routes.ts` — removed try/catch blocks and unused imports
-  - `apps/api/src/modules/logs/logs.routes.ts` — removed try/catch blocks and unused imports
-  - `apps/api/src/modules/api-tokens/api-tokens.routes.ts` — removed try/catch blocks, uses `ApiTokenNotFoundError`
-  - `apps/api/src/plugins/auth-context.ts` — `ENABLE_DEV_AUTH` flag, removed legacy plaintext fallback
-  - `apps/api/src/config/env.ts` — added `ENABLE_DEV_AUTH` env variable
-  - `apps/api/src/index.ts` — added graceful shutdown (SIGTERM/SIGINT)
-  - `apps/api/src/types/shared-types.d.ts` — cleared ambient declarations
-  - `apps/worker/src/types/shared-types.d.ts` — cleared ambient declarations
-  - `docs/production-readiness-audit.md` — recreated comprehensive audit document
+  - `apps/api/src/server/domain-errors.ts` â€” added `statusCode` to `DomainError`, added `ApiTokenNotFoundError`
+  - `apps/api/src/plugins/error-handler.ts` â€” auto-maps `DomainError` â†’ HTTP with structured logging
+  - `apps/api/src/modules/deployments/deployments.routes.ts` â€” removed try/catch blocks and unused imports
+  - `apps/api/src/modules/projects/projects.routes.ts` â€” removed try/catch blocks and unused imports
+  - `apps/api/src/modules/environment/environment.routes.ts` â€” removed try/catch blocks and unused imports
+  - `apps/api/src/modules/logs/logs.routes.ts` â€” removed try/catch blocks and unused imports
+  - `apps/api/src/modules/api-tokens/api-tokens.routes.ts` â€” removed try/catch blocks, uses `ApiTokenNotFoundError`
+  - `apps/api/src/plugins/auth-context.ts` â€” `ENABLE_DEV_AUTH` flag, removed legacy plaintext fallback
+  - `apps/api/src/config/env.ts` â€” added `ENABLE_DEV_AUTH` env variable
+  - `apps/api/src/index.ts` â€” added graceful shutdown (SIGTERM/SIGINT)
+  - `apps/api/src/types/shared-types.d.ts` â€” cleared ambient declarations
+  - `apps/worker/src/types/shared-types.d.ts` â€” cleared ambient declarations
+  - `docs/production-readiness-audit.md` â€” recreated comprehensive audit document
 - what is still missing:
   - `apps/api/src/server/http-errors.ts` should be deleted (fully unused dead code)
   - Phase 2: Production Reliability (streaming log export, DB pool limits, state reconciliation, API tests)
@@ -237,7 +238,7 @@ Last updated: 2026-03-17 (Deployment/auth/config hardening follow-through)
   - Phase 4: Extensibility (alert extraction, worker decomposition, event hooks, multi-user)
 - known issues:
   - compose runtime cannot be executed in this environment due to missing Docker CLI
-  - `ENABLE_DEV_AUTH=true` must be set explicitly in development `.env` files for the dev-auth bypass path to work — this is an intentional breaking change for safety
+  - `ENABLE_DEV_AUTH=true` must be set explicitly in development `.env` files for the dev-auth bypass path to work â€” this is an intentional breaking change for safety
 - next recommended step:
   - begin Phase 2: Production Reliability (state reconciliation, DB pool limits, streaming log export, API tests)
 
@@ -248,11 +249,11 @@ Last updated: 2026-03-17 (Deployment/auth/config hardening follow-through)
   - **Removed `next-shims.d.ts` stub declarations**: cleared the file that declared incomplete stubs for `next/server`, `next/cache`, and `next/navigation`, which were shadowing the real Next.js types. Real types now resolve from the `next` package via `next-env.d.ts`.
   - **Confirmed `http-errors.ts` already deleted**: the dead code file was removed between sessions.
 - files created or changed:
-  - `apps/dashboard/app/page.tsx` — cookie-based token flash (import `cookies` from `next/headers`, set cookie in server actions, read+delete in page component), removed `tokenPlaintext` from `searchParams` interface
-  - `apps/dashboard/types/next-shims.d.ts` — cleared stub declarations
-  - `docs/production-readiness-audit.md` — marked Phase 1 items 5+6 complete, updated security matrix
+  - `apps/dashboard/app/page.tsx` â€” cookie-based token flash (import `cookies` from `next/headers`, set cookie in server actions, read+delete in page component), removed `tokenPlaintext` from `searchParams` interface
+  - `apps/dashboard/types/next-shims.d.ts` â€” cleared stub declarations
+  - `docs/production-readiness-audit.md` â€” marked Phase 1 items 5+6 complete, updated security matrix
 - what is still missing:
-  - Phase 1 is now COMPLETE — all 6 items done
+  - Phase 1 is now COMPLETE â€” all 6 items done
   - Phase 2: Production Reliability is next
 - known issues:
   - none
@@ -265,20 +266,20 @@ Last updated: 2026-03-17 (Deployment/auth/config hardening follow-through)
   - **State reconciliation on worker startup**: on `ready` event, the worker queries all deployments with `status = 'running'` joined to their containers, inspects each Docker container, and marks any deployment whose container is missing or stopped as `failed` with a `STATE_RECONCILIATION` log entry. New `listRunningDeploymentContainers()` in repository, `reconcileRunningDeployments()` in service.
   - **Database pool limits and timeouts**: added configurable `DB_POOL_MAX`, `DB_POOL_IDLE_TIMEOUT_MS`, `DB_POOL_CONNECTION_TIMEOUT_MS`, `DB_POOL_STATEMENT_TIMEOUT_MS` to both API and Worker Zod env schemas. Applied to API's Drizzle Pool and Worker's raw pg Pool. Sensible defaults (API: 20 max, Worker: 10 max, 30s idle, 5s connect, 30s statement).
   - **Streaming log export**: replaced `gzipSync` blocking call in log export route with `createGzip()` + PassThrough stream pipeline. NDJSON lines written to PassThrough, piped through async gzip, and streamed to the response. Eliminates event loop blocking for large log exports.
-  - **API integration tests**: 8 tests using Fastify's `inject()` covering all domain error → HTTP status code mappings, non-domain error → 500, and 404 not-found handler. Uses Node's built-in test runner (`node:test` + `node:assert`).
+  - **API integration tests**: 8 tests using Fastify's `inject()` covering all domain error â†’ HTTP status code mappings, non-domain error â†’ 500, and 404 not-found handler. Uses Node's built-in test runner (`node:test` + `node:assert`).
   - **Database backup documentation**: created `docs/database-backup.md` with pg_dump strategy, Docker Compose sidecar option, retention tiers (daily/weekly/monthly), restore procedure, verification steps, and encryption recommendations.
 - files created or changed:
-  - `apps/worker/src/index.ts` — startup reconciliation call + Docker import
-  - `apps/worker/src/services/deployment-state.repository.ts` — `listRunningDeploymentContainers()`, pool config
-  - `apps/worker/src/services/deployment-state.service.ts` — `reconcileRunningDeployments()`
-  - `apps/worker/src/config/env.ts` — DB pool config vars
-  - `apps/api/src/config/env.ts` — DB pool config vars
-  - `apps/api/src/db/client.ts` — pool limits applied
-  - `apps/api/src/modules/logs/logs.routes.ts` — streaming gzip export
-  - `apps/api/src/server/api-routes.test.ts` — new test file (8 tests)
-  - `apps/api/package.json` — added `test` script
-  - `docs/database-backup.md` — new backup strategy doc
-  - `docs/production-readiness-audit.md` — Phase 2 items marked complete
+  - `apps/worker/src/index.ts` â€” startup reconciliation call + Docker import
+  - `apps/worker/src/services/deployment-state.repository.ts` â€” `listRunningDeploymentContainers()`, pool config
+  - `apps/worker/src/services/deployment-state.service.ts` â€” `reconcileRunningDeployments()`
+  - `apps/worker/src/config/env.ts` â€” DB pool config vars
+  - `apps/api/src/config/env.ts` â€” DB pool config vars
+  - `apps/api/src/db/client.ts` â€” pool limits applied
+  - `apps/api/src/modules/logs/logs.routes.ts` â€” streaming gzip export
+  - `apps/api/src/server/api-routes.test.ts` â€” new test file (8 tests)
+  - `apps/api/package.json` â€” added `test` script
+  - `docs/database-backup.md` â€” new backup strategy doc
+  - `docs/production-readiness-audit.md` â€” Phase 2 items marked complete
 - what is still missing:
   - Phase 2 is now COMPLETE
   - Phase 3: UI/UX Polish is next
@@ -293,12 +294,12 @@ Last updated: 2026-03-17 (Deployment/auth/config hardening follow-through)
   - **shadcn/ui component library**: installed CVA, clsx, tailwind-merge, Radix primitives, Lucide icons, tailwindcss-animate, Sonner toast library. Created Button, Badge (with success/warning/info/destructive variants), Card, Input, Label, and Toaster UI primitives under `components/ui/`. Configured CSS-variable-based dark theme in `globals.css` and `tailwind.config.ts`.
   - **Sidebar navigation**: created `components/sidebar.tsx` client component with 5 nav items (Projects, Deployments, API Tokens, Environment, Logs) using Lucide icons and `usePathname()` for active state highlighting.
   - **Route extraction from monolithic page.tsx**: decomposed the ~920-line single-page dashboard into proper Next.js route segments:
-    - `/projects` — project list, create form, deploy trigger actions
-    - `/deployments` — deployment table with status badges and quick links
-    - `/deployments/[id]` — deployment detail with timeline, metadata, and logs
-    - `/tokens` — API token CRUD (create/rotate/revoke) with cookie-based token flash
-    - `/environment` — environment variable management per project
-    - `/logs` — deployment log viewer with auto-refresh, live stream, and NDJSON/GZIP export
+    - `/projects` â€” project list, create form, deploy trigger actions
+    - `/deployments` â€” deployment table with status badges and quick links
+    - `/deployments/[id]` â€” deployment detail with timeline, metadata, and logs
+    - `/tokens` â€” API token CRUD (create/rotate/revoke) with cookie-based token flash
+    - `/environment` â€” environment variable management per project
+    - `/logs` â€” deployment log viewer with auto-refresh, live stream, and NDJSON/GZIP export
   - **Server actions per route**: extracted 7 server actions into dedicated `actions.ts` files (`projects/actions.ts`, `tokens/actions.ts`, `environment/actions.ts`) with route-scoped redirects.
   - **Shared data loader**: created `lib/loaders.ts` with `loadDashboardData()` to centralize project/deployment/health data fetching, used by multiple route pages.
   - **Shared helpers**: created `lib/helpers.ts` with `deriveDomain()`, `slugifyProjectName()`, `extractApiStatusCode()`, `createProjectErrorReason()`, and `truncateUuid()`.
@@ -312,48 +313,48 @@ Last updated: 2026-03-17 (Deployment/auth/config hardening follow-through)
   - **Empty states with guidance**: all route pages have Card-based empty states with contextual help text.
   - **Design tokens**: migrated all hardcoded `slate-800/900/950` colors to CSS-variable-based `border`, `background`, `muted`, `primary`, `accent` tokens for consistent theming.
 - files created:
-  - `apps/dashboard/lib/helpers.ts` — shared helper functions
-  - `apps/dashboard/lib/loaders.ts` — centralized data loader
-  - `apps/dashboard/lib/utils.ts` — `cn()` className merge utility
-  - `apps/dashboard/components/ui/button.tsx` — CVA Button
-  - `apps/dashboard/components/ui/badge.tsx` — CVA Badge with semantic variants
-  - `apps/dashboard/components/ui/card.tsx` — Card components
-  - `apps/dashboard/components/ui/input.tsx` — Input component
-  - `apps/dashboard/components/ui/label.tsx` — Label component
-  - `apps/dashboard/components/ui/sonner.tsx` — Toaster wrapper
-  - `apps/dashboard/components/sidebar.tsx` — navigation sidebar
-  - `apps/dashboard/components/platform-status.tsx` — layout-level status wrapper
-  - `apps/dashboard/app/projects/page.tsx` — projects route
-  - `apps/dashboard/app/projects/actions.ts` — project server actions
-  - `apps/dashboard/app/projects/loading.tsx` — projects skeleton
-  - `apps/dashboard/app/deployments/page.tsx` — deployments route
-  - `apps/dashboard/app/deployments/loading.tsx` — deployments skeleton
-  - `apps/dashboard/app/deployments/[id]/page.tsx` — deployment detail
-  - `apps/dashboard/app/tokens/page.tsx` — tokens route
-  - `apps/dashboard/app/tokens/actions.ts` — token server actions
-  - `apps/dashboard/app/tokens/loading.tsx` — tokens skeleton
-  - `apps/dashboard/app/environment/page.tsx` — environment route
-  - `apps/dashboard/app/environment/actions.ts` — env var server actions
-  - `apps/dashboard/app/environment/loading.tsx` — environment skeleton
-  - `apps/dashboard/app/logs/page.tsx` — logs route
-  - `apps/dashboard/app/logs/loading.tsx` — logs skeleton
-  - `apps/dashboard/app/error.tsx` — route error boundary
-  - `apps/dashboard/app/global-error.tsx` — root error boundary
-  - `apps/dashboard/app/not-found.tsx` — 404 page
+  - `apps/dashboard/lib/helpers.ts` â€” shared helper functions
+  - `apps/dashboard/lib/loaders.ts` â€” centralized data loader
+  - `apps/dashboard/lib/utils.ts` â€” `cn()` className merge utility
+  - `apps/dashboard/components/ui/button.tsx` â€” CVA Button
+  - `apps/dashboard/components/ui/badge.tsx` â€” CVA Badge with semantic variants
+  - `apps/dashboard/components/ui/card.tsx` â€” Card components
+  - `apps/dashboard/components/ui/input.tsx` â€” Input component
+  - `apps/dashboard/components/ui/label.tsx` â€” Label component
+  - `apps/dashboard/components/ui/sonner.tsx` â€” Toaster wrapper
+  - `apps/dashboard/components/sidebar.tsx` â€” navigation sidebar
+  - `apps/dashboard/components/platform-status.tsx` â€” layout-level status wrapper
+  - `apps/dashboard/app/projects/page.tsx` â€” projects route
+  - `apps/dashboard/app/projects/actions.ts` â€” project server actions
+  - `apps/dashboard/app/projects/loading.tsx` â€” projects skeleton
+  - `apps/dashboard/app/deployments/page.tsx` â€” deployments route
+  - `apps/dashboard/app/deployments/loading.tsx` â€” deployments skeleton
+  - `apps/dashboard/app/deployments/[id]/page.tsx` â€” deployment detail
+  - `apps/dashboard/app/tokens/page.tsx` â€” tokens route
+  - `apps/dashboard/app/tokens/actions.ts` â€” token server actions
+  - `apps/dashboard/app/tokens/loading.tsx` â€” tokens skeleton
+  - `apps/dashboard/app/environment/page.tsx` â€” environment route
+  - `apps/dashboard/app/environment/actions.ts` â€” env var server actions
+  - `apps/dashboard/app/environment/loading.tsx` â€” environment skeleton
+  - `apps/dashboard/app/logs/page.tsx` â€” logs route
+  - `apps/dashboard/app/logs/loading.tsx` â€” logs skeleton
+  - `apps/dashboard/app/error.tsx` â€” route error boundary
+  - `apps/dashboard/app/global-error.tsx` â€” root error boundary
+  - `apps/dashboard/app/not-found.tsx` â€” 404 page
 - files changed:
-  - `apps/dashboard/app/page.tsx` — replaced with redirect to `/projects`
-  - `apps/dashboard/app/layout.tsx` — added Sidebar, PlatformStatus, Toaster, Suspense
-  - `apps/dashboard/app/globals.css` — CSS variable dark theme
-  - `apps/dashboard/tailwind.config.ts` — CSS variable colors, animate plugin
-  - `apps/dashboard/tsconfig.json` — `@/*` path alias
-  - `apps/dashboard/package.json` — shadcn/ui dependencies
-  - `apps/dashboard/components/deployment-table.tsx` — Badge status, UUID truncation, detail links
-  - `apps/dashboard/components/project-card.tsx` — Card + Badge integration
-  - `apps/dashboard/components/platform-status-strip.tsx` — Badge variants, design tokens
-  - `docs/production-readiness-audit.md` — Phase 3 marked complete
-  - `docs/progress.md` — Phase 3 entry
+  - `apps/dashboard/app/page.tsx` â€” replaced with redirect to `/projects`
+  - `apps/dashboard/app/layout.tsx` â€” added Sidebar, PlatformStatus, Toaster, Suspense
+  - `apps/dashboard/app/globals.css` â€” CSS variable dark theme
+  - `apps/dashboard/tailwind.config.ts` â€” CSS variable colors, animate plugin
+  - `apps/dashboard/tsconfig.json` â€” `@/*` path alias
+  - `apps/dashboard/package.json` â€” shadcn/ui dependencies
+  - `apps/dashboard/components/deployment-table.tsx` â€” Badge status, UUID truncation, detail links
+  - `apps/dashboard/components/project-card.tsx` â€” Card + Badge integration
+  - `apps/dashboard/components/platform-status-strip.tsx` â€” Badge variants, design tokens
+  - `docs/production-readiness-audit.md` â€” Phase 3 marked complete
+  - `docs/progress.md` â€” Phase 3 entry
 - what is still missing:
-  - Phase 3 is now COMPLETE — all 10 items done
+  - Phase 3 is now COMPLETE â€” all 10 items done
   - Phase 4: Extensibility is next
 - known issues:
   - `page.tsx.bak` backup file exists and should be deleted manually
@@ -827,7 +828,7 @@ Last updated: 2026-03-17 (Deployment/auth/config hardening follow-through)
 ### Phase: Project-create UX polish slice (2026-03-11)
 
 - what was built:
-  - dashboard project-create form now has optimistic pending state (`Creating…`) and disables submit while action is in flight
+  - dashboard project-create form now has optimistic pending state (`Creatingâ€¦`) and disables submit while action is in flight
   - added inline field-level validation hints for name/slug/repository URL/default branch constraints
   - added live slug preview so users can see the derived slug before submitting
 - files created or changed:
