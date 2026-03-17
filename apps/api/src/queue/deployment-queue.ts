@@ -3,13 +3,25 @@ import { QUEUE_NAMES, type DeploymentJobPayload } from '@vcloudrunner/shared-typ
 
 import { redisConnection } from './redis.js';
 
+type QueueLike = Pick<
+  Queue<DeploymentJobPayload, unknown, 'deploy'>,
+  'add' | 'getJobs' | 'getJob'
+>;
+
 export class DeploymentQueue {
-  private readonly queue = new Queue<DeploymentJobPayload, unknown, "deploy">(QUEUE_NAMES.deployment, {
-    connection: redisConnection
-  });
+  private readonly queue: QueueLike;
+
+  constructor(queue?: QueueLike) {
+    this.queue =
+      queue ??
+      new Queue<DeploymentJobPayload, unknown, 'deploy'>(QUEUE_NAMES.deployment, {
+        connection: redisConnection
+      });
+  }
 
   enqueue(payload: DeploymentJobPayload) {
     return this.queue.add('deploy', payload, {
+      jobId: payload.deploymentId,
       removeOnComplete: 100,
       removeOnFail: 1000,
       attempts: 4,
@@ -21,6 +33,16 @@ export class DeploymentQueue {
   }
 
   async cancelQueuedDeployment(deploymentId: string) {
+    const directMatch = await this.queue.getJob(deploymentId);
+    if (directMatch) {
+      try {
+        await directMatch.remove();
+        return true;
+      } catch {
+        // Fall back to queue scan for compatibility with racey/legacy job states.
+      }
+    }
+
     const jobs = await this.queue.getJobs(['waiting', 'delayed', 'paused', 'prioritized']);
 
     let removed = false;

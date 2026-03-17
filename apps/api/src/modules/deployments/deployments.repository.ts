@@ -1,7 +1,7 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import type { DbClient } from '../../db/client.js';
-import { deploymentLogs, deployments } from '../../db/schema.js';
+import { deploymentLogs, deployments, projects } from '../../db/schema.js';
 
 export interface CreateDeploymentInput {
   projectId: string;
@@ -18,16 +18,37 @@ export interface CreateDeploymentInput {
 export class DeploymentsRepository {
   constructor(private readonly db: DbClient) {}
 
-  async create(input: CreateDeploymentInput) {
-    const [record] = await this.db.insert(deployments).values({
-      projectId: input.projectId,
-      status: 'queued',
-      commitSha: input.commitSha,
-      branch: input.branch,
-      metadata: input.metadata ?? {}
-    }).returning();
+  async createIfNoActiveDeployment(input: CreateDeploymentInput) {
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`
+        select ${projects.id}
+        from ${projects}
+        where ${projects.id} = ${input.projectId}
+        for update
+      `);
 
-    return record;
+      const activeDeployment = await tx.query.deployments.findFirst({
+        where: and(
+          eq(deployments.projectId, input.projectId),
+          inArray(deployments.status, ['queued', 'building', 'running'])
+        ),
+        orderBy: [desc(deployments.createdAt)]
+      });
+
+      if (activeDeployment) {
+        return null;
+      }
+
+      const [record] = await tx.insert(deployments).values({
+        projectId: input.projectId,
+        status: 'queued',
+        commitSha: input.commitSha,
+        branch: input.branch,
+        metadata: input.metadata ?? {}
+      }).returning();
+
+      return record;
+    });
   }
 
   async findByProject(projectId: string) {
@@ -72,6 +93,23 @@ export class DeploymentsRepository {
       runtimeUrl: null,
       updatedAt: new Date()
     }).where(eq(deployments.id, deploymentId));
+  }
+
+
+  async markFailed(deploymentId: string, message: string) {
+    await this.db.transaction(async (tx) => {
+      await tx.update(deployments).set({
+        status: 'failed',
+        finishedAt: new Date(),
+        updatedAt: new Date()
+      }).where(eq(deployments.id, deploymentId));
+
+      await tx.insert(deploymentLogs).values({
+        deploymentId,
+        level: 'error',
+        message: message.slice(0, 10000)
+      });
+    });
   }
 
   async appendLog(input: { deploymentId: string; level: 'info' | 'warn' | 'error'; message: string }) {

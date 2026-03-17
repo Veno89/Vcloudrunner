@@ -99,3 +99,25 @@ export function logLevelTextClassName(level: string): string {
 
   return 'text-primary';
 }
+
+
+export function normalizeProjectDisplayName(value: unknown): string {
+  if (typeof value !== 'string') {
+    return 'project';
+  }
+
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : 'project';
+}
+
+export function createDeploymentErrorMessage(statusCode: number | null, projectName: string): string {
+  if (statusCode === 409) {
+    return `Cannot deploy "${projectName}": another deployment is already active.`;
+  }
+
+  if (statusCode === 503) {
+    return `Cannot deploy "${projectName}": deployment queue is unavailable. Please retry shortly.`;
+  }
+
+  return `Failed to deploy "${projectName}"`;
+}
