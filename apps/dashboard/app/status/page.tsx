@@ -1,3 +1,4 @@
+import type { DeploymentStatus } from '@vcloudrunner/shared-types';
 import { PageLayout } from '@/components/page-layout';
 import { PageHeader } from '@/components/page-header';
 import { PlatformStatusStrip } from '@/components/platform-status-strip';
@@ -7,10 +8,10 @@ import { loadDashboardData } from '@/lib/loaders';
 import { truncateUuid } from '@/lib/helpers';
 import { StatusQueueTrend } from '@/components/status-queue-trend';
 
-function deploymentStatusVariant(status: string) {
+function deploymentStatusVariant(status: DeploymentStatus) {
   if (status === 'running') return 'success' as const;
   if (status === 'building' || status === 'queued') return 'warning' as const;
-  if (status === 'failed' || status === 'cancelled') return 'destructive' as const;
+  if (status === 'failed') return 'destructive' as const;
   return 'secondary' as const;
 }
 

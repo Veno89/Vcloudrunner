@@ -1,3 +1,5 @@
+import type { DeploymentStatus } from '@vcloudrunner/shared-types';
+
 import {
   demoUserId,
   fetchProjectsForDemoUser,
@@ -21,7 +23,7 @@ export interface MappedDeployment {
   id: string;
   project: string;
   projectId: string;
-  status: string;
+  status: DeploymentStatus;
   commitSha: string;
   createdAt: string;
   startedAt?: string | null;

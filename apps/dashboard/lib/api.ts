@@ -1,3 +1,5 @@
+import type { DeploymentStatus } from '@vcloudrunner/shared-types';
+
 export interface ApiProject {
   id: string;
   name: string;
@@ -9,7 +11,7 @@ export interface ApiProject {
 export interface ApiDeployment {
   id: string;
   projectId: string;
-  status: string;
+  status: DeploymentStatus;
   commitSha: string | null;
   createdAt: string;
   startedAt?: string | null;

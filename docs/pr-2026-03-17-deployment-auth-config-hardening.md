@@ -9,6 +9,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - fall back to queued-job scanning when BullMQ direct `getJob(deploymentId)` lookup fails during cancellation
 - keep cancellation responses stable when the state change succeeds but the follow-up deployment log insert fails
 - add API unit coverage for queue lookup failure fallback and cancellation log partial-failure behavior
+- align dashboard deployment filtering/status badges with the backend `stopped` status while preserving backward compatibility for legacy `status=cancelled` URLs
 - clarify compose quick start requirements for `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `ENCRYPTION_KEY`, optional dashboard auth variables, and the separation from app-local `.env` files
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
 - make `apps/api/.env.example` explicitly show `ENABLE_DEV_AUTH=false` alongside the bootstrap token fallback example
@@ -16,6 +17,6 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/api test`
-  - blocked in the default sandbox by Windows `spawn EPERM`; requires elevated execution to complete in this environment
+  - passed (`44/44`); required elevated execution in this environment because the default Windows sandbox hit `spawn EPERM`
 - `npm run typecheck`
   - passed

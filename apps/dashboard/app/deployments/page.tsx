@@ -1,3 +1,4 @@
+import type { DeploymentStatus } from '@vcloudrunner/shared-types';
 import { DeploymentTable } from '@/components/deployment-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,9 +14,11 @@ import { deployments as mockDeployments } from '@/lib/mock-data';
 import { truncateUuid } from '@/lib/helpers';
 import Link from 'next/link';
 
+type DeploymentFilterStatus = 'all' | DeploymentStatus | 'cancelled';
+
 interface DeploymentsPageProps {
   searchParams?: {
-    status?: 'all' | 'queued' | 'building' | 'running' | 'failed' | 'cancelled';
+    status?: DeploymentFilterStatus;
     projectId?: string;
     q?: string;
     page?: string;
@@ -30,7 +33,10 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
     projectId: 'projectId' in deployment ? deployment.projectId : deployment.project,
   }));
 
-  const selectedStatus = searchParams?.status ?? 'all';
+  const selectedStatus: 'all' | DeploymentStatus =
+    searchParams?.status === 'cancelled'
+      ? 'stopped'
+      : searchParams?.status ?? 'all';
   const selectedProjectId = searchParams?.projectId ?? 'all';
   const selectedQuery = searchParams?.q?.trim() ?? '';
   const normalizedQuery = selectedQuery.toLowerCase();
@@ -88,7 +94,7 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
           <option value="building">building</option>
           <option value="running">running</option>
           <option value="failed">failed</option>
-          <option value="cancelled">cancelled</option>
+          <option value="stopped">stopped</option>
         </Select>
         <Label htmlFor="deployment-project-filter" className="sr-only">Filter deployments by project</Label>
         <Label htmlFor="deployment-query" className="sr-only">Search deployments</Label>
@@ -187,7 +193,7 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
   );
 }
 
-function DeploymentStatusBadge({ status }: { status: string }) {
+function DeploymentStatusBadge({ status }: { status: DeploymentStatus }) {
   const variant =
     status === 'running'
       ? 'success'
