@@ -40,10 +40,10 @@ No Kubernetes or multi-node orchestration is introduced in the MVP.
    export POSTGRES_PASSWORD='replace-with-strong-postgres-password'  # required
    export REDIS_PASSWORD='replace-with-strong-redis-password'  # required
    export CLOUDFLARED_TOKEN='replace-with-cloudflare-tunnel-token'
-   export NEXT_PUBLIC_DEMO_USER_ID='replace-with-existing-user-uuid'  # optional; needed for live dashboard user-scoped pages
+   export NEXT_PUBLIC_DEMO_USER_ID='replace-with-existing-user-uuid'  # optional; leave unset until you have a real user ID for live dashboard user-scoped pages
    export API_AUTH_TOKEN='replace-with-db-backed-api-token'  # optional; needed for live dashboard API calls
    ```
-   Keep `ENABLE_DEV_AUTH` unset/`false` and leave `API_TOKENS_JSON` empty for this production-like compose path.
+   Keep `ENABLE_DEV_AUTH` unset/`false` and leave `API_TOKENS_JSON` empty for this production-like compose path. If `NEXT_PUBLIC_DEMO_USER_ID` is unset, the dashboard now stays up and shows explicit live-data unavailable guidance instead of pretending a placeholder user exists.
 2. Build and start the core platform stack:
    ```bash
    docker compose up -d --build

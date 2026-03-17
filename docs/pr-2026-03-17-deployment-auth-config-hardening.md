@@ -15,6 +15,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - remove the misleading `API_AUTH_TOKEN=dev-admin-token` default from the dashboard example env and clarify that explicit dev-auth bypass remains local-only opt-in
 - make project-scoped dashboard pages degrade into explicit live-data unavailable states instead of failing hard on token/auth/config problems
 - harden dashboard live log proxy routes so missing tokens, rejected tokens, upstream outages, and empty upstream bodies return explicit actionable failures instead of generic proxy errors
+- stop compose from injecting a fake `NEXT_PUBLIC_DEMO_USER_ID` and align dashboard docs so missing demo-user configuration intentionally degrades to explicit guidance
 - clarify compose quick start requirements for `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `ENCRYPTION_KEY`, optional dashboard auth variables, and the separation from app-local `.env` files
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
 - make `apps/api/.env.example` explicitly show `ENABLE_DEV_AUTH=false` alongside the bootstrap token fallback example
