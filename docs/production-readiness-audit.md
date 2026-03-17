@@ -1,384 +1,439 @@
-# Vcloudrunner — Production-Readiness Audit
+# Vcloudrunner Production Readiness & Platform Maturity Audit
 
-Date: 2026-03-12  
-Auditor: Principal Platform Architect (AI)  
-Scope: Full codebase — API, Worker, Dashboard, Shared Packages, Infrastructure  
-Stage Assessment: **Late MVP / Early Pre-Production**
+Date: 2026-03-15  
+Reviewer: Principal-level platform architecture review (AI)  
+Scope: `apps/api`, `apps/worker`, `apps/dashboard`, shared package, infra + docs  
+Current stage verdict: **Validated MVP with strong direction, not yet production-grade**
 
 ---
 
 ## 1. Executive Summary
 
-Vcloudrunner has proven its core thesis: it successfully deployed and ran the Vvoice backend, demonstrating a working deploy → build → run → route pipeline. The queue-driven architecture (Fastify API → BullMQ → Worker → Docker → Caddy) is fundamentally sound and well-chosen for a single-node self-hosted PaaS.
+Vcloudrunner has crossed the most important MVP threshold: it can deploy and run a real backend (Vvoice) through its own control plane and worker pipeline. That is a meaningful proof that the product concept and architecture are viable.
 
-However, several critical issues prevent calling it production-ready:
+At the same time, the codebase is now at the classic inflection point where “working MVP” and “trustworthy platform” diverge.
 
-| Area | Maturity | Key Blocker |
-|------|----------|-------------|
-| Deployment Pipeline | ★★★★☆ | Proven with real workload; needs edge-case hardening |
-| API Backend | ★★★☆☆ | Works but massive error-handling duplication, no graceful shutdown |
-| Worker Backend | ★★★☆☆ | Functional but God-service, raw SQL alongside ORM |
-| Dashboard | ★★☆☆☆ | Single 600-line page; token in URL; no loading states; raw JS handlers |
-| Security | ★★½☆☆ | Good token hashing, but dev-bypass and plaintext URL exposure |
-| Observability | ★★½☆☆ | Correlation IDs exist; structured logging incomplete |
-| Infrastructure | ★★★☆☆ | Docker Compose works; default credentials; single-node only |
+**High-level maturity assessment**
 
-**Bottom line:** The backend pipeline is ahead of the frontend. The dashboard is the single biggest drag on production readiness and user trust.
+- **Architecture direction**: good (single-node, queue-driven, clear API/worker split).
+- **Operational safety**: partial (timeouts, retries, heartbeat, reconciliation exist; still missing stronger failure semantics and runtime guardrails).
+- **Security posture**: improved but still risky by default in local compose (`ENABLE_DEV_AUTH` default true in compose, weak bootstrap defaults, broad token usage model).
+- **UI trust layer**: improved foundations (routing, loading/error pages, status strip), but still too thin for serious operations workflows.
+- **Scalability readiness**: moderate; core seams exist, but some “god services” and mixed responsibilities will become drag points soon.
+
+### Overall judgment
+
+Vcloudrunner is currently **appropriately lean in macro architecture**, but **still too MVP/hacky in several implementation and product workflow details**. It is **not overengineered**. It needs focused hardening, decomposition, and UX trust-building—not a rewrite.
 
 ---
 
 ## 2. What Is Already Working Well
 
-### 2.1 Proven Deployment Pipeline
-The 14-step deployment flow (create → queue → clone → build → run → route → serve) works end-to-end. Real-world validation with Vvoice proves this isn't scaffolding.
+### 2.1 Real deployment proof is genuine
 
-### 2.2 Typed Domain Errors
-`DomainError` subclasses (`ProjectNotFoundError`, `DeploymentAlreadyActiveError`, etc.) give structured, meaningful errors throughout the backend.
+The system has proven end-to-end value with the Vvoice backend deployment milestone. This is not mock scaffolding: API queueing, worker execution, Docker runtime, and routing all worked together for a real app backend.
 
-### 2.3 API Token Security Model
-- SHA-256 hashing with per-token salts (never stores plaintext)
-- AES-256-GCM encryption for environment variables
-- Scoped tokens (`deployment:trigger`, `deployment:read`, `project:read`, etc.)
-- Show-once plaintext pattern on creation
+### 2.2 Good control-plane / execution-plane separation
 
-### 2.4 Deployment Lifecycle Management
-- Container health checks with configurable timeout/retries
-- Stuck deployment recovery (worker heartbeat + sweeper)
-- Build log capture and archival (S3/GCS/Azure/local)
-- Automatic cleanup of old containers on redeploy
-- Configurable deployment timeout and retention
+The API creates and tracks deployments; worker executes deployment jobs asynchronously through BullMQ. This is the correct shape for this class of platform and keeps future scaling options open.
 
-### 2.5 Configuration Validation
-Both API and Worker use Zod schemas for environment validation — the app fails fast on misconfiguration.
+### 2.3 Domain and safety improvements already present
 
-### 2.6 Correlation IDs
-Request-scoped `x-request-id` headers flow through API to queue to worker, enabling distributed tracing.
+- Domain errors mapped centrally via plugin (cleaner routes).
+- Runtime defaults for CPU/memory/port with payload override model.
+- Retry classification (`retryable` vs non-retryable) and timeout envelope around deployment run.
+- Cancellation semantics (queued and in-flight handling).
+- Startup reconciliation that marks stale “running” deployments failed if container is missing.
 
-### 2.7 Runtime Safety
-- `allowedBaseImages` whitelist for Docker builds
-- Network mode configuration for container isolation
-- Resource limits passed through to Docker container creation
-- Container stop timeout before force kill
+### 2.4 Security fundamentals are better than average MVPs
 
-### 2.8 Log Archival Pipeline
-Multi-provider archive support (S3, GCS, Azure Blob, local filesystem) with signed URL generation for log retrieval.
+- API token hashing with DB-backed token rows.
+- Environment variable encryption at rest.
+- Token scopes and role model.
+- Token one-time reveal UX pattern (no URL leak pattern anymore).
+
+### 2.5 UI architecture foundation improved significantly
+
+Dashboard is no longer a single monolithic page. Route segmentation, loading/error boundaries, reusable UI primitives, and project-scoped routes are in place. This materially reduces future UI rewrite risk.
 
 ---
 
 ## 3. Critical Risks
 
-### 3.1 ~~CRITICAL — Token Plaintext Exposed in URL Parameters~~ (FIXED)
-**File:** `apps/dashboard/app/page.tsx`  
-**Issue:** ~~After API token creation, the plaintext token is passed via `?tokenPlaintext=...` in the URL.~~  
-**Status:** ✅ Fixed — Token now transmitted via short-lived HTTP-only cookie with `sameSite: strict`. Cookie is read once and immediately deleted on render.
+This section lists the highest-leverage issues that can cause trust, safety, or maintainability failures.
 
-### 3.2 CRITICAL — Dashboard Is a Single 600-Line Page
-**File:** `apps/dashboard/app/page.tsx`  
-**Issue:** The entire dashboard UI lives in one page component with 8 server actions, all data fetching, all rendering, and tab-based "navigation" via URL search params. This makes the dashboard:
-- Impossible to deep-link to specific resources
-- Unmaintainable as features grow
-- Unable to show proper loading/error states per section
-- A poor foundation for any future UI work
+### Must fix now (blocking “serious use” confidence)
 
-**Fix:** Extract into proper Next.js route segments (`/projects`, `/projects/[id]`, `/projects/[id]/deployments/[deploymentId]`, `/settings/tokens`).
+1. **Insecure-by-default compose posture**
+   - `ENABLE_DEV_AUTH` defaults to `true` in compose API env.
+   - `API_AUTH_TOKEN` falls back to `dev-admin-token` in dashboard service.
+   - Default DB password is static `postgres` and Redis has no auth.
+   - Result: accidental exposure risk if users move from local to internet-facing without strict override discipline.
 
-### 3.3 HIGH — Route Error Handling Duplication
-**Files:** All files in `apps/api/src/modules/*/routes.ts`  
-**Issue:** Every single route handler (16+) contains identical try/catch blocks mapping `DomainError` subclasses to HTTP status codes. This is ~200 lines of pure duplication.
+2. **Deployment execution path still has sharp edges**
+   - Worker uses Docker CLI shell commands (`docker build`, `docker image rm`) intermixed with Dockerode API.
+   - Build flow is minimally instrumented; diagnostics and step-level recoverability are limited.
+   - Failure states are recorded, but not always actionable from operator perspective.
 
-**Fix:** Extend `error-handler.ts` plugin to map `DomainError` → HTTP responses automatically. Routes should just throw; the plugin catches.
+3. **Service boundary blur in worker “state service”**
+   - `DeploymentStateService` owns status transitions, logging, retention, archiving, provider signing, upload retries, and storage cleanup.
+   - This is a critical future bottleneck and testing burden.
 
-### 3.4 HIGH — Dev Admin Token Bypass
-**File:** `apps/api/src/plugins/auth-context.ts`  
-**Issue:** The `dev-admin-token` bypass is gated only by `NODE_ENV === 'development'`. If NODE_ENV is accidentally unset or misconfigured in production, this could be exposed. Additionally, there's a legacy plaintext token fallback path.
+4. **No robust concurrency / idempotency contract per project**
+   - Queue + DB logic attempts safe behavior, but there is no explicit per-project deployment lock/serialization policy exposed and enforced as a first-class invariant.
+   - Race conditions and state trust issues become likely under heavier usage.
 
-**Fix:** Use a dedicated `ENABLE_DEV_AUTH` flag that defaults to `false`. Remove the legacy plaintext fallback.
+### Should fix soon
 
-### 3.5 HIGH — Shared Types Ambient Declaration Drift
-**Files:** `apps/api/src/types/shared-types.d.ts`, `apps/worker/src/types/shared-types.d.ts`  
-**Issue:** Both apps contain ambient `.d.ts` files that shadow the real `packages/shared-types` package. Types can silently diverge between the apps and the shared package.
+5. **Insufficient observability depth for incident debugging**
+   - Logs exist and correlation IDs exist, but telemetry is still limited for timeline reconstruction and SLO-driven operations.
 
-**Fix:** Delete the ambient files. Import from `@vcloudrunner/shared-types` directly.
+6. **Dashboard still lacks operator-grade feedback loops**
+   - Better than before, but still weak in failure triage, deployment progress semantics, and day-2 operations ergonomics.
 
 ---
 
 ## 4. Architecture Audit
 
-### 4.1 API (`apps/api`)
+## 4.1 API (`apps/api`)
 
-**build-server.ts is overloaded (~270 lines)**  
-Mixes Fastify server construction, CORS, rate limiting, Swagger, auth plugin, error handler, route registration, alert monitoring system (checks queue depth, worker heartbeat, failed jobs), health endpoints, queue metrics endpoints, and gzip compression — all in one function.
+**What is strong**
+- Fastify plugin structure is reasonably clean.
+- Domain-centric module split exists (`projects`, `deployments`, `logs`, `environment`, `api-tokens`).
+- Route handlers are mostly concise and defer to services.
 
-**Service instantiation is scattered**  
-Some services are created inside `buildServer()`, some in route files. No dependency injection container.
+**Where architecture drifts**
+- `build-server.ts` still centralizes many concerns (server bootstrapping, infra monitor wiring, health endpoints, metrics endpoints, route registration).
+- Deployment service decrypts env vars and directly constructs queue payloads. This is practical now, but will become brittle when introducing additional deploy sources/buildpacks/workflow variants.
+- Auth model still includes static JSON token fallback (`API_TOKENS_JSON`) plus dev-mode bypass behavior; useful for bootstrap, but risky complexity over time.
 
-**No graceful shutdown**  
-`src/index.ts` calls `server.listen()` but has no SIGTERM/SIGINT handler to drain connections and close pools.
+**Recommendation**
+- Keep current module layout; split boot/monitor concerns from route registration.
+- Introduce explicit orchestration service for deployment request assembly.
+- Keep compatibility fallbacks, but gate them with strict environment profile checks and loud startup warnings.
 
-**`gzipSync` blocking call**  
-Log export uses synchronous gzip in an async handler, blocking the event loop for large logs.
+## 4.2 Worker (`apps/worker`)
 
-**Memory-loaded log export**  
-`GET /logs/:id/export` loads entire log content into memory before gzipping and sending. No streaming.
+**What is strong**
+- Queue worker lifecycle is straightforward.
+- Retry classification and timeout handling are thoughtful.
+- Startup reconciliation and background scheduler show good operational intent.
 
-### 4.2 Worker (`apps/worker`)
+**Primary architectural debt**
+- `DeploymentStateService` is overloaded with unrelated responsibilities (state machine + log retention + archive packaging + cloud provider auth/signing).
+- `DeploymentRunner` mixes orchestration, runtime policy, and low-level container/image cleanup.
+- Runtime abstraction exists (`RuntimeExecutor`), but Docker implementation still shells out for core build/delete paths; this weakens consistency and introspection.
 
-**God-service: `deployment-state.service.ts` (~500 lines)**  
-Handles state transitions, log archival, S3/GCS/Azure upload, signed URL generation, retry logic, and cleanup. Too many responsibilities.
+**Recommendation**
+- Decompose worker services by bounded context:
+  - `deployment-lifecycle` (state transitions only)
+  - `deployment-runtime` (build/run/cleanup only)
+  - `log-retention`
+  - `archive-uploader` + provider adapters
+- Keep behavior; refactor structure gradually to avoid regressions.
 
-**Raw SQL alongside Drizzle ORM**  
-`deployment-state.repository.ts` uses raw `pg` Pool queries with hand-written SQL while the API uses Drizzle. Two different data access patterns for the same database.
+## 4.3 Dashboard (`apps/dashboard`)
 
-**Manual transaction management**  
-Worker manages transactions manually instead of using a transaction helper.
+**What is strong**
+- Route-based structure and reusable components are a meaningful step up.
+- Error/loading routes and shared layout patterns are in place.
 
-**Docker CLI shelling**  
-Some Docker operations use `execSync` to shell out to Docker CLI instead of going through Dockerode consistently.
+**Gaps**
+- Data loading model (`loadDashboardData`) fans out calls per project and then deployments per project, which will not scale cleanly.
+- Mixed live-data vs mock fallback behavior can obscure trust (“is this real state?”) if not clearly labeled everywhere.
+- Server actions redirect with query-string status messages; works, but not ideal for richer interaction/state recovery.
 
-### 4.3 Dashboard (`apps/dashboard`)
+**Recommendation**
+- Introduce dashboard-facing aggregate API endpoints for list pages (projects + last deployment snapshot, deployments feed with filters).
+- Make “data source mode” explicit and impossible to miss.
+- Move from query-param feedback to structured action state patterns for key workflows.
 
-**Raw JS event handlers**  
-`onchange="this.form.submit()"` raw JavaScript strings instead of React event handlers.
+## 4.4 Shared packages + infra boundaries
 
-**No loading states**  
-Server actions execute with no user feedback. No pending/loading indicators.
-
-**`next-shims.d.ts` overrides real types**  
-Declares stub types for `next/font/google`, `next/navigation`, etc. that override real Next.js types, suppressing legitimate type errors.
-
-**No navigation architecture**  
-Everything is URL param tabs (`?tab=deployments`). No route hierarchy, no breadcrumbs, no deep linking to specific deployments or projects.
-
-**Inline server actions**  
-8 server actions defined directly in the page component.
-
-**Raw UUIDs displayed to users**  
-Full UUIDs shown in deployment tables and project views.
-
-### 4.4 Infrastructure
-
-**Default credentials in docker-compose**  
-`POSTGRES_PASSWORD: postgres`, `REDIS_PASSWORD` not set.
-
-**`NEXT_PUBLIC_API_BASE_URL` may be unreachable**  
-Set to `http://api:3001` pointing to Docker internal network, but as a `NEXT_PUBLIC_` variable it's used client-side where `api:3001` is not resolvable.
+- `packages/shared-types` is minimal and useful but still mostly queue/event contracts; shared domain contracts can mature here carefully.
+- Compose stack is appropriate for MVP, but defaults are unsafe for anything beyond local trusted network.
+- Caddy integration is cleanly encapsulated in worker service—good future replacement seam.
 
 ---
 
-## 5. Production Readiness Matrix
+## 5. Production Readiness Audit
 
-### Error Handling
-| Item | Status | Notes |
-|------|--------|-------|
-| Domain errors defined | ✅ | Good `DomainError` hierarchy |
-| Domain errors mapped to HTTP | ✅ | Centralized in error-handler plugin via `DomainError.statusCode` |
-| Unhandled promise rejections | ⚠️ | Global handler exists but no structured logging |
-| Worker job failure taxonomy | ✅ | `BUILD_FAILED`, `START_FAILED`, `TIMEOUT`, etc. |
-| Dashboard error states | ❌ | No error boundaries, no per-action error display |
+### 5.1 Reliability and failure handling
 
-### Resilience & Recovery
-| Item | Status | Notes |
-|------|--------|-------|
-| Stuck deployment recovery | ✅ | Heartbeat sweeper with configurable interval |
-| Container cleanup on failure | ✅ | Cleanup runs in `finally` blocks |
-| Queue retry with backoff | ✅ | Exponential backoff configured |
-| Database connection pooling | ✅ | Configurable pool max, idle timeout, connection timeout, statement timeout |
-| Graceful shutdown | ✅ | Both API and worker handle SIGTERM/SIGINT with resource cleanup |
+**Already present**
+- Job retries with exponential backoff.
+- Execution timeout wrapper.
+- Stuck deployment recovery sweeps.
+- Startup reconciliation for stale “running” state.
 
-### Observability
-| Item | Status | Notes |
-|------|--------|-------|
-| Correlation IDs | ✅ | `x-request-id` propagated |
-| Structured logging | ⚠️ | Pino used but inconsistent structured fields |
-| Health endpoints | ✅ | `/health`, `/health/detailed` |
-| Queue metrics | ✅ | `/metrics/queue` endpoint |
-| Alert monitoring | ✅ | Queue depth, worker heartbeat, failed job checks |
-| Deployment state tracking | ✅ | Full lifecycle status updates in DB |
+**Missing / weak**
+- No explicit dead-letter workflow or failed-deployment triage queue.
+- No circuit-breaker style protections around repeated repository/build failures.
+- Limited deployment step diagnostics surfaced as structured fields (step, duration, error code taxonomy) for later analytics.
 
-### Security
-| Item | Status | Notes |
-|------|--------|-------|
-| Token hashing | ✅ | SHA-256 with per-token salt |
-| Env var encryption | ✅ | AES-256-GCM |
-| Token scopes | ✅ | Granular permission model |
-| Dev auth bypass | ✅ | Gated by explicit `ENABLE_DEV_AUTH` flag (default false) |
-| Token in URL params | ✅ | Fixed — token passed via HTTP-only cookie flash |
-| CORS configuration | ✅ | Configurable origins |
-| Rate limiting | ✅ | Global rate limit configured |
-| Image whitelist | ✅ | `allowedBaseImages` |
+### 5.2 Observability
 
-### Data Integrity
-| Item | Status | Notes |
-|------|--------|-------|
-| Schema migrations | ✅ | Drizzle Kit with versioned migrations |
-| Foreign key constraints | ✅ | Proper relationships defined |
-| Cascade deletes | ✅ | Configured appropriately |
-| Unique constraints | ✅ | On project slugs, token hashes |
-| Database backups | ✅ | Strategy documented in `docs/database-backup.md` |
+**Already present**
+- Health and metrics endpoints.
+- Correlation IDs and logging in both API/worker.
+- Basic worker heartbeat monitoring.
+
+**Missing / weak**
+- OTEL exists in config but does not appear fully integrated as an end-to-end tracing strategy.
+- No formal SLO indicators (deployment success rate, median build time, p95 queue latency, reconciliation incidents).
+- Limited audit trail semantics for user/operator actions (who cancelled, why, what changed).
+
+### 5.3 Security and config safety
+
+**High risk**
+- Insecure defaults in compose for auth/dev tokens/passwords.
+- Potential accidental use of demo token paths in environments that look production-ish.
+
+**Moderate risk**
+- Dashboard uses a broad server-side token (`API_AUTH_TOKEN`) for backend requests; effective for MVP but coarse.
+- No strict environment profile enforcement (e.g., fail startup if dev auth enabled in production profile).
+
+### 5.4 Data integrity and migrations
+
+**Strong**
+- Drizzle migrations and schema constraints are in place.
+
+**Gaps**
+- Backup/restore docs exist, but disaster recovery is still procedural, not automated.
+- No formal migration safety checks in CI for forward/backward compatibility testing.
+
+### 5.5 Operational trustworthiness
+
+- Current platform state can drift under complex failures; reconciliation helps, but operator-facing status explanation is still minimal.
+- Need richer distinction between “deployment failed due to user app,” “platform transient issue,” and “platform internal error.”
 
 ---
 
 ## 6. UI/UX Audit
 
-### 6.1 Information Architecture
-**Current:** Single page with tab navigation (`projects` | `deployments` | `tokens`)  
-**Problem:** No hierarchy. Cannot deep-link. Cannot share URLs to specific resources. No breadcrumbs. Mental model is flat when the domain is hierarchical (Platform → Projects → Deployments → Logs).
+This section focuses on platform credibility and operator ergonomics.
 
-### 6.2 Interaction Patterns
-- **Form submission:** Raw HTML form submits with `onchange="this.form.submit()"` — bypasses React, no optimistic UI
-- **Destructive actions:** `ConfirmSubmitButton` exists but inconsistently applied
-- **Token creation:** Shows plaintext once but token is also in URL params
-- **Deployment trigger:** No progress indication after triggering
-- **Log viewing:** Auto-refresh and live-stream components exist but UX is basic
+### What is strong now
+- Better IA than earlier MVP (route hierarchy and project-scoped pages).
+- Platform status strip provides useful at-a-glance signal.
+- Basic loading/error/empty-state patterns exist.
 
-### 6.3 Status Communication
-- **Deployment status:** Text-only status values shown in tables, no color-coded badges
-- **Platform health:** `PlatformStatusStrip` shows API/queue/worker health — good foundation
-- **Build progress:** No real-time build step visibility
-- **Error feedback:** No toast/notification system; errors only surface on page reload
+### Major UX gaps
 
-### 6.4 State Gaps
-| State | Implemented? | Notes |
-|-------|-------------|-------|
-| Loading | ❌ | No spinners, skeletons, or pending indicators |
-| Empty | ⚠️ | Basic "no projects" but no guidance or CTAs |
-| Error | ❌ | No error boundaries, no per-action error display |
-| Success | ❌ | No confirmation feedback for actions |
-| Partial failure | ❌ | No handling of partial data load failures |
+#### 6.1 Deployment flow clarity
+- Deploy trigger often sends user to deployment detail, but overall lifecycle readability is still thin.
+- Need persistent step model visible across list + detail + logs:
+  - queued → cloning → building → starting → routing → healthy/live
+- Failure summaries exist in some areas, but not consistently actionable with next-step guidance.
 
-### 6.5 Accessibility
-- No ARIA labels on interactive elements
-- No keyboard navigation patterns
-- No focus management after actions
-- Color contrast unchecked
-- No responsive breakpoints verified
+#### 6.2 Logs as troubleshooting surface
+- Logs are available (poll + SSE + export), but still lack core tooling affordances:
+  - level filter
+  - search within log stream
+  - pin/highlight errors
+  - sticky context metadata (deployment, attempt, runtime)
 
-### 6.6 Top 10 UI/UX Priorities
-1. **Extract dashboard into proper routes** with project → deployment hierarchy
-2. **Remove token from URL params** — use session flash or similar
-3. **Add status badges** with color coding for deployment states
-4. **Add toast/notification system** for action feedback
-5. **Add loading states** (spinners, skeleton screens) for all async operations
-6. **Replace raw JS handlers** with React event handlers
-7. **Add empty states** with guidance CTAs
-8. **Truncate UUIDs** in display (show first 8 chars with copy-on-click)
-9. **Add responsive layout** breakpoints
-10. **Add error boundaries** per route segment
+#### 6.3 Environment variable UX
+- CRUD exists, but lacks higher-trust ergonomics:
+  - validation hints (naming convention, duplicate risk, dangerous key warnings)
+  - bulk edit/import
+  - change history/audit
+  - scoped preview by latest deployment
+
+#### 6.4 Trust communication
+- UI still relies heavily on generic banners/query params.
+- Needs event-driven, localized feedback near the action locus.
+- Needs clearer platform state language (e.g., “worker stale for 2m; deployments may queue but not start”).
+
+#### 6.5 Accessibility and keyboard ergonomics
+- Foundation is decent, but requires dedicated accessibility pass:
+  - focus management across dialogs/actions
+  - keyboard-first workflows in tables/forms
+  - color contrast and semantic labeling verification
 
 ---
 
-## 7. Scalability & Growth Audit
+## 7. Scalability / Organic Growth Audit
 
-### Future-Friendly
-- Queue-based architecture naturally decouples API from Worker
-- Multi-provider archive support (S3/GCS/Azure/local) ready for cloud migration
-- Runtime executor abstraction allows future non-Docker runtimes
-- Token scopes enable future fine-grained access control
+### Future-friendly decisions already in place
+- Queue-driven async execution.
+- API/worker separation.
+- Runtime executor abstraction seam.
+- Caddy integration encapsulation.
+- Modular dashboard route structure.
 
-### Growth Bottleneck Risks
-- **Single-node:** No horizontal scaling path for workers yet
-- **No multi-user:** Single-tenant only, no user/org model
-- **No network isolation:** Deployed containers share Docker bridge
-- **Caddy routes accumulate:** No route pruning for deleted projects
-- **Docker images accumulate:** No image garbage collection
-- **Log storage unbounded:** Retention configured but local storage grows
+### Potential bottlenecks if unchanged
+1. **N+1 dashboard data loading pattern** as project count grows.
+2. **Worker mega-service classes** increasing change risk and onboarding difficulty.
+3. **Implicit deployment lifecycle contracts** (state transitions not formalized as a strict state machine module).
+4. **Auth model transition pressure** when moving from single-user/dev token model to multi-user/team model.
+
+### Organic growth verdict
+The project can grow organically **if** you prioritize decomposition and explicit contracts now. Without this, growth will be possible but increasingly expensive and fragile.
 
 ---
 
-## 8. Codebase Hygiene
+## 8. Codebase Hygiene Audit
 
-### Duplication Inventory
-| What | Where | Impact |
-|------|-------|--------|
-| Error-to-HTTP mapping | All 16 route handlers | ~200 lines duplicated |
-| Redis connection parser | `apps/api/src/queue/redis.ts` + `apps/worker/src/queue/redis.ts` | Identical functions |
-| Shared types ambient | `apps/api/src/types/shared-types.d.ts` + `apps/worker/src/types/shared-types.d.ts` | Shadow real package |
+### Strengths
+- TypeScript coverage is broad.
+- Tests exist for selected worker/api modules.
+- Docs are substantial and regularly updated.
 
-### Dead Code / Stale Files
-- `apps/dashboard/lib/mock-data.ts` — mock data file, unclear if still used
-- ~~`apps/dashboard/types/next-shims.d.ts`~~ ✅ Cleared — stubs removed
-- ~~`apps/api/src/server/http-errors.ts`~~ ✅ Deleted — dead code after error-handler refactor
+### Hygiene debt
+- Some files are becoming responsibility sinks (`build-server.ts`, `deployment-state.service.ts`, `deployment-runner.ts`).
+- Documentation drift risk is rising because progress docs are detailed but quickly stale in fast iteration.
+- Duplicate “status normalization / mapping” logic appears across dashboard components and helpers.
+- Mixed abstraction levels inside individual services (domain logic + infrastructure glue + formatting).
 
-### File Size Concerns
-| File | Lines | Issue |
-|------|-------|-------|
-| `apps/dashboard/app/page.tsx` | ~600 | Entire dashboard in one file |
-| `apps/worker/src/services/deployment-state.service.ts` | ~500 | God-service |
-| `apps/api/src/server/build-server.ts` | ~270 | Server setup + monitoring + metrics |
-
-### Test Coverage Gaps
-- API: No tests found
-- Worker: Some unit tests for deployment state and archive auth
-- Dashboard: No tests found
+### Guidance
+- Keep code in-place; perform extraction refactors with no behavior change first.
+- Add architecture decision notes for key boundaries (auth mode strategy, deployment lifecycle model, runtime adapter contract).
 
 ---
 
 ## 9. Prioritized Improvement Plan
 
-### Phase 1: Critical Safety (Immediate)
-1. ~~**Centralize API error handling**~~ ✅ — `DomainError` now carries `statusCode`; `error-handler.ts` auto-maps all domain errors to HTTP; ~200 lines of try/catch duplication removed from all 5 route files
-2. ~~**Strengthen dev-admin-token**~~ ✅ — Added `ENABLE_DEV_AUTH` flag (default false); removed legacy plaintext token fallback
-3. ~~**Fix shared types**~~ ✅ — Cleared ambient `.d.ts` declarations; types resolve from real `@vcloudrunner/shared-types` package
-4. ~~**Add graceful shutdown**~~ ✅ — SIGTERM/SIGINT handler added to API `index.ts` (worker already had one)
-5. ~~**Remove token from URL**~~ ✅ — Token plaintext now passed via short-lived HTTP-only cookie (`__token_plaintext`); URL params only carry success/label metadata
-6. ~~**Remove `next-shims.d.ts`**~~ ✅ — Stub declarations removed; real types from `next` package now resolve correctly
+## Phase 1: Critical stabilization (must fix now)
 
-### Phase 2: Production Reliability
-1. ~~**State reconciliation**~~ ✅ — Worker reconciles DB `running` deployments against actual Docker container state on startup; marks orphaned deployments as failed
-2. ~~**Database pool limits**~~ ✅ — Configurable `DB_POOL_MAX`, `DB_POOL_IDLE_TIMEOUT_MS`, `DB_POOL_CONNECTION_TIMEOUT_MS`, `DB_POOL_STATEMENT_TIMEOUT_MS` for both API (Drizzle/pg) and Worker (raw pg)
-3. Configuration assertions (fail-fast for missing critical env vars — already done via Zod schemas)
-4. ~~**Streaming log export**~~ ✅ — Replaced `gzipSync` blocking call with `createGzip()` stream pipeline; response streams NDJSON through async gzip
-5. ~~**API integration tests**~~ ✅ — 8 tests covering error handler mapping (all DomainError → HTTP status codes, non-domain → 500, 404 handler) using Fastify `inject()`
-6. ~~**Database backup documentation**~~ ✅ — `docs/database-backup.md` with pg_dump strategy, Docker sidecar option, retention tiers, restore procedure, and verification steps
+**Goals**
+- Remove insecure-by-default posture.
+- Strengthen deployment state trust.
 
-### Phase 3: UI/UX Polish
-1. ~~Extract dashboard into proper Next.js routes with hierarchy~~ ✅ DONE
-2. ~~Add shadcn/ui component library~~ ✅ DONE
-3. ~~Status badges with semantic colors~~ ✅ DONE
-4. ~~Toast/notification system for action feedback~~ ✅ DONE (Sonner)
-5. ~~Loading states (spinners, skeletons)~~ ✅ DONE
-6. ~~Replace raw JS event handlers with React patterns~~ ✅ DONE (route extraction removed them)
-7. ~~UUID truncation with copy-on-click~~ ✅ DONE
-8. ~~Empty states with guidance~~ ✅ DONE
-9. ~~Error boundaries per route~~ ✅ DONE
-10. ~~Navigation with breadcrumbs~~ ✅ DONE (sidebar nav + deployment detail breadcrumb)
+**Why it matters**
+Without this, platform can “work” but still be unsafe and hard to trust.
 
-### Phase 4: Extensibility
-1. ~~Extract alert monitoring from `build-server.ts` into dedicated module~~ ✅ DONE
-2. ~~Decompose worker God-service into focused services~~ ✅ DONE
-3. ~~Event hooks / webhook system for deployment lifecycle~~ ✅ DONE
-4. ~~Build system detection (auto-detect Dockerfile, package.json, etc.)~~ ✅ DONE
-5. ~~Multi-user groundwork (user model, ownership)~~ ✅ DONE
-6. ~~Network isolation for deployed containers~~ ✅ DONE
-7. ~~OpenTelemetry integration~~ ✅ DONE
-8. ~~Token scope management UI~~ ✅ DONE
+**Exact categories of work**
+1. Security defaults hardening
+   - Set compose defaults to secure/no-dev-auth mode.
+   - Remove default `dev-admin-token` in runtime compose path.
+   - Add explicit startup guardrails (fail when `NODE_ENV=production && ENABLE_DEV_AUTH=true`).
+2. Deployment invariants
+   - Add explicit per-project active deployment policy and enforcement contract.
+   - Add stronger idempotency and dedupe checks for repeated trigger actions.
+3. Incident semantics
+   - Standardize failure reason codes and operator-facing messages.
+
+**Do first**
+- Security defaults + startup guardrails.
+- Deployment lock/invariant contract.
+
+**Should wait**
+- Deep telemetry dashboards.
+
+**Do not overbuild yet**
+- Full multi-tenant RBAC complexity.
+
+## Phase 2: Production readiness foundation (should fix soon)
+
+**Goals**
+- Increase reliability and observability with low complexity overhead.
+
+**Work**
+1. Decompose worker mega-services without behavior rewrite.
+2. Formalize deployment lifecycle state machine module.
+3. Add structured deployment step timing and error dimensions.
+4. Expand CI checks for migration safety and critical path tests.
+5. Add automated backup/restore verification job for non-prod.
+
+**Do first**
+- Service decomposition + state machine contract.
+
+**Should wait**
+- Advanced autoscaling/multi-node experiments.
+
+**Do not overbuild yet**
+- Kubernetes-specific orchestration layer.
+
+## Phase 3: UI/UX polish and trustworthiness
+
+**Goals**
+- Make platform feel dependable for day-2 operations.
+
+**Work**
+1. Deploy flow UX
+   - richer progress timeline, retriable failure CTA, redeploy from failure.
+2. Logs UX
+   - filter/search/level highlights and better density controls.
+3. Env var UX
+   - bulk workflows, validation assists, safer destructive flows.
+4. Consistent inline action feedback and post-action navigation.
+5. Accessibility pass and keyboard workflow improvements.
+
+**Do first**
+- Deployment + logs trust surfaces.
+
+**Should wait**
+- Cosmetic theme enhancements not tied to usability.
+
+**Do not overbuild yet**
+- Custom dashboard builder / heavy personalization.
+
+## Phase 4: Extensibility and platform maturity
+
+**Goals**
+- Prepare for broader app/runtime and user model evolution.
+
+**Work**
+1. Evolve runtime adapters (dockerfile detection enhancements, buildpack paths, optional remote builders).
+2. Team/user model progression (project membership UX + token ownership lifecycle).
+3. Better domain/routing management UX (custom domains, cert state visibility).
+4. Operational tooling (deployment replay, rollback semantics, runbook links).
+
+**Do first**
+- Runtime adapter contract improvements + user model clarity.
+
+**Should wait**
+- Multi-region / high-availability control plane.
+
+**Do not overbuild yet**
+- Full enterprise governance feature set.
 
 ---
 
-## 10. Quick Wins (High ROI, Low Effort)
+## 10. Quick Wins (high ROI)
 
-1. ~~Centralize error handler~~ ✅ DONE
-2. ~~Add `ENABLE_DEV_AUTH` env flag~~ ✅ DONE
-3. ~~Clear ambient shared-types `.d.ts` files~~ ✅ DONE
-4. ~~Add SIGTERM handler to API `index.ts`~~ ✅ DONE
-5. ~~Truncate UUIDs in dashboard display~~ ✅ DONE
-6. ~~Add color-coded status badges (CSS-only change)~~ ✅ DONE
-7. ~~Replace `onchange="this.form.submit()"` with React handlers~~ ✅ DONE
-8. ✅→⬜ Add `rel="noopener noreferrer"` to external links
-9. ~~Configure DB pool limits in Drizzle client~~ ✅ DONE
-10. ~~Document backup strategy~~ ✅ DONE
+1. Fail-fast startup checks for dangerous env combinations.
+2. Remove insecure compose defaults and require explicit dev-auth opt-in.
+3. Add project-level deployment concurrency guard + clear UI message.
+4. Introduce aggregate API endpoint for deployments feed to remove dashboard N+1 fetch pattern.
+5. Add log-level filter + search in logs page.
+6. Add explicit “live data”/“demo mode” badge in persistent header area.
+7. Add structured failure reason panel with “next action” suggestions on deployment detail.
 
 ---
 
 ## 11. Long-Term Watchouts
 
-1. **Encryption key rotation** — No mechanism to rotate AES keys for env vars
-2. **Log storage scaling** — Local log storage will grow unbounded even with retention
-3. **Docker image garbage collection** — No cleanup of old build images
-4. **Secrets in queue payloads** — Env vars pass through Redis in queue job data
-5. **Caddy route accumulation** — Routes added but never pruned for deleted deployments
-6. **Single-point-of-failure Redis** — Queue + cache + pub/sub all on one Redis
-7. **No rate limiting per token** — Global rate limit only, no per-API-token limits
-8. **Migration rollback** — No down migrations defined
-9. **Container log rotation** — Docker container logs can fill disk
-10. **Build cache invalidation** — No strategy for Docker build cache management
+1. **Worker class size creep**: if archive/upload/runtime/state continue together, every change raises regression risk.
+2. **Auth transition debt**: dev/admin token shortcuts can become architectural anchors if not isolated.
+3. **UI state complexity growth**: query-param redirects for action states won’t scale to richer workflows.
+4. **Operational surface creep**: adding features without observability dimensions will make incidents opaque.
+5. **Single-node assumptions leaking into domain model**: keep infra assumptions behind adapters, not spread across services.
+
+---
+
+## Classification Summary (must/should/nice)
+
+### Must fix now
+- Secure defaults and production guardrails around auth/secrets.
+- Explicit deployment concurrency/idempotency invariants.
+- Worker service decomposition plan initiated (at least first extraction).
+
+### Should fix soon
+- Structured observability dimensions and lifecycle metrics.
+- Dashboard aggregate APIs and data-fetch scalability improvements.
+- Actionable failure UX across deployment + logs + env workflows.
+
+### Nice to have later
+- Advanced multi-service orchestration UX.
+- Sophisticated rollback/release strategies.
+- Deep theming/personalization.
+
+---
+
+## Final Assessment
+
+Vcloudrunner is in a healthy place for its stage: it is not a toy anymore, and it has already proven real deployment capability. The next success criterion is no longer “can it deploy?”—it is “can users trust and operate it repeatedly under imperfect conditions?”
+
+The right strategy is **evolutionary hardening**: preserve the current architecture shape, tighten defaults and invariants, split oversized services, and build a stronger operator UX trust layer.

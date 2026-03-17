@@ -1,6 +1,6 @@
 # Vcloudrunner MVP Progress Tracker
 
-Last updated: 2026-03-12 (Phase 3: UI/UX Polish — COMPLETE)
+Last updated: 2026-03-16 (Phase status snapshot refreshed)
 
 ## Legend
 
@@ -8,6 +8,22 @@ Last updated: 2026-03-12 (Phase 3: UI/UX Polish — COMPLETE)
 - [~] In progress / partial
 - [ ] Not started
 
+
+
+## Phase Status Snapshot (2026-03-16)
+
+- **Phase 1: Critical stabilization** — ~85% complete
+  - done: deployment concurrency invariant (service + DB), queue enqueue failure mapping/state correction, safer compose defaults, production dev-auth startup guard, dashboard conflict/queue messaging, broader unit coverage
+  - left (~15%): rotate any legacy local secrets in existing environments and remove remaining bootstrap-only auth fallback usage from regular dev flows
+- **Phase 2: Production readiness foundation** — ~35% complete
+  - done: improved failure taxonomy coverage and regression tests around constraint/error mapping paths
+  - left (~65%): deeper observability dimensions, migration safety gates, backup/restore automation checks, worker/service decomposition
+- **Phase 3: UI/UX trust and polish** — ~60% complete
+  - done: route architecture, loading/error boundaries, action feedback helpers, clearer deployment error messages
+  - left (~40%): richer deployment progress visibility, stronger logs ergonomics (filter/search), more operational guidance states
+- **Phase 4: Extensibility and platform maturity** — ~15% complete
+  - done: runtime and deployment lifecycle seams exist, basic domain boundaries in place
+  - left (~85%): broader auth/user model evolution, runtime adapter expansion, advanced day-2 operational tooling
 
 ## Implementation Log
 

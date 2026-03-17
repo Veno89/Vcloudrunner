@@ -42,7 +42,9 @@ No Kubernetes or multi-node orchestration is introduced in the MVP.
    ```
 2. Provide compose secrets:
    ```bash
-   export ENCRYPTION_KEY='replace-with-32-char-minimum-secret'
+   export ENCRYPTION_KEY='replace-with-32-char-minimum-secret'  # required
+   export POSTGRES_PASSWORD='replace-with-strong-postgres-password'  # required
+   export REDIS_PASSWORD='replace-with-strong-redis-password'  # required
    export CLOUDFLARED_TOKEN='replace-with-cloudflare-tunnel-token'
    export NEXT_PUBLIC_DEMO_USER_ID='replace-with-existing-user-uuid'  # optional for live dashboard data
    ```
@@ -114,6 +116,7 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 
 - All `/v1` project-scoped endpoints require `Authorization: Bearer <token>`.
 - API resolves auth context from DB-backed `api_tokens` (SHA-256 token hash + revocation/expiry checks), with `API_TOKENS_JSON` fallback for bootstrap/dev compatibility.
+- Production startup now rejects `API_TOKENS_JSON` and `ENABLE_DEV_AUTH=true`; keep both disabled in production profiles.
 - `admin` role can access all projects; `user` role is limited to owned projects.
 - API tokens now support explicit scope sets (e.g. `projects:read`, `deployments:write`, `logs:read`, `tokens:write`) with route-level scope guards.
 - Existing legacy tokens without scope metadata are normalized to compatibility defaults during auth resolution.

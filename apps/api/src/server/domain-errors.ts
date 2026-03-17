@@ -55,6 +55,27 @@ export class DeploymentCancellationNotAllowedError extends DomainError {
   }
 }
 
+export class DeploymentAlreadyActiveError extends DomainError {
+  constructor() {
+    super(
+      'DEPLOYMENT_ALREADY_ACTIVE',
+      'Project already has an active deployment (queued, building, or running)',
+      409
+    );
+  }
+}
+
+
+export class DeploymentQueueUnavailableError extends DomainError {
+  constructor() {
+    super(
+      'DEPLOYMENT_QUEUE_UNAVAILABLE',
+      'Deployment could not be queued; please retry shortly',
+      503
+    );
+  }
+}
+
 export class ProjectSlugTakenError extends DomainError {
   constructor() {
     super('PROJECT_SLUG_TAKEN', 'Project slug is already in use', 409);

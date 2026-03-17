@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   dashboard:
     build:
@@ -9,7 +7,7 @@ services:
       NODE_ENV: production
       NEXT_PUBLIC_API_BASE_URL: http://api:4000
       NEXT_PUBLIC_DEMO_USER_ID: ${NEXT_PUBLIC_DEMO_USER_ID:-00000000-0000-0000-0000-000000000001}
-      API_AUTH_TOKEN: ${API_AUTH_TOKEN:-dev-admin-token}
+      API_AUTH_TOKEN: ${API_AUTH_TOKEN:-}
     depends_on:
       api:
         condition: service_healthy
@@ -34,13 +32,13 @@ services:
       HOST: 0.0.0.0
       PORT: 4000
       LOG_LEVEL: info
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/vcloudrunner
-      REDIS_URL: redis://redis:6379
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change-this-with-a-32-byte-minimum-secret-key}
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/vcloudrunner
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required and must be >=32 chars}
       DEPLOYMENT_DEFAULT_CONTAINER_PORT: 3000
       DEPLOYMENT_DEFAULT_MEMORY_MB: 512
       DEPLOYMENT_DEFAULT_CPU_MILLICORES: 500
-      ENABLE_DEV_AUTH: ${ENABLE_DEV_AUTH:-true}
+      ENABLE_DEV_AUTH: ${ENABLE_DEV_AUTH:-false}
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,8 +62,8 @@ services:
     environment:
       NODE_ENV: production
       LOG_LEVEL: info
-      REDIS_URL: redis://redis:6379
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/vcloudrunner
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/vcloudrunner
       DOCKER_SOCKET_PATH: /var/run/docker.sock
       WORK_DIR: /workspace/.tmp/deployments
       PLATFORM_DOMAIN: apps.platform.example.com
@@ -86,7 +84,7 @@ services:
     environment:
       POSTGRES_DB: vcloudrunner
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     ports:
       - '55432:5432'
     volumes:
@@ -99,10 +97,11 @@ services:
 
   redis:
     image: redis:7-alpine
+    command: ['redis-server', '--requirepass', '${REDIS_PASSWORD:?REDIS_PASSWORD is required}']
     ports:
       - '6379:6379'
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ['CMD-SHELL', 'redis-cli -a ${REDIS_PASSWORD:?REDIS_PASSWORD is required} ping']
       interval: 5s
       timeout: 3s
       retries: 20

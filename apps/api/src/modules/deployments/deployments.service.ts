@@ -4,8 +4,10 @@ import { env } from '../../config/env.js';
 import type { DbClient } from '../../db/client.js';
 import { DeploymentQueue } from '../../queue/deployment-queue.js';
 import {
+  DeploymentAlreadyActiveError,
   DeploymentCancellationNotAllowedError,
   DeploymentNotFoundError,
+  DeploymentQueueUnavailableError,
   ProjectNotFoundError
 } from '../../server/domain-errors.js';
 import { CryptoService } from '../../services/crypto.service.js';
@@ -13,19 +15,69 @@ import { EnvironmentRepository } from '../environment/environment.repository.js'
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { DeploymentsRepository, type CreateDeploymentInput } from './deployments.repository.js';
 
+
+const SINGLE_ACTIVE_DEPLOYMENT_INDEX = 'deployments_project_single_active_idx';
+
+const DEPLOYMENTS_PROJECT_FK_CONSTRAINT = 'deployments_project_id_projects_id_fk';
+
+function isPostgresConstraintViolation(input: {
+  error: unknown;
+  code: '23503' | '23505';
+  constraint: string;
+  table?: string;
+}) {
+  if (!input.error || typeof input.error !== 'object') {
+    return false;
+  }
+
+  const maybeError = input.error as { code?: unknown; constraint?: unknown; table?: unknown };
+  return (
+    maybeError.code === input.code
+    && maybeError.constraint === input.constraint
+    && (input.table === undefined || maybeError.table === undefined || maybeError.table === input.table)
+  );
+}
+
+function isProjectForeignKeyViolation(error: unknown) {
+  return isPostgresConstraintViolation({
+    error,
+    code: '23503',
+    constraint: DEPLOYMENTS_PROJECT_FK_CONSTRAINT,
+    table: 'deployments'
+  });
+}
+
+function isSingleActiveDeploymentUniqueViolation(error: unknown) {
+  return isPostgresConstraintViolation({
+    error,
+    code: '23505',
+    constraint: SINGLE_ACTIVE_DEPLOYMENT_INDEX,
+    table: 'deployments'
+  });
+}
+
+interface DeploymentsServiceDependencies {
+  deploymentsRepository?: DeploymentsRepository;
+  projectsRepository?: ProjectsRepository;
+  environmentRepository?: EnvironmentRepository;
+  cryptoService?: CryptoService;
+}
+
 export class DeploymentsService {
   private readonly deploymentsRepository: DeploymentsRepository;
   private readonly projectsRepository: ProjectsRepository;
   private readonly environmentRepository: EnvironmentRepository;
-  private readonly cryptoService = new CryptoService();
+  private readonly cryptoService: CryptoService;
 
   constructor(
     db: DbClient,
-    private readonly deploymentQueue: DeploymentQueue
+    private readonly deploymentQueue: DeploymentQueue,
+    dependencies: DeploymentsServiceDependencies = {}
   ) {
-    this.deploymentsRepository = new DeploymentsRepository(db);
-    this.projectsRepository = new ProjectsRepository(db);
-    this.environmentRepository = new EnvironmentRepository(db);
+    this.deploymentsRepository = dependencies.deploymentsRepository ?? new DeploymentsRepository(db);
+    this.projectsRepository = dependencies.projectsRepository ?? new ProjectsRepository(db);
+    this.environmentRepository = dependencies.environmentRepository ?? new EnvironmentRepository(db);
+    this.cryptoService = dependencies.cryptoService ?? new CryptoService();
   }
 
   async createDeployment(input: CreateDeploymentInput & { correlationId: string }) {
@@ -40,13 +92,30 @@ export class DeploymentsService {
       cpuMillicores: input.runtime?.cpuMillicores ?? env.DEPLOYMENT_DEFAULT_CPU_MILLICORES
     };
 
-    const deployment = await this.deploymentsRepository.create({
-      ...input,
-      metadata: {
-        ...(input.metadata ?? {}),
-        runtime
+    let deployment;
+    try {
+      deployment = await this.deploymentsRepository.createIfNoActiveDeployment({
+        ...input,
+        metadata: {
+          ...(input.metadata ?? {}),
+          runtime
+        }
+      });
+    } catch (error) {
+      if (isSingleActiveDeploymentUniqueViolation(error)) {
+        throw new DeploymentAlreadyActiveError();
       }
-    });
+
+      if (isProjectForeignKeyViolation(error)) {
+        throw new ProjectNotFoundError();
+      }
+
+      throw error;
+    }
+
+    if (!deployment) {
+      throw new DeploymentAlreadyActiveError();
+    }
 
     const envVars = await this.environmentRepository.listByProject(project.id);
 
@@ -64,12 +133,27 @@ export class DeploymentsService {
       runtime
     };
 
-    const job = await this.deploymentQueue.enqueue(payload);
+    try {
+      const job = await this.deploymentQueue.enqueue(payload);
 
-    return {
-      ...deployment,
-      queueJobId: job.id
-    };
+      return {
+        ...deployment,
+        queueJobId: job.id
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      try {
+        await this.deploymentsRepository.markFailed(
+          deployment.id,
+          `DEPLOYMENT_QUEUE_ENQUEUE_FAILED: ${message}`
+        );
+      } catch {
+        // best-effort state correction; queue outage should still return a stable API error
+      }
+
+      throw new DeploymentQueueUnavailableError();
+    }
   }
 
   listDeployments(projectId: string) {
@@ -98,7 +182,14 @@ export class DeploymentsService {
     });
 
     if (deployment.status === 'queued') {
-      const removed = await this.deploymentQueue.cancelQueuedDeployment(deployment.id);
+      let removed = false;
+
+      try {
+        removed = await this.deploymentQueue.cancelQueuedDeployment(deployment.id);
+      } catch {
+        removed = false;
+      }
+
       if (removed) {
         await this.deploymentsRepository.markStopped(deployment.id);
         await this.deploymentsRepository.appendLog({

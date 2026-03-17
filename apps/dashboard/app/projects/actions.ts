@@ -3,7 +3,13 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createProject, createDeployment, demoUserId } from '@/lib/api';
-import { slugifyProjectName, extractApiStatusCode, createProjectErrorReason } from '@/lib/helpers';
+import {
+  slugifyProjectName,
+  extractApiStatusCode,
+  createProjectErrorReason,
+  createDeploymentErrorMessage,
+  normalizeProjectDisplayName
+} from '@/lib/helpers';
 
 export async function createProjectAction(formData: FormData) {
   const nameValue = formData.get('name');
@@ -53,14 +59,16 @@ export async function triggerDeploymentAction(formData: FormData) {
   }
 
   const projectId = projectIdValue;
-  const projectName = typeof projectNameValue === 'string' ? projectNameValue : '';
+  const projectName = normalizeProjectDisplayName(projectNameValue);
 
   try {
     const deployment = await createDeployment(projectId);
     revalidatePath('/projects');
     revalidatePath('/deployments');
     redirect(`/deployments/${deployment.id}`);
-  } catch {
-    redirect(`/projects?status=error&message=${encodeURIComponent(`Failed to deploy "${projectName}"`)}`);
+  } catch (error) {
+    const statusCode = extractApiStatusCode(error);
+    const message = createDeploymentErrorMessage(statusCode, projectName);
+    redirect(`/projects?status=error&message=${encodeURIComponent(message)}`);
   }
 }

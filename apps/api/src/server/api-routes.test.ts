@@ -9,6 +9,8 @@ import {
   DeploymentNotFoundError,
   ProjectSlugTakenError,
   DeploymentCancellationNotAllowedError,
+  DeploymentAlreadyActiveError,
+  DeploymentQueueUnavailableError,
   ApiTokenNotFoundError
 } from './domain-errors.js';
 
@@ -52,6 +54,31 @@ test('error handler maps ProjectSlugTakenError to 409', async () => {
   assert.equal(res.statusCode, 409);
   const body = JSON.parse(res.body);
   assert.equal(body.code, 'PROJECT_SLUG_TAKEN');
+});
+
+test('error handler maps DeploymentAlreadyActiveError to 409', async () => {
+  const app = buildTestApp();
+  app.get('/test', async () => {
+    throw new DeploymentAlreadyActiveError();
+  });
+
+  const res = await app.inject({ method: 'GET', url: '/test' });
+  assert.equal(res.statusCode, 409);
+  const body = JSON.parse(res.body);
+  assert.equal(body.code, 'DEPLOYMENT_ALREADY_ACTIVE');
+});
+
+
+test('error handler maps DeploymentQueueUnavailableError to 503', async () => {
+  const app = buildTestApp();
+  app.get('/test', async () => {
+    throw new DeploymentQueueUnavailableError();
+  });
+
+  const res = await app.inject({ method: 'GET', url: '/test' });
+  assert.equal(res.statusCode, 503);
+  const body = JSON.parse(res.body);
+  assert.equal(body.code, 'DEPLOYMENT_QUEUE_UNAVAILABLE');
 });
 
 test('error handler maps DeploymentCancellationNotAllowedError to 409', async () => {
