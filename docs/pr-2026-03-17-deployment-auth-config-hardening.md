@@ -2,7 +2,7 @@
 
 ## Motivation
 
-Deployment cancellation needed one more hardening pass around queue races and partial failures, and the operator docs still mixed direct workspace `.env` setup with the production-like compose path. This PR keeps API/domain behavior stable while tightening cancellation resilience and bringing the README/progress notes back in sync with the current auth and compose defaults.
+Deployment cancellation needed one more hardening pass around queue races and partial failures, the operator docs still mixed direct workspace `.env` setup with the production-like compose path, and the API auth plugin registration left token-based auth scoped too narrowly to reliably reach sibling route plugins. This PR keeps API/domain behavior stable while tightening cancellation resilience, restoring root-level auth/error plugin behavior, and bringing the README/progress notes back in sync with the current auth and compose defaults.
 
 ## Exact Changes
 
@@ -10,6 +10,8 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - continue fallback queued-job scanning when individual remove calls race, returning `completed` if any compatible queued entry is still removable
 - keep queued cancellation cleanup scanning after direct `jobId` removal succeeds so legacy duplicate entries are removed when possible without downgrading a successful immediate cancel
 - keep cancellation responses stable when the state change succeeds but the follow-up deployment log insert fails
+- register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
+- add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - add API unit coverage for queue lookup failure fallback and cancellation log partial-failure behavior
 - align dashboard deployment filtering/status badges with the backend `stopped` status while preserving backward compatibility for legacy `status=cancelled` URLs
 - align remaining dashboard deployment surfaces to the shared deployment status enum and show explicit stopped/cancelled guidance on deployment detail pages
@@ -32,6 +34,6 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/api test`
-  - passed (`44/44`); required elevated execution in this environment because the default Windows sandbox hit `spawn EPERM`
+  - passed (`53/53`); required elevated execution in this environment because the default Windows sandbox hit `spawn EPERM`
 - `npm run typecheck`
   - passed

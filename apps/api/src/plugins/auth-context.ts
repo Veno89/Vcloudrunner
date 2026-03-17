@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
+import fp from 'fastify-plugin';
 import { and, eq, gt, isNull, or } from 'drizzle-orm';
 import { z } from 'zod';
 
@@ -92,7 +93,7 @@ async function getDbAuthContext(token: string): Promise<AuthContext | null> {
   };
 }
 
-export const authContextPlugin: FastifyPluginAsync = async (app) => {
+const authContextPluginImpl: FastifyPluginAsync = async (app) => {
   const staticTokenLookup = buildStaticTokenLookup();
 
   app.decorateRequest('auth', null);
@@ -138,6 +139,10 @@ export const authContextPlugin: FastifyPluginAsync = async (app) => {
     }
   });
 };
+
+export const authContextPlugin = fp(authContextPluginImpl, {
+  name: 'auth-context'
+});
 
 export function requireAuthContext(request: FastifyRequest): AuthContext {
   if (!request.auth && env.ENABLE_DEV_AUTH) {
