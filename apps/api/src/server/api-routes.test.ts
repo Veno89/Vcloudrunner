@@ -1,7 +1,14 @@
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import Fastify from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyPluginAsync } from 'fastify';
 
+process.env.DATABASE_URL ??= 'postgres://postgres:postgres@localhost:5432/vcloudrunner';
+process.env.REDIS_URL ??= 'redis://localhost:6379';
+process.env.ENCRYPTION_KEY ??= '12345678901234567890123456789012';
+
+import { env } from '../config/env.js';
+import { db } from '../db/client.js';
+import { authContextPlugin, requireAuthContext } from '../plugins/auth-context.js';
 import { errorHandlerPlugin } from '../plugins/error-handler.js';
 import {
   DomainError,
@@ -17,6 +24,55 @@ import {
 function buildTestApp() {
   const app = Fastify({ logger: false });
   app.register(errorHandlerPlugin);
+  return app;
+}
+
+type DbAuthRow = {
+  userId: string;
+  role: 'admin' | 'user';
+  scopes: unknown;
+};
+
+async function buildSiblingPluginTestApp(
+  t: TestContext,
+  routePlugin: FastifyPluginAsync,
+  options?: {
+    enableDevAuth?: boolean;
+    apiTokensJson?: string;
+    dbRows?: DbAuthRow[];
+  }
+) {
+  const originalEnableDevAuth = env.ENABLE_DEV_AUTH;
+  const originalApiTokensJson = env.API_TOKENS_JSON;
+  const rows = options?.dbRows ?? [];
+
+  env.ENABLE_DEV_AUTH = options?.enableDevAuth ?? false;
+  env.API_TOKENS_JSON = options?.apiTokensJson ?? '';
+
+  t.mock.method(db as { select: (...args: unknown[]) => unknown }, 'select', () => ({
+    from() {
+      return {
+        where() {
+          return {
+            limit: async () => rows
+          };
+        }
+      };
+    }
+  }));
+
+  const app = Fastify({ logger: false });
+  t.after(async () => {
+    env.ENABLE_DEV_AUTH = originalEnableDevAuth;
+    env.API_TOKENS_JSON = originalApiTokensJson;
+    await app.close();
+  });
+
+  app.register(errorHandlerPlugin);
+  app.register(authContextPlugin);
+  app.register(routePlugin);
+
+  await app.ready();
   return app;
 }
 
@@ -131,4 +187,45 @@ test('unknown route returns 404 JSON', async () => {
   assert.equal(res.statusCode, 404);
   const body = JSON.parse(res.body);
   assert.equal(body.code, 'NOT_FOUND');
+});
+
+test('root auth plugin applies to sibling route plugins', async (t) => {
+  const app = await buildSiblingPluginTestApp(t, async (routeApp: FastifyInstance) => {
+    routeApp.get('/v1/protected', async (request) => requireAuthContext(request));
+  }, {
+    apiTokensJson: JSON.stringify([{
+      token: 'static-token-123',
+      userId: '00000000-0000-0000-0000-000000000010',
+      role: 'user',
+      scopes: ['projects:read']
+    }])
+  });
+
+  const res = await app.inject({
+    method: 'GET',
+    url: '/v1/protected',
+    headers: {
+      authorization: 'Bearer static-token-123'
+    }
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(JSON.parse(res.body), {
+    userId: '00000000-0000-0000-0000-000000000010',
+    role: 'user',
+    scopes: ['projects:read']
+  });
+});
+
+test('root error handler applies to sibling route plugins', async (t) => {
+  const app = await buildSiblingPluginTestApp(t, async (routeApp: FastifyInstance) => {
+    routeApp.get('/v1/projects/missing', async () => {
+      throw new ProjectNotFoundError();
+    });
+  });
+
+  const res = await app.inject({ method: 'GET', url: '/v1/projects/missing' });
+
+  assert.equal(res.statusCode, 404);
+  assert.deepEqual(JSON.parse(res.body).code, 'PROJECT_NOT_FOUND');
 });

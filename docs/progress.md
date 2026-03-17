@@ -35,6 +35,7 @@ Last updated: 2026-03-17 (Deployment/auth/config hardening follow-through)
   - made cancellation audit-log writes best-effort after cancellation state is already persisted, so transient log insertion failures do not turn a successful cancel into an API error
   - fixed Fastify plugin scoping for auth-context and error-handler registration so sibling `/v1` route plugins inherit token auth resolution and domain-error mapping consistently
   - added API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth bypass boundaries, and `requireAuthContext` fallback behavior outside `/v1`
+  - added regression coverage that exercises the real production registration shape, proving root auth/error plugins still apply when protected routes live inside sibling route plugins
   - expanded API unit coverage for queue-cancel race/idempotency behavior and cancellation partial-failure behavior
   - aligned README quick-start guidance with actual compose expectations (required secrets, optional dashboard auth vars, and separation between compose runtime vs direct workspace `.env` files)
   - refreshed deployment-flow/progress wording so cancellation semantics and auth safety notes match the current implementation
@@ -46,6 +47,7 @@ Last updated: 2026-03-17 (Deployment/auth/config hardening follow-through)
   - `apps/api/src/plugins/auth-context.ts`
   - `apps/api/src/plugins/auth-context.test.ts`
   - `apps/api/src/plugins/error-handler.ts`
+  - `apps/api/src/server/api-routes.test.ts`
   - `apps/api/package.json`
   - `package-lock.json`
   - `README.md`
