@@ -17,6 +17,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - harden dashboard live log proxy routes so missing tokens, rejected tokens, upstream outages, and empty upstream bodies return explicit actionable failures instead of generic proxy errors
 - stop compose from injecting a fake `NEXT_PUBLIC_DEMO_USER_ID` and align dashboard docs so missing demo-user configuration intentionally degrades to explicit guidance
 - make dashboard token management surface auth/config failures as explicit unavailable states and map token create/rotate/revoke failures to actionable auth/scope/not-found messages
+- make the global environment and logs shortcuts distinguish true empty data from auth/config/API outages instead of showing misleading empty-state titles
 - clarify compose quick start requirements for `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `ENCRYPTION_KEY`, optional dashboard auth variables, and the separation from app-local `.env` files
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
 - make `apps/api/.env.example` explicitly show `ENABLE_DEV_AUTH=false` alongside the bootstrap token fallback example

@@ -8,6 +8,7 @@ import { MaskedSecretValue } from '@/components/masked-secret-value';
 import { ActionToast } from '@/components/action-toast';
 import { PageLayout } from '@/components/page-layout';
 import { EmptyState } from '@/components/empty-state';
+import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import {
   apiAuthToken,
@@ -62,7 +63,7 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
     });
   }
 
-  const hasLiveData = Boolean(demoUserId && selectedProjectId);
+  const hasLiveData = Boolean(selectedProjectId);
 
   return (
     <PageLayout>
@@ -173,20 +174,21 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
             )}
           </div>
         </>
+      ) : liveDataErrorMessage ? (
+        <LiveDataUnavailableState
+          title="Environment management unavailable"
+          description={liveDataErrorMessage}
+          actionHref="/projects"
+          actionLabel="Open Projects"
+        />
       ) : (
         <EmptyState
-          title={demoUserId ? 'No projects found' : 'Demo user context required'}
-          description={
-            demoUserId
-              ? liveDataErrorMessage ?? 'Create a project first, then manage variables from this global shortcut or project-scoped environment page.'
-              : liveDataErrorMessage ?? 'Set NEXT_PUBLIC_DEMO_USER_ID to enable environment management routes in local development.'
-          }
+          title="No projects found"
+          description="Create a project first, then manage variables from this global shortcut or project-scoped environment page."
           actions={
-            demoUserId ? (
-              <Button asChild variant="outline" size="sm">
-                <Link href="/projects">Open Projects</Link>
-              </Button>
-            ) : null
+            <Button asChild variant="outline" size="sm">
+              <Link href="/projects">Open Projects</Link>
+            </Button>
           }
         />
       )}

@@ -6,6 +6,7 @@ import { LogsLiveStream } from '@/components/logs-live-stream';
 import { LastRefreshedIndicator } from '@/components/last-refreshed-indicator';
 import { PageLayout } from '@/components/page-layout';
 import { EmptyState } from '@/components/empty-state';
+import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
 import Link from 'next/link';
 import {
   apiAuthToken,
@@ -103,7 +104,7 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
     });
   }
 
-  const hasLiveData = Boolean(demoUserId && selectedDeploymentId);
+  const hasLiveData = Boolean(selectedDeploymentId);
 
   const buildLogsHref = (page: number) => {
     const params = new URLSearchParams();
@@ -230,20 +231,21 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
               : 'Auto-refresh is disabled. Click Apply to refresh or enable auto-refresh.'}
           </p>
         </>
+      ) : liveDataErrorMessage ? (
+        <LiveDataUnavailableState
+          title="Global log viewer unavailable"
+          description={liveDataErrorMessage}
+          actionHref="/projects"
+          actionLabel="Open Projects"
+        />
       ) : (
         <EmptyState
-          title={demoUserId ? 'No deployments yet' : 'Demo user context required'}
-          description={
-            demoUserId
-              ? liveDataErrorMessage ?? 'Trigger a deployment from the Projects page, then return here to inspect live logs.'
-              : liveDataErrorMessage ?? 'Set NEXT_PUBLIC_DEMO_USER_ID to enable the global log viewer in local development.'
-          }
+          title="No deployments yet"
+          description="Trigger a deployment from the Projects page, then return here to inspect live logs."
           actions={
-            demoUserId ? (
-              <Button asChild variant="outline" size="sm">
-                <Link href="/projects">Open Projects</Link>
-              </Button>
-            ) : null
+            <Button asChild variant="outline" size="sm">
+              <Link href="/projects">Open Projects</Link>
+            </Button>
           }
         />
       )}
