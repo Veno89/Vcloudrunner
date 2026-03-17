@@ -39,7 +39,7 @@ This guide defines how shared dashboard UI primitives should be used so new scre
 - Use `EmptyState` for no-data states; include clear next-step copy and CTA where possible.
 - Use `DemoModeBanner` whenever mock/demo data is intentionally shown.
   - Include actionable detail when the fallback reason is known (for example missing `NEXT_PUBLIC_DEMO_USER_ID` or unauthorized `API_AUTH_TOKEN`).
-- Use `LiveDataUnavailableState` for route-level live-data failures on project-scoped pages when rendering real content is not possible.
+- Use `LiveDataUnavailableState` for route-level live-data failures on project-scoped or settings pages when rendering real content is not possible.
 - Route-level/global error views should use `Card` + shared `Button` retry action.
 
 ## Status and Feedback

@@ -9,9 +9,11 @@ import { ActionToast } from '@/components/action-toast';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState } from '@/components/empty-state';
+import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
 import { SettingsSubnav } from '@/components/settings-subnav';
 import { PageLayout } from '@/components/page-layout';
-import { fetchApiTokensForUser, demoUserId } from '@/lib/api';
+import { apiAuthToken, fetchApiTokensForUser, demoUserId } from '@/lib/api';
+import { describeDashboardLiveDataFailure } from '@/lib/helpers';
 import { createApiTokenAction, revokeApiTokenAction, rotateApiTokenAction } from '@/app/tokens/actions';
 
 const scopeGroups: Array<{ label: string; description: string; scopes: string[] }> = [
@@ -65,6 +67,7 @@ export async function TokenManagementPage({ searchParams }: TokenManagementPageP
     revokedAt: string | null;
     expiresAt: string | null;
   }> = [];
+  let liveDataErrorMessage: string | null = null;
 
   if (demoUserId) {
     try {
@@ -78,9 +81,18 @@ export async function TokenManagementPage({ searchParams }: TokenManagementPageP
         revokedAt: token.revokedAt,
         expiresAt: token.expiresAt,
       }));
-    } catch {
-      // will show empty state
+    } catch (error) {
+      liveDataErrorMessage = describeDashboardLiveDataFailure({
+        error,
+        hasDemoUserId: true,
+        hasApiAuthToken: Boolean(apiAuthToken),
+      });
     }
+  } else {
+    liveDataErrorMessage = describeDashboardLiveDataFailure({
+      hasDemoUserId: false,
+      hasApiAuthToken: Boolean(apiAuthToken),
+    });
   }
 
   return (
@@ -109,7 +121,7 @@ export async function TokenManagementPage({ searchParams }: TokenManagementPageP
         </div>
       )}
 
-      {demoUserId ? (
+      {!liveDataErrorMessage ? (
         <>
           <Card>
             <CardHeader>
@@ -251,9 +263,11 @@ export async function TokenManagementPage({ searchParams }: TokenManagementPageP
           </div>
         </>
       ) : (
-        <EmptyState
+        <LiveDataUnavailableState
           title="Token management unavailable"
-          description="Set NEXT_PUBLIC_DEMO_USER_ID to enable API token management in this dashboard."
+          description={liveDataErrorMessage}
+          actionHref="/settings"
+          actionLabel="Open Settings"
         />
       )}
     </PageLayout>

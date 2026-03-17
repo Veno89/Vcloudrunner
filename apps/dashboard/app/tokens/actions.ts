@@ -4,6 +4,33 @@ import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createApiToken, revokeApiToken, rotateApiToken, demoUserId } from '@/lib/api';
+import { extractApiStatusCode } from '@/lib/helpers';
+
+function createTokenActionErrorMessage(action: 'create' | 'revoke' | 'rotate', error: unknown): string {
+  const statusCode = extractApiStatusCode(error);
+
+  if (statusCode === 401) {
+    return 'Token management is unauthorized. Check API_AUTH_TOKEN or the explicit local dev-auth bypass.';
+  }
+
+  if (statusCode === 403) {
+    return 'Token management is authenticated but lacks the required token scopes or user access.';
+  }
+
+  if (statusCode === 404 && action !== 'create') {
+    return 'The requested token no longer exists.';
+  }
+
+  if (action === 'create') {
+    return 'Failed to create token.';
+  }
+
+  if (action === 'revoke') {
+    return 'Failed to revoke token.';
+  }
+
+  return 'Failed to rotate token.';
+}
 
 export async function createApiTokenAction(formData: FormData) {
   if (!demoUserId) {
@@ -48,8 +75,8 @@ export async function createApiTokenAction(formData: FormData) {
     redirect(
       `/settings/tokens?status=success&message=${encodeURIComponent(`Token "${created.label ?? 'token'}" created`)}`
     );
-  } catch {
-    redirect('/settings/tokens?status=error&message=Failed+to+create+token');
+  } catch (error) {
+    redirect(`/settings/tokens?status=error&message=${encodeURIComponent(createTokenActionErrorMessage('create', error))}`);
   }
 }
 
@@ -70,8 +97,8 @@ export async function revokeApiTokenAction(formData: FormData) {
     revalidatePath('/settings/tokens');
     revalidatePath('/tokens');
     redirect('/settings/tokens?status=success&message=Token+revoked');
-  } catch {
-    redirect('/settings/tokens?status=error&message=Failed+to+revoke+token');
+  } catch (error) {
+    redirect(`/settings/tokens?status=error&message=${encodeURIComponent(createTokenActionErrorMessage('revoke', error))}`);
   }
 }
 
@@ -101,7 +128,7 @@ export async function rotateApiTokenAction(formData: FormData) {
     redirect(
       `/settings/tokens?status=success&message=${encodeURIComponent(`Token "${rotated.label ?? 'token'}" rotated`)}`
     );
-  } catch {
-    redirect('/settings/tokens?status=error&message=Failed+to+rotate+token');
+  } catch (error) {
+    redirect(`/settings/tokens?status=error&message=${encodeURIComponent(createTokenActionErrorMessage('rotate', error))}`);
   }
 }
