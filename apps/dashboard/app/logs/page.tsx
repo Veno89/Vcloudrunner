@@ -39,6 +39,7 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
   let selectedLabel = '';
   let totalLogPages = 1;
   let liveDataErrorMessage: string | null = null;
+  let logReadErrorMessage: string | null = null;
   const logsPageSize = 100;
 
   const logsAutoRefreshEnabled = searchParams?.logsAutoRefresh === '1';
@@ -75,20 +76,28 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
         selectedProjectId = selected.project.id;
         selectedDeploymentId = selected.deployment.id;
         selectedLabel = `${selected.project.name} / ${truncateUuid(selected.deployment.id)}`;
-        const logs = await fetchDeploymentLogs(
-          selected.project.id,
-          selected.deployment.id,
-          500
-        );
-        const mappedLogs = logs.map((item) => ({
-          level: item.level,
-          message: item.message,
-          timestamp: item.timestamp,
-        }));
-        totalLogPages = Math.max(1, Math.ceil(mappedLogs.length / logsPageSize));
-        const safeLogsPage = Math.min(currentLogsPage, totalLogPages);
-        const pageStart = (safeLogsPage - 1) * logsPageSize;
-        deploymentLogs = mappedLogs.slice(pageStart, pageStart + logsPageSize);
+        try {
+          const logs = await fetchDeploymentLogs(
+            selected.project.id,
+            selected.deployment.id,
+            500
+          );
+          const mappedLogs = logs.map((item) => ({
+            level: item.level,
+            message: item.message,
+            timestamp: item.timestamp,
+          }));
+          totalLogPages = Math.max(1, Math.ceil(mappedLogs.length / logsPageSize));
+          const safeLogsPage = Math.min(currentLogsPage, totalLogPages);
+          const pageStart = (safeLogsPage - 1) * logsPageSize;
+          deploymentLogs = mappedLogs.slice(pageStart, pageStart + logsPageSize);
+        } catch (error) {
+          logReadErrorMessage = describeDashboardLiveDataFailure({
+            error,
+            hasDemoUserId: true,
+            hasApiAuthToken: Boolean(apiAuthToken)
+          });
+        }
       }
     } catch (error) {
       liveDataErrorMessage = describeDashboardLiveDataFailure({
@@ -203,7 +212,14 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
             />
           )}
 
-          {selectedProjectId && selectedDeploymentId ? (
+          {logReadErrorMessage ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
+              <p className="font-medium text-destructive">Historical logs unavailable</p>
+              <p className="mt-1 text-xs">{logReadErrorMessage}</p>
+            </div>
+          ) : null}
+
+          {selectedProjectId && selectedDeploymentId && !logReadErrorMessage ? (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-card/40 px-3 py-2 text-xs text-muted-foreground">
               <span>Log page {Math.min(currentLogsPage, totalLogPages)} of {totalLogPages}</span>
               <div className="flex items-center gap-2">
