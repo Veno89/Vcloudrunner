@@ -29,6 +29,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - keep project/deployment detail pages usable when log reads fail by degrading only the log panels and showing explicit inline live-data guidance
 - apply the same partial log-read degradation to the global and project-scoped logs pages so selectors and export controls remain usable during log-history outages
 - clarify compose quick start requirements for `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `ENCRYPTION_KEY`, optional dashboard auth variables, and the separation from app-local `.env` files
+- align the production-readiness audit wording with the current compose/auth defaults so it no longer describes compose as enabling dev auth by default
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
 - make `apps/api/.env.example` explicitly show `ENABLE_DEV_AUTH=false` alongside the bootstrap token fallback example
 

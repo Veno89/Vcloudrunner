@@ -17,7 +17,7 @@ At the same time, the codebase is now at the classic inflection point where “w
 
 - **Architecture direction**: good (single-node, queue-driven, clear API/worker split).
 - **Operational safety**: partial (timeouts, retries, heartbeat, reconciliation exist; still missing stronger failure semantics and runtime guardrails).
-- **Security posture**: improved but still risky by default in local compose (`ENABLE_DEV_AUTH` default true in compose, weak bootstrap defaults, broad token usage model).
+- **Security posture**: improved, with compose now defaulting to no dev-auth bypass; remaining risk comes from bootstrap auth shortcuts, broad dashboard API token use, and operator drift back to local-only paths.
 - **UI trust layer**: improved foundations (routing, loading/error pages, status strip), but still too thin for serious operations workflows.
 - **Scalability readiness**: moderate; core seams exist, but some “god services” and mixed responsibilities will become drag points soon.
 
@@ -64,10 +64,10 @@ This section lists the highest-leverage issues that can cause trust, safety, or 
 
 ### Must fix now (blocking “serious use” confidence)
 
-1. **Insecure-by-default compose posture**
-   - This compose concern has been partially addressed: `ENABLE_DEV_AUTH` no longer defaults to `true`, dashboard compose no longer defaults `API_AUTH_TOKEN`, and Postgres/Redis passwords are now required.
+1. **Bootstrap/local auth posture still needs strict operator discipline**
+   - The compose/defaults portion of this concern has now been addressed: `ENABLE_DEV_AUTH` no longer defaults to `true`, dashboard compose no longer defaults `API_AUTH_TOKEN`, and Postgres/Redis passwords are now required.
    - Local app-level examples still need disciplined handling so bootstrap-only auth shortcuts are not mistaken for normal production operation.
-   - Result: accidental exposure risk if users move from local to internet-facing without strict override discipline.
+   - Result: the default path is safer, but accidental exposure risk remains if operators reuse bootstrap shortcuts or weak local examples in internet-facing setups.
 
 2. **Deployment execution path still has sharp edges**
    - Worker uses Docker CLI shell commands (`docker build`, `docker image rm`) intermixed with Dockerode API.
@@ -304,9 +304,9 @@ Without this, platform can “work” but still be unsafe and hard to trust.
 
 **Exact categories of work**
 1. Security defaults hardening
-   - Set compose defaults to secure/no-dev-auth mode.
-   - Remove default `dev-admin-token` in runtime compose path.
-   - Add explicit startup guardrails (fail when `NODE_ENV=production && ENABLE_DEV_AUTH=true`).
+   - Keep compose defaults in secure/no-dev-auth mode.
+   - Keep runtime compose paths free of default `dev-admin-token` usage.
+   - Keep explicit startup guardrails (fail when `NODE_ENV=production && ENABLE_DEV_AUTH=true`).
 2. Deployment invariants
    - Add explicit per-project active deployment policy and enforcement contract.
    - Add stronger idempotency and dedupe checks for repeated trigger actions.
@@ -393,7 +393,7 @@ Without this, platform can “work” but still be unsafe and hard to trust.
 ## 10. Quick Wins (high ROI)
 
 1. Fail-fast startup checks for dangerous env combinations.
-2. Remove insecure compose defaults and require explicit dev-auth opt-in.
+2. Keep secure compose defaults and require explicit dev-auth opt-in.
 3. Add project-level deployment concurrency guard + clear UI message.
 4. Introduce aggregate API endpoint for deployments feed to remove dashboard N+1 fetch pattern.
 5. Add log-level filter + search in logs page.

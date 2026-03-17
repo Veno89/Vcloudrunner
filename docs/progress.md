@@ -38,6 +38,7 @@ Last updated: 2026-03-17 (Deployment/auth/config hardening follow-through)
   - added regression coverage that exercises the real production registration shape, proving root auth/error plugins still apply when protected routes live inside sibling route plugins
   - expanded API unit coverage for queue-cancel race/idempotency behavior and cancellation partial-failure behavior
   - aligned README quick-start guidance with actual compose expectations (required secrets, optional dashboard auth vars, and separation between compose runtime vs direct workspace `.env` files)
+  - aligned the production-readiness audit wording with the current compose/auth defaults so it no longer claims compose enables dev auth by default
   - refreshed deployment-flow/progress wording so cancellation semantics and auth safety notes match the current implementation
 - files created or changed:
   - `apps/api/src/queue/deployment-queue.ts`
@@ -52,6 +53,7 @@ Last updated: 2026-03-17 (Deployment/auth/config hardening follow-through)
   - `package-lock.json`
   - `README.md`
   - `docs/deployment-flow.md`
+  - `docs/production-readiness-audit.md`
   - `docs/progress.md`
 - what is still missing:
   - phase percentages remain unchanged from the 2026-03-16 snapshot; broader production-readiness and auth-model work is still pending
