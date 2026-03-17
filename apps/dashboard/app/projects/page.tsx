@@ -38,6 +38,12 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             ? encodeURIComponent('Project name creates a slug that already exists. Try a more specific name.')
             : searchParams?.reason === 'invalid_input'
               ? encodeURIComponent('Invalid project input. Ensure name/repository URL are valid.')
+              : searchParams?.reason === 'auth_required'
+                ? encodeURIComponent('Project creation is unauthorized. Check API_AUTH_TOKEN or the explicit local dev-auth bypass.')
+                : searchParams?.reason === 'access_denied'
+                  ? encodeURIComponent('Project creation is authenticated but lacks the required project write access.')
+                  : searchParams?.reason === 'user_context_missing'
+                    ? encodeURIComponent('Project creation requires NEXT_PUBLIC_DEMO_USER_ID and a live dashboard user context.')
               : searchParams?.message
         }
         fallbackErrorMessage="Operation failed. Check API availability and try again."

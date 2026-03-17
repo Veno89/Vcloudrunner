@@ -12,6 +12,11 @@ import {
 } from '@/lib/helpers';
 
 export async function createProjectAction(formData: FormData) {
+  if (!demoUserId) {
+    redirect('/projects?status=error&reason=user_context_missing');
+    return;
+  }
+
   const nameValue = formData.get('name');
   const gitRepositoryUrlValue = formData.get('gitRepositoryUrl');
   const defaultBranchValue = formData.get('defaultBranch');
@@ -33,7 +38,7 @@ export async function createProjectAction(formData: FormData) {
 
   try {
     await createProject({
-      userId: demoUserId!,
+      userId: demoUserId,
       name,
       slug,
       gitRepositoryUrl,

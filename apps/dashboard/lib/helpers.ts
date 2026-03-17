@@ -31,6 +31,12 @@ export function createProjectErrorReason(statusCode: number | null): string {
   if (statusCode === 400) {
     return 'invalid_input';
   }
+  if (statusCode === 401) {
+    return 'auth_required';
+  }
+  if (statusCode === 403) {
+    return 'access_denied';
+  }
   return 'api_unavailable';
 }
 
@@ -192,6 +198,18 @@ export function normalizeProjectDisplayName(value: unknown): string {
 }
 
 export function createDeploymentErrorMessage(statusCode: number | null, projectName: string): string {
+  if (statusCode === 401) {
+    return `Cannot deploy "${projectName}": API_AUTH_TOKEN was rejected or local dev auth is disabled.`;
+  }
+
+  if (statusCode === 403) {
+    return `Cannot deploy "${projectName}": the dashboard token lacks deployment access for this project.`;
+  }
+
+  if (statusCode === 404) {
+    return `Cannot deploy "${projectName}": the project no longer exists or is no longer accessible.`;
+  }
+
   if (statusCode === 409) {
     return `Cannot deploy "${projectName}": another deployment is already active.`;
   }

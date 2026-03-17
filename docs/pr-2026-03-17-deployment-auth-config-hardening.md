@@ -19,6 +19,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - make dashboard token management surface auth/config failures as explicit unavailable states and map token create/rotate/revoke failures to actionable auth/scope/not-found messages
 - make the global environment and logs shortcuts distinguish true empty data from auth/config/API outages instead of showing misleading empty-state titles
 - make global and project-scoped environment variable actions preserve user context on invalid input and surface actionable auth/scope/not-found failure messages
+- make project creation fail explicitly when demo-user context is missing and map project create/deploy auth or access errors to actionable dashboard messages
 - clarify compose quick start requirements for `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `ENCRYPTION_KEY`, optional dashboard auth variables, and the separation from app-local `.env` files
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
 - make `apps/api/.env.example` explicitly show `ENABLE_DEV_AUTH=false` alongside the bootstrap token fallback example
