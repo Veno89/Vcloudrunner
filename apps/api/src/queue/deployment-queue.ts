@@ -33,6 +33,8 @@ export class DeploymentQueue {
   }
 
   async cancelQueuedDeployment(deploymentId: string) {
+    let removed = false;
+
     let directMatch;
     try {
       directMatch = await this.queue.getJob(deploymentId);
@@ -43,15 +45,23 @@ export class DeploymentQueue {
     if (directMatch) {
       try {
         await directMatch.remove();
-        return true;
+        removed = true;
       } catch {
         // Fall back to queue scan for compatibility with racey/legacy job states.
       }
     }
 
-    const jobs = await this.queue.getJobs(['waiting', 'delayed', 'paused', 'prioritized']);
+    let jobs;
+    try {
+      jobs = await this.queue.getJobs(['waiting', 'delayed', 'paused', 'prioritized']);
+    } catch (error) {
+      if (removed) {
+        return true;
+      }
 
-    let removed = false;
+      throw error;
+    }
+
     for (const job of jobs) {
       if (job.data.deploymentId !== deploymentId) {
         continue;

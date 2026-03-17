@@ -21,7 +21,7 @@ Cancellation path:
 
 1. API accepts cancellation only for `queued` and `building` deployments.
 2. API records cancellation metadata before attempting queue removal.
-3. For queued deployments, the API first tries BullMQ direct `jobId` removal and then falls back to scanning queued job states for compatibility with racey or legacy entries.
+3. For queued deployments, the API first tries BullMQ direct `jobId` removal and then scans queued job states to clean up racey or legacy duplicate entries when possible.
 4. If any queued entry can still be removed, the deployment is marked `stopped` immediately.
 5. If queue removal races entirely or the job is already in worker hands, the API still returns a stable "requested" response and the worker cooperatively stops before activation.
 

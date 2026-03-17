@@ -31,6 +31,7 @@ Last updated: 2026-03-17 (Deployment/auth/config hardening follow-through)
 
 - what was built:
   - hardened queued-deployment cancellation lookup so queue removal now falls back to the legacy/racey scan path when the direct BullMQ `getJob(deploymentId)` lookup itself fails
+  - hardened queued-deployment cancellation cleanup so successful direct `jobId` removal still scans for removable legacy duplicates, while post-success scan failures remain best-effort
   - made cancellation audit-log writes best-effort after cancellation state is already persisted, so transient log insertion failures do not turn a successful cancel into an API error
   - expanded API unit coverage for queue-cancel race/idempotency behavior and cancellation partial-failure behavior
   - aligned README quick-start guidance with actual compose expectations (required secrets, optional dashboard auth vars, and separation between compose runtime vs direct workspace `.env` files)

@@ -52,9 +52,8 @@ test('enqueue applies deterministic jobId based on deploymentId', async () => {
   assert.equal(calls[0].opts.jobId, 'dep-1');
 });
 
-test('cancelQueuedDeployment removes direct job-id match first', async () => {
+test('cancelQueuedDeployment removes direct job-id match and still scans for legacy duplicates', async () => {
   const DeploymentQueue = await loadDeploymentQueue();
-  let scanCalled = false;
   const removed: string[] = [];
   const queue = new DeploymentQueue({
     add: async () => ({} as never),
@@ -64,17 +63,21 @@ test('cancelQueuedDeployment removes direct job-id match first', async () => {
         removed.push('dep-direct');
       }
     }) as never,
-    getJobs: async () => {
-      scanCalled = true;
-      return [] as never;
-    }
+    getJobs: async () =>
+      [
+        {
+          data: { deploymentId: 'dep-direct' },
+          remove: async () => {
+            removed.push('dep-direct-legacy');
+          }
+        }
+      ] as never
   });
 
   const result = await queue.cancelQueuedDeployment('dep-direct');
 
   assert.equal(result, true);
-  assert.equal(scanCalled, false);
-  assert.deepEqual(removed, ['dep-direct']);
+  assert.deepEqual(removed, ['dep-direct', 'dep-direct-legacy']);
 });
 
 
@@ -198,6 +201,29 @@ test('cancelQueuedDeployment continues fallback scan when one matching remove ra
 
   assert.equal(result, true);
   assert.deepEqual(removed, ['dep-race-second']);
+});
+
+test('cancelQueuedDeployment still returns true when direct removal succeeds and duplicate scan fails', async () => {
+  const DeploymentQueue = await loadDeploymentQueue();
+  const removed: string[] = [];
+
+  const queue = new DeploymentQueue({
+    add: async () => ({} as never),
+    getJob: async () => ({
+      data: { deploymentId: 'dep-direct-scan-fail' },
+      remove: async () => {
+        removed.push('dep-direct-scan-fail');
+      }
+    }) as never,
+    getJobs: async () => {
+      throw new Error('scan unavailable');
+    }
+  });
+
+  const result = await queue.cancelQueuedDeployment('dep-direct-scan-fail');
+
+  assert.equal(result, true);
+  assert.deepEqual(removed, ['dep-direct-scan-fail']);
 });
 
 test('cancelQueuedDeployment returns false when no matching queued jobs exist', async () => {
