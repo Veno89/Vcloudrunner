@@ -1,3 +1,4 @@
+import type { DeploymentStatus } from '@vcloudrunner/shared-types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DeploymentAutoRefresh } from '@/components/deployment-auto-refresh';
@@ -46,7 +47,7 @@ export default async function DeploymentDetailPage({ params }: DeploymentDetailP
   const refreshedAt = new Date().toISOString();
 
   const logs = await fetchDeploymentLogs(project.id, deployment.id, 50);
-  const failureSummary = deriveFailureSummary(logs);
+  const failureSummary = deployment.status === 'failed' ? deriveFailureSummary(logs) : null;
   const timelineSteps = buildDeploymentSteps({
     status: deployment.status,
     logs,
@@ -70,6 +71,8 @@ export default async function DeploymentDetailPage({ params }: DeploymentDetailP
         ? 'Build is in progress. Logs will update as steps complete.'
         : deployment.status === 'queued'
           ? 'Deployment is queued and waiting for worker capacity.'
+          : deployment.status === 'stopped'
+            ? 'Deployment was stopped before reaching a running state. Review recent logs for cancellation or worker-stop details.'
           : deployment.status === 'failed'
             ? 'Deployment failed. Review logs to identify the failure point.'
             : 'Deployment state is unknown. Check recent logs for details.';
@@ -250,7 +253,7 @@ function buildDeploymentSteps({
   startedAt,
   finishedAt,
 }: {
-  status: string;
+  status: DeploymentStatus;
   logs: Array<{ level: string; message: string; timestamp: string }>;
   startedAt?: string;
   finishedAt?: string;
@@ -324,6 +327,29 @@ function buildDeploymentSteps({
               : 'complete',
         detail: failedStep === 'route' ? failureDetail : undefined,
       },
+    ];
+  }
+
+  if (status === 'stopped') {
+    const stopDetail = finishedAt
+      ? `Stopped at ${new Date(finishedAt).toLocaleString()}`
+      : 'Deployment stopped before activation.';
+
+    return [
+      {
+        id: 'queued',
+        label: 'Queued',
+        state: 'complete',
+        detail: startedAt ? `Worker started at ${new Date(startedAt).toLocaleString()}` : 'Queued successfully.'
+      },
+      {
+        id: 'build',
+        label: 'Build',
+        state: startedAt ? 'complete' : 'upcoming',
+        detail: startedAt ? 'Deployment work began before it was stopped.' : undefined
+      },
+      { id: 'start', label: 'Start', state: 'upcoming', detail: stopDetail },
+      { id: 'route', label: 'Route', state: 'upcoming' },
     ];
   }
 

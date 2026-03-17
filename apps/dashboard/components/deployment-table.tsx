@@ -1,3 +1,4 @@
+import type { DeploymentStatus } from '@vcloudrunner/shared-types';
 import { Badge } from '@/components/ui/badge';
 import { formatRelativeTime, truncateUuid } from '@/lib/helpers';
 import Link from 'next/link';
@@ -5,12 +6,12 @@ import Link from 'next/link';
 interface DeploymentItem {
   id: string;
   project: string;
-  status: string;
+  status: DeploymentStatus;
   commitSha: string;
   createdAt: string;
 }
 
-function statusVariant(status: string) {
+function statusVariant(status: DeploymentStatus) {
   if (status === 'running') return 'success' as const;
   if (status === 'building' || status === 'queued') return 'warning' as const;
   if (status === 'failed') return 'destructive' as const;

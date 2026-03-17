@@ -1,3 +1,4 @@
+import type { DeploymentStatus } from '@vcloudrunner/shared-types';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +22,7 @@ interface ProjectDeploymentsPageProps {
   };
 }
 
-function deploymentStatusVariant(status: string) {
+function deploymentStatusVariant(status: DeploymentStatus) {
   if (status === 'running') return 'success' as const;
   if (status === 'queued' || status === 'building') return 'warning' as const;
   if (status === 'failed') return 'destructive' as const;

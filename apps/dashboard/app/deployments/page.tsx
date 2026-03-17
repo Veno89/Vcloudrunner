@@ -30,7 +30,8 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
   const deployments = data.usingLiveData ? data.deployments : mockDeployments;
   const normalizedDeployments = deployments.map((deployment) => ({
     ...deployment,
-    projectId: 'projectId' in deployment ? deployment.projectId : deployment.project,
+    projectId: 'projectId' in deployment ? deployment.projectId : String(deployment.project),
+    status: deployment.status as DeploymentStatus,
   }));
 
   const selectedStatus: 'all' | DeploymentStatus =

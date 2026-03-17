@@ -1,10 +1,11 @@
 'use client';
 
+import type { DeploymentStatus } from '@vcloudrunner/shared-types';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface DeploymentAutoRefreshProps {
-  status: string;
+  status: DeploymentStatus;
   intervalMs?: number;
 }
 
