@@ -7,8 +7,8 @@ import { LastRefreshedIndicator } from '@/components/last-refreshed-indicator';
 import { ActionToast } from '@/components/action-toast';
 import { PageLayout } from '@/components/page-layout';
 import { loadDashboardData } from '@/lib/loaders';
-import { fetchDeploymentLogs } from '@/lib/api';
-import { logLevelTextClassName, truncateUuid } from '@/lib/helpers';
+import { apiAuthToken, fetchDeploymentLogs } from '@/lib/api';
+import { describeDashboardLiveDataFailure, logLevelTextClassName, truncateUuid } from '@/lib/helpers';
 import { deployProjectAction } from '../actions';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -51,7 +51,18 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
   const { deployment, project } = match;
   const refreshedAt = new Date().toISOString();
 
-  const logs = await fetchDeploymentLogs(project.id, deployment.id, 50);
+  let logs: Array<{ level: string; message: string; timestamp: string }> = [];
+  let logsErrorMessage: string | null = null;
+  try {
+    logs = await fetchDeploymentLogs(project.id, deployment.id, 50);
+  } catch (error) {
+    logsErrorMessage = describeDashboardLiveDataFailure({
+      error,
+      hasDemoUserId: true,
+      hasApiAuthToken: Boolean(apiAuthToken)
+    });
+  }
+
   const failureSummary = deployment.status === 'failed' ? deriveFailureSummary(logs) : null;
   const timelineSteps = buildDeploymentSteps({
     status: deployment.status,
@@ -113,6 +124,12 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p>{statusGuidance}</p>
+          {logsErrorMessage ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-foreground">
+              <p className="font-medium text-destructive">Recent logs unavailable</p>
+              <p className="mt-1">{logsErrorMessage}</p>
+            </div>
+          ) : null}
           {failureSummary && (
             <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs">
               <p className="font-medium text-destructive">Failure Summary</p>
@@ -220,7 +237,9 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
             </CardHeader>
             <CardContent>
               <div className="max-h-72 overflow-auto rounded-md border bg-background p-2 font-mono text-xs">
-                {logs.length === 0 ? (
+                {logsErrorMessage ? (
+                  <p className="text-muted-foreground">Restore live log access, then refresh this page to inspect deployment logs.</p>
+                ) : logs.length === 0 ? (
                   <p className="text-muted-foreground">No logs captured for this deployment yet.</p>
                 ) : (
                   logs.map((log, index) => (

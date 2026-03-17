@@ -21,6 +21,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - make global and project-scoped environment variable actions preserve user context on invalid input and surface actionable auth/scope/not-found failure messages
 - make project creation fail explicitly when demo-user context is missing and map project create/deploy auth or access errors to actionable dashboard messages
 - keep redeploy failures on the current project/deployment page by threading a safe return path through deployment actions and rendering local action toasts on those detail views
+- keep project/deployment detail pages usable when log reads fail by degrading only the log panels and showing explicit inline live-data guidance
 - clarify compose quick start requirements for `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `ENCRYPTION_KEY`, optional dashboard auth variables, and the separation from app-local `.env` files
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
 - make `apps/api/.env.example` explicitly show `ENABLE_DEV_AUTH=false` alongside the bootstrap token fallback example

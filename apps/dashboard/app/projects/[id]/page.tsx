@@ -70,10 +70,20 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 
     const latestDeployment = sortedDeployments[0] ?? null;
-    const latestLogs =
-      latestDeployment
-        ? await fetchDeploymentLogs(project.id, latestDeployment.id, 20)
-        : [];
+    let latestLogs: Array<{ level: string; message: string; timestamp: string }> = [];
+    let latestLogsErrorMessage: string | null = null;
+
+    if (latestDeployment) {
+      try {
+        latestLogs = await fetchDeploymentLogs(project.id, latestDeployment.id, 20);
+      } catch (error) {
+        latestLogsErrorMessage = describeDashboardLiveDataFailure({
+          error,
+          hasDemoUserId: true,
+          hasApiAuthToken: Boolean(apiAuthToken)
+        });
+      }
+    }
 
     return (
       <PageLayout>
@@ -208,8 +218,16 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                     <Link href={`/projects/${project.id}/logs?logsDeploymentId=${latestDeployment.id}`}>Open full logs</Link>
                   </Button>
                 </div>
+                {latestLogsErrorMessage ? (
+                  <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-foreground">
+                    <p className="font-medium text-destructive">Latest logs unavailable</p>
+                    <p className="mt-1">{latestLogsErrorMessage}</p>
+                  </div>
+                ) : null}
                 <div className="max-h-72 overflow-auto rounded-md border bg-background p-2 font-mono text-xs">
-                  {latestLogs.length === 0 ? (
+                  {latestLogsErrorMessage ? (
+                    <p className="text-muted-foreground">Open the full logs view after restoring live log access.</p>
+                  ) : latestLogs.length === 0 ? (
                     <p className="text-muted-foreground">No logs captured yet.</p>
                   ) : (
                     latestLogs.map((log, index) => (
