@@ -9,12 +9,26 @@ import {
   normalizeProjectDisplayName
 } from '@/lib/helpers';
 
+function normalizeActionReturnPath(value: FormDataEntryValue | null): string {
+  if (typeof value !== 'string') {
+    return '/projects';
+  }
+
+  const normalized = value.trim();
+  if (!normalized.startsWith('/') || normalized.startsWith('//')) {
+    return '/projects';
+  }
+
+  return normalized;
+}
+
 export async function deployProjectAction(formData: FormData) {
   const projectIdValue = formData.get('projectId');
   const projectNameValue = formData.get('projectName');
+  const returnPath = normalizeActionReturnPath(formData.get('returnPath'));
 
   if (typeof projectIdValue !== 'string' || projectIdValue.length === 0) {
-    redirect('/projects?status=error&message=Deploy+failed');
+    redirect(`${returnPath}${returnPath.includes('?') ? '&' : '?'}status=error&message=Invalid+deployment+request`);
     return;
   }
 
@@ -30,6 +44,6 @@ export async function deployProjectAction(formData: FormData) {
   } catch (error) {
     const statusCode = extractApiStatusCode(error);
     const message = createDeploymentErrorMessage(statusCode, projectName);
-    redirect(`/projects?status=error&message=${encodeURIComponent(message)}`);
+    redirect(`${returnPath}${returnPath.includes('?') ? '&' : '?'}status=error&message=${encodeURIComponent(message)}`);
   }
 }

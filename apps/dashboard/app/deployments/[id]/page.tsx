@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DeploymentAutoRefresh } from '@/components/deployment-auto-refresh';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import { LastRefreshedIndicator } from '@/components/last-refreshed-indicator';
+import { ActionToast } from '@/components/action-toast';
 import { PageLayout } from '@/components/page-layout';
 import { loadDashboardData } from '@/lib/loaders';
 import { fetchDeploymentLogs } from '@/lib/api';
@@ -14,9 +15,13 @@ import { redirect } from 'next/navigation';
 
 interface DeploymentDetailPageProps {
   params: { id: string };
+  searchParams?: {
+    status?: 'success' | 'error';
+    message?: string;
+  };
 }
 
-export default async function DeploymentDetailPage({ params }: DeploymentDetailPageProps) {
+export default async function DeploymentDetailPage({ params, searchParams }: DeploymentDetailPageProps) {
   const data = await loadDashboardData();
 
   if (!data.usingLiveData) {
@@ -96,6 +101,12 @@ export default async function DeploymentDetailPage({ params }: DeploymentDetailP
       <DeploymentAutoRefresh status={deployment.status} />
       <LastRefreshedIndicator refreshedAt={refreshedAt} staleAfterSeconds={15} />
 
+      <ActionToast
+        status={searchParams?.status}
+        message={searchParams?.message}
+        fallbackErrorMessage="Deployment action failed."
+      />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Current State</CardTitle>
@@ -112,6 +123,7 @@ export default async function DeploymentDetailPage({ params }: DeploymentDetailP
             <form action={deployProjectAction}>
               <input type="hidden" name="projectId" value={project.id} readOnly />
               <input type="hidden" name="projectName" value={project.name} readOnly />
+              <input type="hidden" name="returnPath" value={`/deployments/${deployment.id}`} readOnly />
               <FormSubmitButton
                 idleText="Redeploy"
                 pendingText="Redeploying..."

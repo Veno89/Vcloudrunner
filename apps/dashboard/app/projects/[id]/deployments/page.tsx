@@ -9,6 +9,7 @@ import { PageLayout } from '@/components/page-layout';
 import { EmptyState } from '@/components/empty-state';
 import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
 import { FormSubmitButton } from '@/components/form-submit-button';
+import { ActionToast } from '@/components/action-toast';
 import {
   apiAuthToken,
   demoUserId,
@@ -22,6 +23,10 @@ interface ProjectDeploymentsPageProps {
   params: {
     id: string;
   };
+  searchParams?: {
+    status?: 'success' | 'error';
+    message?: string;
+  };
 }
 
 function deploymentStatusVariant(status: DeploymentStatus) {
@@ -31,7 +36,7 @@ function deploymentStatusVariant(status: DeploymentStatus) {
   return 'secondary' as const;
 }
 
-export default async function ProjectDeploymentsPage({ params }: ProjectDeploymentsPageProps) {
+export default async function ProjectDeploymentsPage({ params, searchParams }: ProjectDeploymentsPageProps) {
   if (!demoUserId) {
     return (
       <PageLayout>
@@ -77,10 +82,17 @@ export default async function ProjectDeploymentsPage({ params }: ProjectDeployme
 
         <ProjectSubnav projectId={project.id} />
 
+        <ActionToast
+          status={searchParams?.status}
+          message={searchParams?.message}
+          fallbackErrorMessage="Deployment action failed."
+        />
+
         <div className="flex flex-wrap gap-2">
           <form action={deployProjectAction}>
             <input type="hidden" name="projectId" value={project.id} readOnly />
             <input type="hidden" name="projectName" value={project.name} readOnly />
+            <input type="hidden" name="returnPath" value={`/projects/${project.id}/deployments`} readOnly />
             <FormSubmitButton
               idleText="Deploy"
               pendingText="Deploying..."

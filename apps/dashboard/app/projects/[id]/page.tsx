@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
 import { ProjectSubnav } from '@/components/project-subnav';
 import { FormSubmitButton } from '@/components/form-submit-button';
+import { ActionToast } from '@/components/action-toast';
 import { PageLayout } from '@/components/page-layout';
 import {
   apiAuthToken,
@@ -23,6 +24,10 @@ interface ProjectDetailPageProps {
   params: {
     id: string;
   };
+  searchParams?: {
+    status?: 'success' | 'error';
+    message?: string;
+  };
 }
 
 function deploymentStatusVariant(status: DeploymentStatus) {
@@ -33,7 +38,7 @@ function deploymentStatusVariant(status: DeploymentStatus) {
 }
 
 
-export default async function ProjectDetailPage({ params }: ProjectDetailPageProps) {
+export default async function ProjectDetailPage({ params, searchParams }: ProjectDetailPageProps) {
   if (!demoUserId) {
     return (
       <PageLayout>
@@ -92,6 +97,12 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
         </div>
         <ProjectSubnav projectId={project.id} />
 
+        <ActionToast
+          status={searchParams?.status}
+          message={searchParams?.message}
+          fallbackErrorMessage="Deployment action failed."
+        />
+
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
             <CardHeader>
@@ -129,6 +140,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
             <form action={deployProjectAction}>
               <input type="hidden" name="projectId" value={project.id} readOnly />
               <input type="hidden" name="projectName" value={project.name} readOnly />
+              <input type="hidden" name="returnPath" value={`/projects/${project.id}`} readOnly />
               <FormSubmitButton
                 idleText="Deploy"
                 pendingText="Deploying..."
