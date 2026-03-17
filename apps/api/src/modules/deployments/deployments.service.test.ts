@@ -38,6 +38,7 @@ function buildService(overrides?: {
   cancelQueuedError?: Error;
   onMarkStopped?: (deploymentId: string) => void;
   onAppendLog?: (input: { deploymentId: string; level: string; message: string }) => void;
+  appendLogError?: Error;
   onMarkCancellationRequested?: (input: { deploymentId: string; metadata: Record<string, unknown>; requestedByCorrelationId: string }) => void;
 }) {
   const queue = {
@@ -95,6 +96,10 @@ function buildService(overrides?: {
       },
       appendLog: async (input: { deploymentId: string; level: string; message: string }) => {
         overrides?.onAppendLog?.(input);
+
+        if (overrides?.appendLogError) {
+          throw overrides.appendLogError;
+        }
       }
     } as never,
     environmentRepository: {
@@ -367,6 +372,34 @@ test('cancelDeployment marks stopped when queued job is removed', async () => {
   assert.match(appendLogCalls[0]?.message ?? '', /cancelled before execution/i);
 });
 
+test('cancelDeployment still returns completed when queued cancellation log write fails after stop state is saved', async () => {
+  const markStoppedCalls: string[] = [];
+
+  const service = buildService({
+    deploymentByIdResult: {
+      id: 'dep-queued-stop-log-fail',
+      status: 'queued',
+      metadata: {}
+    },
+    cancelQueuedResult: true,
+    appendLogError: new Error('log insert failed'),
+    onMarkStopped: (deploymentId) => markStoppedCalls.push(deploymentId)
+  });
+
+  const result = await service.cancelDeployment({
+    projectId: project.id,
+    deploymentId: 'dep-queued-stop-log-fail',
+    correlationId: 'corr-cancel-3b'
+  });
+
+  assert.deepEqual(result, {
+    deploymentId: 'dep-queued-stop-log-fail',
+    status: 'stopped',
+    cancellation: 'completed'
+  });
+  assert.deepEqual(markStoppedCalls, ['dep-queued-stop-log-fail']);
+});
+
 test('cancelDeployment normalizes non-object metadata before marking cancellation requested', async () => {
   const cancellationRequests: Array<{ deploymentId: string; metadata: Record<string, unknown>; requestedByCorrelationId: string }> = [];
 
@@ -389,6 +422,34 @@ test('cancelDeployment normalizes non-object metadata before marking cancellatio
   assert.equal(result.cancellation, 'requested');
   assert.equal(cancellationRequests.length, 1);
   assert.deepEqual(cancellationRequests[0]?.metadata, {});
+});
+
+test('cancelDeployment still returns requested when cancellation log write fails after request metadata is saved', async () => {
+  const cancellationRequests: Array<{ deploymentId: string; metadata: Record<string, unknown>; requestedByCorrelationId: string }> = [];
+
+  const service = buildService({
+    deploymentByIdResult: {
+      id: 'dep-building-log-fail',
+      status: 'building',
+      metadata: { release: '2026.03.17' }
+    },
+    appendLogError: new Error('log insert failed'),
+    onMarkCancellationRequested: (input) => cancellationRequests.push(input)
+  });
+
+  const result = await service.cancelDeployment({
+    projectId: project.id,
+    deploymentId: 'dep-building-log-fail',
+    correlationId: 'corr-cancel-4b'
+  });
+
+  assert.deepEqual(result, {
+    deploymentId: 'dep-building-log-fail',
+    status: 'building',
+    cancellation: 'requested'
+  });
+  assert.equal(cancellationRequests.length, 1);
+  assert.deepEqual(cancellationRequests[0]?.metadata, { release: '2026.03.17' });
 });
 
 

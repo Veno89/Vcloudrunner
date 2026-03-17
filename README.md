@@ -34,33 +34,36 @@ No Kubernetes or multi-node orchestration is introduced in the MVP.
 
 ## Quick Start
 
-1. Configure environment variables:
-   ```bash
-   cp apps/api/.env.example apps/api/.env
-   cp apps/worker/.env.example apps/worker/.env
-   cp apps/dashboard/.env.example apps/dashboard/.env
-   ```
-2. Provide compose secrets:
+1. Provide the required `docker compose` environment variables in your shell or a root `.env` file:
    ```bash
    export ENCRYPTION_KEY='replace-with-32-char-minimum-secret'  # required
    export POSTGRES_PASSWORD='replace-with-strong-postgres-password'  # required
    export REDIS_PASSWORD='replace-with-strong-redis-password'  # required
    export CLOUDFLARED_TOKEN='replace-with-cloudflare-tunnel-token'
-   export NEXT_PUBLIC_DEMO_USER_ID='replace-with-existing-user-uuid'  # optional for live dashboard data
+   export NEXT_PUBLIC_DEMO_USER_ID='replace-with-existing-user-uuid'  # optional; needed for live dashboard user-scoped pages
+   export API_AUTH_TOKEN='replace-with-db-backed-api-token'  # optional; needed for live dashboard API calls
    ```
-3. Build and start core local platform stack:
+   Keep `ENABLE_DEV_AUTH` unset/`false` and leave `API_TOKENS_JSON` empty for this production-like compose path.
+2. Build and start the core platform stack:
    ```bash
    docker compose up -d --build
    ```
-4. (Optional) Start Cloudflare tunnel profile:
-   ```bash
-   docker compose --profile tunnel up -d cloudflared
-   ```
-5. Apply committed migrations (from host):
+3. Apply committed migrations from the host workspace:
    ```bash
    npm install
    npm --workspace @vcloudrunner/api run db:migrate
    ```
+4. (Optional) Start the Cloudflare tunnel profile:
+   ```bash
+   docker compose --profile tunnel up -d cloudflared
+   ```
+5. For direct host-run development instead of compose, copy the app-local examples:
+   ```bash
+   cp apps/api/.env.example apps/api/.env
+   cp apps/worker/.env.example apps/worker/.env
+   cp apps/dashboard/.env.example apps/dashboard/.env
+   ```
+   `apps/api/.env.example` keeps `API_TOKENS_JSON` as a bootstrap/dev-only fallback and will emit a startup warning when used. `ENABLE_DEV_AUTH` remains an explicit opt-in bypass.
 
 6. For future schema changes, generate and commit SQL migration files:
    ```bash
@@ -103,7 +106,7 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 - `GET /v1/projects/:projectId`
 - `POST /v1/projects/:projectId/deployments`
 - `GET /v1/projects/:projectId/deployments`
-- `POST /v1/projects/:projectId/deployments/:deploymentId/cancel` (queued/building deployments)
+- `POST /v1/projects/:projectId/deployments/:deploymentId/cancel` (queued/building deployments; completes immediately only when the queued job can still be removed)
 - `GET /v1/projects/:projectId/environment-variables`
 - `PUT /v1/projects/:projectId/environment-variables`
 - `DELETE /v1/projects/:projectId/environment-variables/:key`
@@ -115,8 +118,9 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 ## Minimal Auth Boundary (MVP)
 
 - All `/v1` project-scoped endpoints require `Authorization: Bearer <token>`.
-- API resolves auth context from DB-backed `api_tokens` (SHA-256 token hash + revocation/expiry checks), with `API_TOKENS_JSON` fallback for bootstrap/dev compatibility.
-- Production startup now rejects `API_TOKENS_JSON` and `ENABLE_DEV_AUTH=true`; keep both disabled in production profiles.
+- API resolves auth context from DB-backed `api_tokens` (SHA-256 token hash + revocation/expiry checks) first, with `API_TOKENS_JSON` available only as a bootstrap/dev fallback.
+- Any non-empty `API_TOKENS_JSON` emits a startup warning; production startup rejects `API_TOKENS_JSON` and `ENABLE_DEV_AUTH=true`.
+- The compose quick-start path keeps `ENABLE_DEV_AUTH` disabled by default.
 - `admin` role can access all projects; `user` role is limited to owned projects.
 - API tokens now support explicit scope sets (e.g. `projects:read`, `deployments:write`, `logs:read`, `tokens:write`) with route-level scope guards.
 - Existing legacy tokens without scope metadata are normalized to compatibility defaults during auth resolution.

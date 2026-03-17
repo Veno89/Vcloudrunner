@@ -17,6 +17,13 @@ Canonical single-node MVP pipeline:
 13. Worker retention policy prunes old logs by age and per-deployment cap.
 14. Optional archive upload sweeps can ship archived logs to object storage using provider-native auth/signing flows (S3 SigV4, GCS bearer OAuth, Azure SharedKey).
 
+Cancellation path:
+
+1. API accepts cancellation only for `queued` and `building` deployments.
+2. API records cancellation metadata before attempting queue removal.
+3. If the deployment is still queued and BullMQ removal succeeds, the deployment is marked `stopped` immediately.
+4. If queue removal races or the job is already in worker hands, the API still returns a stable "requested" response and the worker cooperatively stops before activation.
+
 Ingress path for end-users:
 
 `Cloudflare -> cloudflared -> caddy -> deployed container`

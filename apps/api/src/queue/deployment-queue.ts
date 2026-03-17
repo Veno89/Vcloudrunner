@@ -33,7 +33,13 @@ export class DeploymentQueue {
   }
 
   async cancelQueuedDeployment(deploymentId: string) {
-    const directMatch = await this.queue.getJob(deploymentId);
+    let directMatch;
+    try {
+      directMatch = await this.queue.getJob(deploymentId);
+    } catch {
+      directMatch = undefined;
+    }
+
     if (directMatch) {
       try {
         await directMatch.remove();

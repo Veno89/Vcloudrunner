@@ -192,7 +192,7 @@ export class DeploymentsService {
 
       if (removed) {
         await this.deploymentsRepository.markStopped(deployment.id);
-        await this.deploymentsRepository.appendLog({
+        await this.appendLogBestEffort({
           deploymentId: deployment.id,
           level: 'warn',
           message: `Deployment cancelled before execution (correlation ${input.correlationId}).`
@@ -206,7 +206,7 @@ export class DeploymentsService {
       }
     }
 
-    await this.deploymentsRepository.appendLog({
+    await this.appendLogBestEffort({
       deploymentId: deployment.id,
       level: 'warn',
       message: `Deployment cancellation requested; worker will stop before activation (correlation ${input.correlationId}).`
@@ -225,5 +225,17 @@ export class DeploymentsService {
     }
 
     return value as Record<string, unknown>;
+  }
+
+  private async appendLogBestEffort(input: {
+    deploymentId: string;
+    level: 'info' | 'warn' | 'error';
+    message: string;
+  }) {
+    try {
+      await this.deploymentsRepository.appendLog(input);
+    } catch {
+      // best-effort audit trail; the cancellation state change has already been persisted
+    }
   }
 }

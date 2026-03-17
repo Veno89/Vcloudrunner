@@ -108,6 +108,32 @@ test('cancelQueuedDeployment falls back to scan when direct remove throws', asyn
   assert.deepEqual(removed, ['dep-a']);
 });
 
+test('cancelQueuedDeployment falls back to scan when direct lookup throws', async () => {
+  const DeploymentQueue = await loadDeploymentQueue();
+  const removed: string[] = [];
+
+  const queue = new DeploymentQueue({
+    add: async () => ({} as never),
+    getJob: async () => {
+      throw new Error('lookup unavailable');
+    },
+    getJobs: async () =>
+      [
+        {
+          data: { deploymentId: 'dep-race' },
+          remove: async () => {
+            removed.push('dep-race');
+          }
+        }
+      ] as never
+  });
+
+  const result = await queue.cancelQueuedDeployment('dep-race');
+
+  assert.equal(result, true);
+  assert.deepEqual(removed, ['dep-race']);
+});
+
 test('cancelQueuedDeployment removes matching jobs via fallback queue scan', async () => {
   const DeploymentQueue = await loadDeploymentQueue();
   const removed: string[] = [];
@@ -157,6 +183,22 @@ test('cancelQueuedDeployment returns false when no matching queued jobs exist', 
     add: async () => ({} as never),
     getJob: async () => undefined,
     getJobs: async () => jobs as never
+  });
+
+  const result = await queue.cancelQueuedDeployment('dep-missing');
+
+  assert.equal(result, false);
+});
+
+test('cancelQueuedDeployment returns false when direct lookup throws and scan finds nothing', async () => {
+  const DeploymentQueue = await loadDeploymentQueue();
+
+  const queue = new DeploymentQueue({
+    add: async () => ({} as never),
+    getJob: async () => {
+      throw new Error('lookup unavailable');
+    },
+    getJobs: async () => [] as never
   });
 
   const result = await queue.cancelQueuedDeployment('dep-missing');

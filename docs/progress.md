@@ -1,6 +1,6 @@
 # Vcloudrunner MVP Progress Tracker
 
-Last updated: 2026-03-16 (Phase status snapshot refreshed)
+Last updated: 2026-03-17 (Deployment/auth/config hardening follow-through)
 
 ## Legend
 
@@ -26,6 +26,29 @@ Last updated: 2026-03-16 (Phase status snapshot refreshed)
   - left (~85%): broader auth/user model evolution, runtime adapter expansion, advanced day-2 operational tooling
 
 ## Implementation Log
+
+### Phase: Deployment/auth/config hardening follow-through (2026-03-17)
+
+- what was built:
+  - hardened queued-deployment cancellation lookup so queue removal now falls back to the legacy/racey scan path when the direct BullMQ `getJob(deploymentId)` lookup itself fails
+  - made cancellation audit-log writes best-effort after cancellation state is already persisted, so transient log insertion failures do not turn a successful cancel into an API error
+  - expanded API unit coverage for queue-cancel race/idempotency behavior and cancellation partial-failure behavior
+  - aligned README quick-start guidance with actual compose expectations (required secrets, optional dashboard auth vars, and separation between compose runtime vs direct workspace `.env` files)
+  - refreshed deployment-flow/progress wording so cancellation semantics and auth safety notes match the current implementation
+- files created or changed:
+  - `apps/api/src/queue/deployment-queue.ts`
+  - `apps/api/src/queue/deployment-queue.test.ts`
+  - `apps/api/src/modules/deployments/deployments.service.ts`
+  - `apps/api/src/modules/deployments/deployments.service.test.ts`
+  - `README.md`
+  - `docs/deployment-flow.md`
+  - `docs/progress.md`
+- what is still missing:
+  - phase percentages remain unchanged from the 2026-03-16 snapshot; broader production-readiness and auth-model work is still pending
+- known issues:
+  - API test execution in the default sandbox hits a Windows `spawn EPERM` restriction and requires elevated validation
+- next recommended step:
+  - continue reducing bootstrap-only auth fallbacks in regular dev flows and tighten end-to-end operational validation around compose/runtime lifecycle
 
 ### Phase: UI/UX implementation tranche (2026-03-14)
 
@@ -76,7 +99,7 @@ Last updated: 2026-03-16 (Phase status snapshot refreshed)
     - added `/settings` overview page and moved token management to `/settings/tokens`
     - kept `/tokens` as a backward-compatible redirect shortcut to `/settings/tokens`
   - improved deployments list scanability:
-    - added status filtering on `/deployments` with `all/queued/building/running/failed/cancelled` options
+    - added status filtering on `/deployments` with `all/queued/building/running/failed/stopped` options
     - wired filtered table rendering without changing existing deployment detail links
   - improved deployments empty-state guidance:
     - added contextual filtered-empty messaging (e.g., `No failed deployments`)
@@ -200,7 +223,7 @@ Last updated: 2026-03-16 (Phase status snapshot refreshed)
   - Phase 4: Extensibility (alert extraction, worker decomposition, event hooks, multi-user)
 - known issues:
   - compose runtime cannot be executed in this environment due to missing Docker CLI
-  - `ENABLE_DEV_AUTH=true` must be set explicitly in development `.env` files for the dev-admin-token to work — this is an intentional breaking change for safety
+  - `ENABLE_DEV_AUTH=true` must be set explicitly in development `.env` files for the dev-auth bypass path to work — this is an intentional breaking change for safety
 - next recommended step:
   - begin Phase 2: Production Reliability (state reconciliation, DB pool limits, streaming log export, API tests)
 
