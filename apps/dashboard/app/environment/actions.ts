@@ -3,6 +3,15 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { upsertEnvironmentVariable, deleteEnvironmentVariable } from '@/lib/api';
+import { createEnvironmentVariableActionErrorMessage } from '@/lib/helpers';
+
+function buildEnvironmentRedirectPath(projectId: string | null | undefined): string {
+  if (!projectId) {
+    return '/environment';
+  }
+
+  return `/environment?envProjectId=${encodeURIComponent(projectId)}`;
+}
 
 export async function saveEnvironmentVariableAction(formData: FormData) {
   const projectIdValue = formData.get('projectId');
@@ -14,7 +23,8 @@ export async function saveEnvironmentVariableAction(formData: FormData) {
     typeof keyValue !== 'string' ||
     typeof valueValue !== 'string'
   ) {
-    redirect('/environment?status=error&message=Invalid+input');
+    const basePath = buildEnvironmentRedirectPath(typeof projectIdValue === 'string' ? projectIdValue : null);
+    redirect(`${basePath}${basePath.includes('?') ? '&' : '?'}status=error&message=Invalid+input`);
     return;
   }
 
@@ -24,9 +34,10 @@ export async function saveEnvironmentVariableAction(formData: FormData) {
     redirect(
       `/environment?envProjectId=${encodeURIComponent(projectIdValue)}&status=success&message=${encodeURIComponent(`Variable "${keyValue}" saved`)}`
     );
-  } catch {
+  } catch (error) {
+    const message = createEnvironmentVariableActionErrorMessage('save', error);
     redirect(
-      `/environment?envProjectId=${encodeURIComponent(projectIdValue)}&status=error&message=Failed+to+save+variable`
+      `/environment?envProjectId=${encodeURIComponent(projectIdValue)}&status=error&message=${encodeURIComponent(message)}`
     );
   }
 }
@@ -36,7 +47,8 @@ export async function removeEnvironmentVariableAction(formData: FormData) {
   const keyValue = formData.get('key');
 
   if (typeof projectIdValue !== 'string' || typeof keyValue !== 'string') {
-    redirect('/environment?status=error&message=Invalid+input');
+    const basePath = buildEnvironmentRedirectPath(typeof projectIdValue === 'string' ? projectIdValue : null);
+    redirect(`${basePath}${basePath.includes('?') ? '&' : '?'}status=error&message=Invalid+input`);
     return;
   }
 
@@ -46,9 +58,10 @@ export async function removeEnvironmentVariableAction(formData: FormData) {
     redirect(
       `/environment?envProjectId=${encodeURIComponent(projectIdValue)}&status=success&message=${encodeURIComponent(`Variable "${keyValue}" deleted`)}`
     );
-  } catch {
+  } catch (error) {
+    const message = createEnvironmentVariableActionErrorMessage('delete', error);
     redirect(
-      `/environment?envProjectId=${encodeURIComponent(projectIdValue)}&status=error&message=Failed+to+delete+variable`
+      `/environment?envProjectId=${encodeURIComponent(projectIdValue)}&status=error&message=${encodeURIComponent(message)}`
     );
   }
 }

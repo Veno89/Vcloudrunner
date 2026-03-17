@@ -88,6 +88,33 @@ export function createDashboardProxyUnavailableMessage(feature: string): string 
   return `Unable to reach the upstream API ${feature}. Check NEXT_PUBLIC_API_BASE_URL and API availability, then retry.`;
 }
 
+export function createEnvironmentVariableActionErrorMessage(
+  action: 'save' | 'delete',
+  error: unknown
+): string {
+  const statusCode = extractApiStatusCode(error);
+
+  if (statusCode === 400) {
+    return 'Invalid environment variable input. Check the key/value format and retry.';
+  }
+
+  if (statusCode === 401) {
+    return 'Environment management is unauthorized. Check API_AUTH_TOKEN or the explicit local dev-auth bypass.';
+  }
+
+  if (statusCode === 403) {
+    return 'Environment management is authenticated but lacks the required scopes or project access.';
+  }
+
+  if (statusCode === 404) {
+    return action === 'delete'
+      ? 'The requested project or environment variable no longer exists.'
+      : 'The requested project no longer exists.';
+  }
+
+  return action === 'save' ? 'Failed to save variable.' : 'Failed to delete variable.';
+}
+
 export function truncateUuid(id: string): string {
   return id.length > 12 ? `${id.slice(0, 8)}…` : id;
 }
