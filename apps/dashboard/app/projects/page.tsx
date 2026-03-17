@@ -44,7 +44,9 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
       />
 
       {!data.usingLiveData && (
-        <DemoModeBanner>API data unavailable, showing sample project data.</DemoModeBanner>
+        <DemoModeBanner detail={data.liveDataErrorMessage}>
+          API data unavailable, showing sample project data.
+        </DemoModeBanner>
       )}
 
       {data.usingLiveData && (

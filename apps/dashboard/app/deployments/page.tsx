@@ -84,7 +84,9 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
       />
 
       {!data.usingLiveData && (
-        <DemoModeBanner>API data unavailable, showing sample deployment data.</DemoModeBanner>
+        <DemoModeBanner detail={data.liveDataErrorMessage}>
+          API data unavailable, showing sample deployment data.
+        </DemoModeBanner>
       )}
 
       <form className="grid gap-2 md:grid-cols-[220px_220px_1fr_auto]">

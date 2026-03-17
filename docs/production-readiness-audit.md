@@ -65,9 +65,8 @@ This section lists the highest-leverage issues that can cause trust, safety, or 
 ### Must fix now (blocking “serious use” confidence)
 
 1. **Insecure-by-default compose posture**
-   - `ENABLE_DEV_AUTH` defaults to `true` in compose API env.
-   - `API_AUTH_TOKEN` falls back to `dev-admin-token` in dashboard service.
-   - Default DB password is static `postgres` and Redis has no auth.
+   - This compose concern has been partially addressed: `ENABLE_DEV_AUTH` no longer defaults to `true`, dashboard compose no longer defaults `API_AUTH_TOKEN`, and Postgres/Redis passwords are now required.
+   - Local app-level examples still need disciplined handling so bootstrap-only auth shortcuts are not mistaken for normal production operation.
    - Result: accidental exposure risk if users move from local to internet-facing without strict override discipline.
 
 2. **Deployment execution path still has sharp edges**
