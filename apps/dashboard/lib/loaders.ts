@@ -10,7 +10,7 @@ import {
   type ApiProject,
   type ApiDeployment,
 } from './api';
-import { deriveDomain, extractApiStatusCode } from './helpers';
+import { deriveDomain, describeDashboardLiveDataFailure } from './helpers';
 
 export interface MappedProject {
   id: string;
@@ -73,7 +73,10 @@ export async function loadDashboardData(): Promise<DashboardData> {
   if (!demoUserId) {
     return {
       ...fallback,
-      liveDataErrorMessage: 'Set NEXT_PUBLIC_DEMO_USER_ID to enable live dashboard data.'
+      liveDataErrorMessage: describeDashboardLiveDataFailure({
+        hasDemoUserId: false,
+        hasApiAuthToken: Boolean(apiAuthToken)
+      })
     };
   }
 
@@ -150,22 +153,13 @@ export async function loadDashboardData(): Promise<DashboardData> {
       liveDataErrorMessage: null,
     };
   } catch (error) {
-    const statusCode = extractApiStatusCode(error);
-
-    const liveDataErrorMessage =
-      statusCode === 401
-        ? apiAuthToken
-          ? 'API_AUTH_TOKEN was rejected. Use a valid bearer token, or enable the explicit dev-auth bypass only for local-only testing.'
-          : 'Live dashboard API requests are unauthorized. Set API_AUTH_TOKEN to a valid bearer token, or enable the explicit dev-auth bypass only for local-only testing.'
-        : statusCode === 403
-          ? 'Dashboard token is authenticated but lacks access to the requested resources. Check token scopes and user/project access.'
-          : error instanceof Error
-            ? error.message
-            : 'Failed to fetch live API data.';
-
     return {
       ...fallback,
-      liveDataErrorMessage,
+      liveDataErrorMessage: describeDashboardLiveDataFailure({
+        error,
+        hasDemoUserId: true,
+        hasApiAuthToken: Boolean(apiAuthToken)
+      }),
     };
   }
 }

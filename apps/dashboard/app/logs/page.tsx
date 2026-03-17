@@ -8,12 +8,13 @@ import { PageLayout } from '@/components/page-layout';
 import { EmptyState } from '@/components/empty-state';
 import Link from 'next/link';
 import {
+  apiAuthToken,
   demoUserId,
   fetchProjectsForDemoUser,
   fetchDeploymentsForProject,
   fetchDeploymentLogs,
 } from '@/lib/api';
-import { formatRelativeTime, truncateUuid } from '@/lib/helpers';
+import { describeDashboardLiveDataFailure, formatRelativeTime, truncateUuid } from '@/lib/helpers';
 
 interface LogsPageProps {
   searchParams?: {
@@ -36,6 +37,7 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
   let selectedDeploymentId = '';
   let selectedLabel = '';
   let totalLogPages = 1;
+  let liveDataErrorMessage: string | null = null;
   const logsPageSize = 100;
 
   const logsAutoRefreshEnabled = searchParams?.logsAutoRefresh === '1';
@@ -87,9 +89,18 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
         const pageStart = (safeLogsPage - 1) * logsPageSize;
         deploymentLogs = mappedLogs.slice(pageStart, pageStart + logsPageSize);
       }
-    } catch {
-      // will show empty state
+    } catch (error) {
+      liveDataErrorMessage = describeDashboardLiveDataFailure({
+        error,
+        hasDemoUserId: true,
+        hasApiAuthToken: Boolean(apiAuthToken)
+      });
     }
+  } else {
+    liveDataErrorMessage = describeDashboardLiveDataFailure({
+      hasDemoUserId: false,
+      hasApiAuthToken: Boolean(apiAuthToken)
+    });
   }
 
   const hasLiveData = Boolean(demoUserId && selectedDeploymentId);
@@ -224,8 +235,8 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
           title={demoUserId ? 'No deployments yet' : 'Demo user context required'}
           description={
             demoUserId
-              ? 'Trigger a deployment from the Projects page, then return here to inspect live logs.'
-              : 'Set NEXT_PUBLIC_DEMO_USER_ID to enable the global log viewer in local development.'
+              ? liveDataErrorMessage ?? 'Trigger a deployment from the Projects page, then return here to inspect live logs.'
+              : liveDataErrorMessage ?? 'Set NEXT_PUBLIC_DEMO_USER_ID to enable the global log viewer in local development.'
           }
           actions={
             demoUserId ? (

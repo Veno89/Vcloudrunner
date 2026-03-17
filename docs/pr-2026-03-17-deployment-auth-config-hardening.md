@@ -13,6 +13,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - align remaining dashboard deployment surfaces to the shared deployment status enum and show explicit stopped/cancelled guidance on deployment detail pages
 - make dashboard demo-mode fallback messages surface actionable auth/config hints instead of only generic API-unavailable copy
 - remove the misleading `API_AUTH_TOKEN=dev-admin-token` default from the dashboard example env and clarify that explicit dev-auth bypass remains local-only opt-in
+- make project-scoped dashboard pages degrade into explicit live-data unavailable states instead of failing hard on token/auth/config problems
 - clarify compose quick start requirements for `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `ENCRYPTION_KEY`, optional dashboard auth variables, and the separation from app-local `.env` files
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
 - make `apps/api/.env.example` explicitly show `ENABLE_DEV_AUTH=false` alongside the bootstrap token fallback example

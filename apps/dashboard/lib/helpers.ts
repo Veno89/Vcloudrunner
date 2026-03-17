@@ -34,6 +34,30 @@ export function createProjectErrorReason(statusCode: number | null): string {
   return 'api_unavailable';
 }
 
+export function describeDashboardLiveDataFailure(input: {
+  error?: unknown;
+  hasDemoUserId: boolean;
+  hasApiAuthToken: boolean;
+}): string {
+  if (!input.hasDemoUserId) {
+    return 'Set NEXT_PUBLIC_DEMO_USER_ID to enable live dashboard data.';
+  }
+
+  const statusCode = extractApiStatusCode(input.error);
+
+  if (statusCode === 401) {
+    return input.hasApiAuthToken
+      ? 'API_AUTH_TOKEN was rejected. Use a valid bearer token, or enable the explicit dev-auth bypass only for local-only testing.'
+      : 'Live dashboard API requests are unauthorized. Set API_AUTH_TOKEN to a valid bearer token, or enable the explicit dev-auth bypass only for local-only testing.';
+  }
+
+  if (statusCode === 403) {
+    return 'Dashboard token is authenticated but lacks access to the requested resources. Check token scopes and user/project access.';
+  }
+
+  return input.error instanceof Error ? input.error.message : 'Failed to fetch live API data.';
+}
+
 export function truncateUuid(id: string): string {
   return id.length > 12 ? `${id.slice(0, 8)}…` : id;
 }

@@ -10,10 +10,12 @@ import { PageLayout } from '@/components/page-layout';
 import { EmptyState } from '@/components/empty-state';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import {
+  apiAuthToken,
   demoUserId,
   fetchProjectsForDemoUser,
   fetchEnvironmentVariables,
 } from '@/lib/api';
+import { describeDashboardLiveDataFailure } from '@/lib/helpers';
 import Link from 'next/link';
 import { saveEnvironmentVariableAction, removeEnvironmentVariableAction } from './actions';
 
@@ -30,6 +32,7 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
   let environmentVariables: Array<{ key: string; value: string }> = [];
   let selectedProjectId = '';
   let selectedProjectName = '';
+  let liveDataErrorMessage: string | null = null;
 
   if (demoUserId) {
     try {
@@ -45,9 +48,18 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
         const envItems = await fetchEnvironmentVariables(selected.id);
         environmentVariables = envItems.map((item) => ({ key: item.key, value: item.value }));
       }
-    } catch {
-      // will show empty state
+    } catch (error) {
+      liveDataErrorMessage = describeDashboardLiveDataFailure({
+        error,
+        hasDemoUserId: true,
+        hasApiAuthToken: Boolean(apiAuthToken)
+      });
     }
+  } else {
+    liveDataErrorMessage = describeDashboardLiveDataFailure({
+      hasDemoUserId: false,
+      hasApiAuthToken: Boolean(apiAuthToken)
+    });
   }
 
   const hasLiveData = Boolean(demoUserId && selectedProjectId);
@@ -166,8 +178,8 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
           title={demoUserId ? 'No projects found' : 'Demo user context required'}
           description={
             demoUserId
-              ? 'Create a project first, then manage variables from this global shortcut or project-scoped environment page.'
-              : 'Set NEXT_PUBLIC_DEMO_USER_ID to enable environment management routes in local development.'
+              ? liveDataErrorMessage ?? 'Create a project first, then manage variables from this global shortcut or project-scoped environment page.'
+              : liveDataErrorMessage ?? 'Set NEXT_PUBLIC_DEMO_USER_ID to enable environment management routes in local development.'
           }
           actions={
             demoUserId ? (
