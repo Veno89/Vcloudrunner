@@ -58,6 +58,36 @@ export function describeDashboardLiveDataFailure(input: {
   return input.error instanceof Error ? input.error.message : 'Failed to fetch live API data.';
 }
 
+export function describeDashboardProxyFailure(input: {
+  feature: string;
+  hasApiAuthToken: boolean;
+  statusCode?: number | null;
+  upstreamMessage?: string | null;
+}): string {
+  if (!input.hasApiAuthToken) {
+    return `Dashboard ${input.feature} requires API_AUTH_TOKEN. Set a valid bearer token, or enable the explicit dev-auth bypass only for local-only testing.`;
+  }
+
+  if (input.statusCode === 401) {
+    return `Dashboard ${input.feature} is unauthorized. API_AUTH_TOKEN was rejected, or the explicit dev-auth bypass is disabled.`;
+  }
+
+  if (input.statusCode === 403) {
+    return `Dashboard ${input.feature} is authenticated but lacks access to the requested project or deployment logs.`;
+  }
+
+  if (input.statusCode !== null && input.statusCode !== undefined && input.statusCode >= 500) {
+    return `Upstream API ${input.feature} is unavailable. Refresh and retry shortly.`;
+  }
+
+  const normalizedUpstreamMessage = input.upstreamMessage?.trim();
+  return normalizedUpstreamMessage?.length ? normalizedUpstreamMessage : `Upstream ${input.feature} failed.`;
+}
+
+export function createDashboardProxyUnavailableMessage(feature: string): string {
+  return `Unable to reach the upstream API ${feature}. Check NEXT_PUBLIC_API_BASE_URL and API availability, then retry.`;
+}
+
 export function truncateUuid(id: string): string {
   return id.length > 12 ? `${id.slice(0, 8)}…` : id;
 }

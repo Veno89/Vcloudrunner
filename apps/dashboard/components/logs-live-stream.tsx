@@ -281,6 +281,12 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
             className="h-8 text-xs"
           />
         </div>
+        {status === 'error' ? (
+          <p className="text-[11px] text-destructive">
+            Live log streaming disconnected. Refresh the page, and if it persists check{' '}
+            <code>API_AUTH_TOKEN</code> or upstream API availability.
+          </p>
+        ) : null}
       </div>
       <div
         ref={listRef}

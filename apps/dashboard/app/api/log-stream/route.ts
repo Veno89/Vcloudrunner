@@ -1,11 +1,18 @@
 import { type NextRequest } from 'next/server';
+import { createDashboardProxyUnavailableMessage, describeDashboardProxyFailure } from '@/lib/helpers';
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
 const apiAuthToken = process.env.API_AUTH_TOKEN;
 
 export async function GET(request: NextRequest) {
   if (!apiAuthToken) {
-    return new Response('Missing API auth token', { status: 401 });
+    return new Response(
+      describeDashboardProxyFailure({
+        feature: 'live log streaming',
+        hasApiAuthToken: false,
+      }),
+      { status: 401 }
+    );
   }
 
   const projectId = request.nextUrl.searchParams.get('projectId');
@@ -21,19 +28,36 @@ export async function GET(request: NextRequest) {
     query.set('after', after);
   }
 
-  const upstream = await fetch(
-    `${apiBaseUrl}/v1/projects/${projectId}/deployments/${deploymentId}/logs/stream?${query.toString()}`,
-    {
-      headers: {
-        authorization: `Bearer ${apiAuthToken}`
-      },
-      cache: 'no-store'
-    }
-  );
+  let upstream: Response;
+  try {
+    upstream = await fetch(
+      `${apiBaseUrl}/v1/projects/${projectId}/deployments/${deploymentId}/logs/stream?${query.toString()}`,
+      {
+        headers: {
+          authorization: `Bearer ${apiAuthToken}`
+        },
+        cache: 'no-store'
+      }
+    );
+  } catch {
+    return new Response(createDashboardProxyUnavailableMessage('live log streaming'), { status: 503 });
+  }
 
-  if (!upstream.ok || !upstream.body) {
+  if (!upstream.ok) {
     const message = await upstream.text();
-    return new Response(message || 'Upstream log stream failed', { status: upstream.status });
+    return new Response(
+      describeDashboardProxyFailure({
+        feature: 'live log streaming',
+        hasApiAuthToken: true,
+        statusCode: upstream.status,
+        upstreamMessage: message,
+      }),
+      { status: upstream.status }
+    );
+  }
+
+  if (!upstream.body) {
+    return new Response('Upstream API live log streaming returned an empty response body.', { status: 502 });
   }
 
   return new Response(upstream.body, {
