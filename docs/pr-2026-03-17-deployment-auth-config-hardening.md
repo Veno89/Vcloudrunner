@@ -14,6 +14,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - add regression coverage proving root-registered auth and error plugins still apply when protected routes are registered through sibling route plugins
 - add focused authorization-helper coverage for scope enforcement, user access checks, project-owner/admin bypass paths, membership-based access, and project-not-found handling
+- fix `GET /projects/:projectId` so project members inherit the same membership-aware access policy as other project-scoped routes, with route tests covering member and non-member cases
 - add API unit coverage for queue lookup failure fallback and cancellation log partial-failure behavior
 - align dashboard deployment filtering/status badges with the backend `stopped` status while preserving backward compatibility for legacy `status=cancelled` URLs
 - align remaining dashboard deployment surfaces to the shared deployment status enum and show explicit stopped/cancelled guidance on deployment detail pages
@@ -38,6 +39,6 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/api test`
-  - passed (`65/65`); required elevated execution in this environment because the default Windows sandbox hit `spawn EPERM`
+  - passed (`67/67`); required elevated execution in this environment because the default Windows sandbox hit `spawn EPERM`
 - `npm run typecheck`
   - passed

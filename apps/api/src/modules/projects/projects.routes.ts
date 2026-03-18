@@ -2,8 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 
 import { db } from '../../db/client.js';
-import { ForbiddenProjectAccessError, ProjectNotFoundError } from '../../server/domain-errors.js';
-import { assertUserAccess, requireActor, requireScope } from '../auth/auth-utils.js';
+import { assertUserAccess, ensureProjectAccess, requireActor, requireScope } from '../auth/auth-utils.js';
 import { ProjectsService } from './projects.service.js';
 
 const projectsService = new ProjectsService(db);
@@ -53,15 +52,7 @@ export const projectsRoutes: FastifyPluginAsync = async (app) => {
     const actor = requireActor(request);
     const { projectId } = projectByIdParamsSchema.parse(request.params);
     requireScope(actor, 'projects:read');
-    const project = await projectsService.getProjectById(projectId);
-
-    if (!project) {
-      throw new ProjectNotFoundError();
-    }
-
-    if (actor.role !== 'admin' && project.userId !== actor.userId) {
-      throw new ForbiddenProjectAccessError();
-    }
+    const project = await ensureProjectAccess(projectsService, { projectId, actor });
 
     return { data: project };
   });
