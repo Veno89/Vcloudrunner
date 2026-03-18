@@ -19,7 +19,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - scope deployment-queue construction to the Fastify deployments plugin lifecycle and close it on app shutdown instead of leaking BullMQ handles from module import time
 - add deployments-route regression coverage proving project members can list/create deployments with the right scopes, while outsider access and missing cancel scope are still rejected
 - add environment/logs route regression coverage proving project members can read or mutate those project-scoped resources only with the correct scopes, while outsider access is still denied
-- add api-token route regression coverage for admin cross-user access, non-admin user-boundary rejection, missing write scope, and rotate-not-found mapping
+- add api-token route regression coverage for admin cross-user list/create/revoke access, non-admin user-boundary rejection, missing write scope, and token rotate/revoke not-found mappings
 - harden live log SSE polling so transient backend read failures emit one final stream error event and close cleanly instead of leaving an unhandled async failure loop
 - add API unit coverage for queue lookup failure fallback and cancellation log partial-failure behavior
 - align dashboard deployment filtering/status badges with the backend `stopped` status while preserving backward compatibility for legacy `status=cancelled` URLs
@@ -44,6 +44,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - clarify compose quick start requirements for `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `ENCRYPTION_KEY`, optional dashboard auth variables, and the separation from app-local `.env` files
 - align the production-readiness audit wording with the current compose/auth defaults so it no longer describes compose as enabling dev auth by default
 - recalibrate the top-level phase snapshot in `docs/progress.md` so the reported phase-left percentages reflect the work already landed during this hardening pass
+- recalibrate the top-level phase snapshot again now that the auth and dashboard hardening coverage has moved the phases forward materially
 - align README auth wording with the current membership-aware project access model
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
 - make `apps/api/.env.example` explicitly show `ENABLE_DEV_AUTH=false` alongside the bootstrap token fallback example
@@ -51,6 +52,6 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/api test`
-  - passed (`68/68`); required elevated execution in this environment because the default Windows sandbox hit `spawn EPERM`
+  - passed (`89/89`)
 - `npm run typecheck`
   - passed

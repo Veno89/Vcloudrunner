@@ -48,7 +48,9 @@ export class ApiTokensService {
     return this.repository.listForUser(userId);
   }
 
-  async revokeForUser(input: { tokenId: string; userId: string }) {
+  async revokeForUser(
+    input: { tokenId: string; userId: string }
+  ): Promise<Awaited<ReturnType<ApiTokensRepository['revokeByIdForUser']>>> {
     return this.repository.revokeByIdForUser(input.tokenId, input.userId);
   }
 

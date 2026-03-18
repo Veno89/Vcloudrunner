@@ -76,7 +76,10 @@ async function withApiTokensRoutesApp(
     listForUserImplementation?: typeof ApiTokensService.prototype.listForUser;
     createForUserImplementation?: typeof ApiTokensService.prototype.createForUser;
     rotateForUserImplementation?: typeof ApiTokensService.prototype.rotateForUser;
-    revokeForUserImplementation?: typeof ApiTokensService.prototype.revokeForUser;
+    revokeForUserImplementation?: (input: {
+      tokenId: string;
+      userId: string;
+    }) => Promise<typeof revokedToken | null>;
   },
   run: (app: FastifyInstance) => Promise<void>
 ) {
@@ -184,6 +187,68 @@ test('list api tokens rejects non-admin access to another user resource', async 
   });
 });
 
+test('create api token allows admin access to another user without explicit token scopes', async (t) => {
+  await withApiTokensRoutesApp(t, {
+    token: 'admin-create-token-123',
+    actorUserId: adminUserId,
+    role: 'admin',
+    scopes: []
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/users/${targetUserId}/api-tokens`,
+      headers: {
+        authorization: 'Bearer admin-create-token-123'
+      },
+      payload: {
+        role: 'user',
+        scopes: ['projects:read', 'tokens:read'],
+        label: 'Dashboard token'
+      }
+    });
+
+    assert.equal(res.statusCode, 201);
+    assert.deepEqual(JSON.parse(res.body), {
+      data: {
+        id: createdToken.record.id,
+        userId: createdToken.record.userId,
+        role: createdToken.record.role,
+        scopes: createdToken.record.scopes,
+        label: createdToken.record.label,
+        expiresAt: createdToken.record.expiresAt,
+        revokedAt: createdToken.record.revokedAt,
+        createdAt: createdToken.record.createdAt,
+        updatedAt: createdToken.record.updatedAt,
+        token: createdToken.token
+      }
+    });
+  });
+});
+
+test('create api token rejects non-admin access to another user resource', async (t) => {
+  await withApiTokensRoutesApp(t, {
+    token: 'user-create-token-123',
+    actorUserId: otherUserId,
+    scopes: ['tokens:write']
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/users/${targetUserId}/api-tokens`,
+      headers: {
+        authorization: 'Bearer user-create-token-123'
+      },
+      payload: {
+        role: 'user',
+        scopes: ['projects:read'],
+        label: 'CLI token'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_USER_ACCESS');
+  });
+});
+
 test('create api token rejects tokens missing tokens:write scope', async (t) => {
   await withApiTokensRoutesApp(t, {
     token: 'user-no-write-token-123',
@@ -220,6 +285,48 @@ test('rotate api token maps missing token to 404', async (t) => {
       url: `/v1/users/${targetUserId}/api-tokens/${tokenId}/rotate`,
       headers: {
         authorization: 'Bearer user-write-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 404);
+    assert.equal(JSON.parse(res.body).code, 'API_TOKEN_NOT_FOUND');
+  });
+});
+
+test('revoke api token allows admin access to another user without explicit token scopes', async (t) => {
+  await withApiTokensRoutesApp(t, {
+    token: 'admin-revoke-token-123',
+    actorUserId: adminUserId,
+    role: 'admin',
+    scopes: []
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/v1/users/${targetUserId}/api-tokens/${tokenId}`,
+      headers: {
+        authorization: 'Bearer admin-revoke-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(JSON.parse(res.body), {
+      data: revokedToken
+    });
+  });
+});
+
+test('revoke api token maps missing token to 404', async (t) => {
+  await withApiTokensRoutesApp(t, {
+    token: 'user-revoke-token-123',
+    actorUserId: targetUserId,
+    scopes: ['tokens:write'],
+    revokeForUserImplementation: async () => null
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/v1/users/${targetUserId}/api-tokens/${tokenId}`,
+      headers: {
+        authorization: 'Bearer user-revoke-token-123'
       }
     });
 
