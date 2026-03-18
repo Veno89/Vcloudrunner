@@ -38,6 +38,7 @@ Last updated: 2026-03-17 (Deployment/auth/config hardening follow-through)
   - added regression coverage that exercises the real production registration shape, proving root auth/error plugins still apply when protected routes live inside sibling route plugins
   - added focused auth-helper coverage for scope enforcement, user access checks, owner/admin bypass behavior, membership-based project access, and project-not-found handling
   - fixed the project detail route so membership-based access is honored consistently instead of restricting `GET /projects/:projectId` to only owners/admins
+  - updated project listing semantics so membership-accessible projects appear alongside owned projects for the requesting user context
   - expanded API unit coverage for queue-cancel race/idempotency behavior and cancellation partial-failure behavior
   - aligned README quick-start guidance with actual compose expectations (required secrets, optional dashboard auth vars, and separation between compose runtime vs direct workspace `.env` files)
   - aligned the production-readiness audit wording with the current compose/auth defaults so it no longer claims compose enables dev auth by default
@@ -53,6 +54,7 @@ Last updated: 2026-03-17 (Deployment/auth/config hardening follow-through)
   - `apps/api/src/plugins/error-handler.ts`
   - `apps/api/src/server/api-routes.test.ts`
   - `apps/api/src/modules/auth/auth-utils.test.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
   - `apps/api/src/modules/projects/projects.routes.ts`
   - `apps/api/src/modules/projects/projects.routes.test.ts`
   - `apps/api/package.json`

@@ -47,6 +47,7 @@ async function withProjectsRoutesApp(
     token: string;
     actorUserId: string;
     membershipRows: Array<{ role: string }>;
+    accessibleProjects?: typeof project[];
   },
   run: (app: FastifyInstance) => Promise<void>
 ) {
@@ -69,6 +70,23 @@ async function withProjectsRoutesApp(
 
     return buildSelectResult(options.membershipRows);
   });
+  t.mock.method(db as {
+    selectDistinct: (fields: Record<string, unknown>) => unknown;
+  }, 'selectDistinct', () => ({
+    from() {
+      return {
+        leftJoin() {
+          return {
+            where() {
+              return {
+                orderBy: async () => options.accessibleProjects ?? []
+              };
+            }
+          };
+        }
+      };
+    }
+  }));
 
   const app = Fastify({ logger: false });
   t.after(async () => {
@@ -101,6 +119,26 @@ test('get project by id allows project members with projects:read scope', async 
 
     assert.equal(res.statusCode, 200);
     assert.deepEqual(JSON.parse(res.body), { data: project });
+  });
+});
+
+test('list projects includes membership-accessible projects for the actor user', async (t) => {
+  await withProjectsRoutesApp(t, {
+    token: 'member-list-token-123',
+    actorUserId: memberUserId,
+    membershipRows: [],
+    accessibleProjects: [project]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/users/${memberUserId}/projects`,
+      headers: {
+        authorization: 'Bearer member-list-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(JSON.parse(res.body), { data: [project] });
   });
 });
 

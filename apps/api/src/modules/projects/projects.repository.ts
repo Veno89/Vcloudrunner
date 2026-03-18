@@ -1,7 +1,7 @@
-import { eq } from 'drizzle-orm';
+import { desc, eq, or } from 'drizzle-orm';
 
 import type { DbClient } from '../../db/client.js';
-import { projects } from '../../db/schema.js';
+import { projectMembers, projects } from '../../db/schema.js';
 
 export interface CreateProjectInput {
   userId: string;
@@ -27,10 +27,24 @@ export class ProjectsRepository {
   }
 
   async findAllByUser(userId: string) {
-    return this.db.query.projects.findMany({
-      where: eq(projects.userId, userId),
-      orderBy: (table, { desc }) => [desc(table.createdAt)]
-    });
+    return this.db
+      .selectDistinct({
+        id: projects.id,
+        userId: projects.userId,
+        name: projects.name,
+        slug: projects.slug,
+        gitRepositoryUrl: projects.gitRepositoryUrl,
+        defaultBranch: projects.defaultBranch,
+        createdAt: projects.createdAt,
+        updatedAt: projects.updatedAt
+      })
+      .from(projects)
+      .leftJoin(projectMembers, eq(projectMembers.projectId, projects.id))
+      .where(or(
+        eq(projects.userId, userId),
+        eq(projectMembers.userId, userId)
+      ))
+      .orderBy(desc(projects.createdAt));
   }
 
   async findById(id: string) {

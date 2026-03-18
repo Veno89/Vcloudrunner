@@ -15,6 +15,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - add regression coverage proving root-registered auth and error plugins still apply when protected routes are registered through sibling route plugins
 - add focused authorization-helper coverage for scope enforcement, user access checks, project-owner/admin bypass paths, membership-based access, and project-not-found handling
 - fix `GET /projects/:projectId` so project members inherit the same membership-aware access policy as other project-scoped routes, with route tests covering member and non-member cases
+- make `GET /users/:userId/projects` return membership-accessible projects as well as owned projects, with route coverage for member-visible project listing
 - add API unit coverage for queue lookup failure fallback and cancellation log partial-failure behavior
 - align dashboard deployment filtering/status badges with the backend `stopped` status while preserving backward compatibility for legacy `status=cancelled` URLs
 - align remaining dashboard deployment surfaces to the shared deployment status enum and show explicit stopped/cancelled guidance on deployment detail pages
@@ -33,12 +34,13 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - clarify compose quick start requirements for `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `ENCRYPTION_KEY`, optional dashboard auth variables, and the separation from app-local `.env` files
 - align the production-readiness audit wording with the current compose/auth defaults so it no longer describes compose as enabling dev auth by default
 - recalibrate the top-level phase snapshot in `docs/progress.md` so the reported phase-left percentages reflect the work already landed during this hardening pass
+- align README auth wording with the current membership-aware project access model
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
 - make `apps/api/.env.example` explicitly show `ENABLE_DEV_AUTH=false` alongside the bootstrap token fallback example
 
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/api test`
-  - passed (`67/67`); required elevated execution in this environment because the default Windows sandbox hit `spawn EPERM`
+  - passed (`68/68`); required elevated execution in this environment because the default Windows sandbox hit `spawn EPERM`
 - `npm run typecheck`
   - passed

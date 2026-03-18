@@ -121,7 +121,7 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 - API resolves auth context from DB-backed `api_tokens` (SHA-256 token hash + revocation/expiry checks) first, with `API_TOKENS_JSON` available only as a bootstrap/dev fallback.
 - Any non-empty `API_TOKENS_JSON` emits a startup warning; production startup rejects `API_TOKENS_JSON` and `ENABLE_DEV_AUTH=true`.
 - The compose quick-start path keeps `ENABLE_DEV_AUTH` disabled by default.
-- `admin` role can access all projects; `user` role is limited to owned projects.
+- `admin` role can access all projects; `user` role can access owned projects plus projects granted through `project_members`.
 - API tokens now support explicit scope sets (e.g. `projects:read`, `deployments:write`, `logs:read`, `tokens:write`) with route-level scope guards.
 - Existing legacy tokens without scope metadata are normalized to compatibility defaults during auth resolution.
 - Dashboard server-side API calls use `API_AUTH_TOKEN` when configured.
