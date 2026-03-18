@@ -28,8 +28,9 @@ class MockRedis {
 function createService(options?: {
   counts?: JobCounts;
   heartbeat?: string | null;
+  logger?: { warn: (obj: Record<string, unknown>, msg: string) => void };
 }) {
-  const logger = {
+  const logger = options?.logger ?? {
     warn: (_obj: Record<string, unknown>, _msg: string) => {}
   };
 
@@ -53,6 +54,7 @@ function withAlertEnv(t: TestContext, overrides: Partial<typeof env>) {
   const originals = {
     ALERT_WEBHOOK_URL: env.ALERT_WEBHOOK_URL,
     ALERT_WEBHOOK_AUTH_TOKEN: env.ALERT_WEBHOOK_AUTH_TOKEN,
+    ALERT_MONITOR_INTERVAL_MS: env.ALERT_MONITOR_INTERVAL_MS,
     ALERT_COOLDOWN_MS: env.ALERT_COOLDOWN_MS,
     ALERT_QUEUE_WAITING_THRESHOLD: env.ALERT_QUEUE_WAITING_THRESHOLD,
     ALERT_QUEUE_ACTIVE_THRESHOLD: env.ALERT_QUEUE_ACTIVE_THRESHOLD,
@@ -265,4 +267,100 @@ test('evaluateOperationalAlerts emits alerts for degraded worker health and queu
       message: 'Deployment queue failed jobs exceeded threshold'
     }
   ]);
+});
+
+test('start is idempotent until stop is called, then schedules again', async (t) => {
+  withAlertEnv(t, {
+    ALERT_MONITOR_INTERVAL_MS: 30_000
+  } as Partial<typeof env>);
+
+  const service = createService();
+  const timerA = { timer: 'a' } as unknown as ReturnType<typeof setInterval>;
+  const timerB = { timer: 'b' } as unknown as ReturnType<typeof setInterval>;
+  const timers: Array<ReturnType<typeof setInterval>> = [timerA, timerB];
+  const setIntervalCalls: Array<{ handler: () => void; delay?: number }> = [];
+  const clearedTimers: Array<ReturnType<typeof setInterval>> = [];
+  let evaluationCalls = 0;
+
+  t.mock.method(
+    globalThis,
+    'setInterval',
+    ((handler: () => void, delay?: number) => {
+      setIntervalCalls.push({ handler, delay });
+      return timers[setIntervalCalls.length - 1]!;
+    }) as typeof setInterval
+  );
+  t.mock.method(globalThis, 'clearInterval', ((timer: ReturnType<typeof setInterval>) => {
+    clearedTimers.push(timer);
+  }) as typeof clearInterval);
+  t.mock.method(service, 'evaluateOperationalAlerts', async () => {
+    evaluationCalls += 1;
+  });
+
+  service.start();
+  service.start();
+  await Promise.resolve();
+
+  assert.equal(setIntervalCalls.length, 1);
+  assert.equal(setIntervalCalls[0]?.delay, 30_000);
+  assert.equal(evaluationCalls, 1);
+
+  service.stop();
+  assert.deepEqual(clearedTimers, [timerA]);
+
+  service.start();
+  await Promise.resolve();
+
+  assert.equal(setIntervalCalls.length, 2);
+  assert.equal(evaluationCalls, 2);
+});
+
+test('start logs initial and interval evaluation failures without throwing', async (t) => {
+  withAlertEnv(t, {
+    ALERT_MONITOR_INTERVAL_MS: 30_000
+  } as Partial<typeof env>);
+
+  const warnings: Array<{ obj: Record<string, unknown>; msg: string }> = [];
+  const service = createService({
+    logger: {
+      warn: (obj, msg) => {
+        warnings.push({ obj, msg });
+      }
+    }
+  });
+
+  const intervalHandlers: Array<() => void> = [];
+
+  t.mock.method(
+    globalThis,
+    'setInterval',
+    ((handler: () => void) => {
+      intervalHandlers.push(handler);
+      return { timer: 'warn-test' } as unknown as ReturnType<typeof setInterval>;
+    }) as typeof setInterval
+  );
+
+  t.mock.method(service, 'evaluateOperationalAlerts', async () => {
+    throw new Error('boom');
+  });
+
+  service.start();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0]?.msg, 'initial operational alert evaluation failed');
+  assert.ok(warnings[0]?.obj.error instanceof Error);
+
+  const registeredIntervalHandler = intervalHandlers[0];
+  if (!registeredIntervalHandler) {
+    throw new Error('expected interval handler to be registered');
+  }
+  registeredIntervalHandler();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(warnings.length, 2);
+  assert.equal(warnings[1]?.msg, 'operational alert evaluation failed');
+  assert.ok(warnings[1]?.obj.error instanceof Error);
 });

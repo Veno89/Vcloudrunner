@@ -164,6 +164,10 @@ export class AlertMonitorService {
   }
 
   start(): void {
+    if (this.intervalId) {
+      return;
+    }
+
     this.intervalId = setInterval(() => {
       void this.evaluateOperationalAlerts().catch((error) => {
         this.logger.warn({ error }, 'operational alert evaluation failed');
