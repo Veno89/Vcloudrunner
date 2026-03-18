@@ -161,6 +161,41 @@ test('auth context rejects dev-admin-token when explicit dev auth is disabled', 
   });
 });
 
+test('auth context does not fall back to dev auth when a bearer token is provided but invalid', async (t) => {
+  await withTestApp(t, {
+    enableDevAuth: true
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/required',
+      headers: {
+        authorization: 'Bearer definitely-not-valid'
+      }
+    });
+
+    assert.equal(res.statusCode, 401);
+    assert.equal(JSON.parse(res.body).code, 'UNAUTHORIZED');
+  });
+});
+
+test('auth context does not fall back to dev auth when the authorization header is malformed', async (t) => {
+  await withTestApp(t, {
+    enableDevAuth: true
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/required',
+      headers: {
+        authorization: 'Basic totally-wrong',
+        'x-user-id': HEADER_USER_ID
+      }
+    });
+
+    assert.equal(res.statusCode, 401);
+    assert.equal(JSON.parse(res.body).code, 'UNAUTHORIZED');
+  });
+});
+
 test('auth context uses x-user-id only for v1 requests when explicit dev auth is enabled', async (t) => {
   await withTestApp(t, {
     enableDevAuth: true
@@ -200,6 +235,24 @@ test('requireAuthContext preserves the explicit dev-auth fallback for non-v1 rou
       role: 'admin',
       scopes: ['*']
     });
+  });
+});
+
+test('requireAuthContext does not fall back to dev auth on non-v1 routes when an auth header was provided', async (t) => {
+  await withTestApp(t, {
+    enableDevAuth: true
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/internal/required',
+      headers: {
+        authorization: 'Bearer definitely-not-valid',
+        'x-user-id': EXTERNAL_ROUTE_USER_ID
+      }
+    });
+
+    assert.equal(res.statusCode, 401);
+    assert.equal(JSON.parse(res.body).code, 'UNAUTHORIZED');
   });
 });
 

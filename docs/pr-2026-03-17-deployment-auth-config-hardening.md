@@ -13,6 +13,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another
+- stop invalid or malformed `Authorization` headers from silently falling back to the local dev-auth admin bypass; that bypass now applies only when credentials are absent
 - add regression coverage proving root-registered auth and error plugins still apply when protected routes are registered through sibling route plugins
 - add focused authorization-helper coverage for scope enforcement, user access checks, project-owner/admin bypass paths, membership-based access, and project-not-found handling
 - fix `GET /projects/:projectId` so project members inherit the same membership-aware access policy as other project-scoped routes, with route tests covering member and non-member cases
@@ -75,6 +76,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - bump the Phase 2 snapshot again to reflect explicit denied-origin CORS handling in the ingress contract
 - bump the Phase 2 snapshot again to reflect trusted-proxy-aware ingress handling for forwarded client IPs behind Caddy/cloudflared
 - bump the Phase 1 snapshot again to reflect stricter bootstrap token startup validation on the remaining auth fallback path
+- bump the Phase 1 snapshot again to reflect explicit rejection of invalid credentials during dev-auth fallback flows
 - align README auth wording with the current membership-aware project access model
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
 - make `apps/api/.env.example` explicitly show `ENABLE_DEV_AUTH=false` alongside the bootstrap token fallback example
@@ -82,6 +84,6 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/api test`
-  - passed (`141/141`)
+  - passed (`144/144`)
 - `npm run typecheck`
   - passed

@@ -126,15 +126,18 @@ const authContextPluginImpl: FastifyPluginAsync = async (app) => {
   const staticTokenLookup = buildStaticTokenLookup();
 
   app.decorateRequest('auth', null);
+  app.decorateRequest('authHeaderProvided', false);
 
   app.addHook('onRequest', async (request) => {
+    request.authHeaderProvided = request.headers.authorization !== undefined;
+
     if (!request.url.startsWith('/v1')) {
       return;
     }
 
     const token = parseBearerToken(request.headers.authorization);
     if (!token) {
-      if (env.ENABLE_DEV_AUTH) {
+      if (env.ENABLE_DEV_AUTH && !request.authHeaderProvided) {
         const devUserId = parseDevUserIdHeader(request.headers['x-user-id'])
           ?? '00000000-0000-0000-0000-000000000001';
 
@@ -174,7 +177,7 @@ export const authContextPlugin = fp(authContextPluginImpl, {
 });
 
 export function requireAuthContext(request: FastifyRequest): AuthContext {
-  if (!request.auth && env.ENABLE_DEV_AUTH) {
+  if (!request.auth && env.ENABLE_DEV_AUTH && !request.authHeaderProvided) {
     const devUserId = parseDevUserIdHeader(request.headers['x-user-id'])
       ?? '00000000-0000-0000-0000-000000000001';
 
@@ -195,5 +198,6 @@ export function requireAuthContext(request: FastifyRequest): AuthContext {
 declare module 'fastify' {
   interface FastifyRequest {
     auth: AuthContext | null;
+    authHeaderProvided: boolean;
   }
 }
