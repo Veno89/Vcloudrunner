@@ -18,6 +18,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - make `GET /users/:userId/projects` return membership-accessible projects as well as owned projects, with route coverage for member-visible project listing
 - scope deployment-queue construction to the Fastify deployments plugin lifecycle and close it on app shutdown instead of leaking BullMQ handles from module import time
 - add deployments-route regression coverage proving project members can list/create deployments with the right scopes, while outsider access and missing cancel scope are still rejected
+- complete the deployments-route auth matrix with direct coverage for missing read/write scopes, outsider denial on create/cancel, and the successful member cancel contract
 - add environment/logs route regression coverage proving project members can read or mutate those project-scoped resources only with the correct scopes, while outsider access is still denied
 - extend logs-route regression coverage to prove the SSE stream endpoint enforces the same `logs:read` scope and membership checks as the list/export paths
 - add api-token route regression coverage for admin cross-user list/create/revoke access, non-admin user-boundary rejection, missing write scope, and token rotate/revoke not-found mappings
@@ -56,6 +57,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - bump the Phase 2 snapshot again to reflect the new operational endpoint and shutdown lifecycle validation coverage
 - bump the Phase 2 snapshot again to reflect the new server-metrics endpoint validation and failure-mapping hardening
 - bump the Phase 2 snapshot again to reflect the fuller logs-route auth matrix, including the live stream endpoint
+- bump the Phase 2 snapshot again to reflect the completed deployments-route auth matrix across list/create/cancel
 - bump the Phase 2 snapshot again to reflect the fuller top-level projects auth-matrix coverage
 - align README auth wording with the current membership-aware project access model
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
@@ -64,6 +66,6 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/api test`
-  - passed (`112/112`)
+  - passed (`117/117`)
 - `npm run typecheck`
   - passed

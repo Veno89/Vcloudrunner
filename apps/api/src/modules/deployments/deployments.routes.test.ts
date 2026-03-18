@@ -132,6 +132,26 @@ test('list deployments allows project members with deployments:read scope', asyn
   });
 });
 
+test('list deployments rejects tokens missing deployments:read scope', async (t) => {
+  await withDeploymentsRoutesApp(t, {
+    token: 'member-no-read-token-123',
+    actorUserId: memberUserId,
+    scopes: ['deployments:write'],
+    membershipRows: [{ role: 'editor' }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/projects/${projectId}/deployments`,
+      headers: {
+        authorization: 'Bearer member-no-read-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_TOKEN_SCOPE');
+  });
+});
+
 test('create deployment allows project members with deployments:write scope', async (t) => {
   await withDeploymentsRoutesApp(t, {
     token: 'member-write-token-123',
@@ -153,6 +173,74 @@ test('create deployment allows project members with deployments:write scope', as
   });
 });
 
+test('create deployment rejects tokens missing deployments:write scope', async (t) => {
+  await withDeploymentsRoutesApp(t, {
+    token: 'member-no-write-token-123',
+    actorUserId: memberUserId,
+    scopes: ['deployments:read'],
+    membershipRows: [{ role: 'viewer' }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/projects/${projectId}/deployments`,
+      headers: {
+        authorization: 'Bearer member-no-write-token-123'
+      },
+      payload: {}
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_TOKEN_SCOPE');
+  });
+});
+
+test('create deployment rejects non-members who are not the owner or admin', async (t) => {
+  await withDeploymentsRoutesApp(t, {
+    token: 'outsider-write-token-123',
+    actorUserId: outsiderUserId,
+    scopes: ['deployments:write'],
+    membershipRows: []
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/projects/${projectId}/deployments`,
+      headers: {
+        authorization: 'Bearer outsider-write-token-123'
+      },
+      payload: {}
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_PROJECT_ACCESS');
+  });
+});
+
+test('cancel deployment allows project members with deployments:cancel scope', async (t) => {
+  await withDeploymentsRoutesApp(t, {
+    token: 'member-cancel-token-123',
+    actorUserId: memberUserId,
+    scopes: ['deployments:cancel'],
+    membershipRows: [{ role: 'editor' }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/projects/${projectId}/deployments/${deploymentId}/cancel`,
+      headers: {
+        authorization: 'Bearer member-cancel-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 202);
+    assert.deepEqual(JSON.parse(res.body), {
+      data: {
+        deploymentId,
+        status: 'queued',
+        cancellation: 'requested'
+      }
+    });
+  });
+});
+
 test('cancel deployment rejects tokens that are missing deployments:cancel scope', async (t) => {
   await withDeploymentsRoutesApp(t, {
     token: 'member-no-cancel-token-123',
@@ -170,6 +258,26 @@ test('cancel deployment rejects tokens that are missing deployments:cancel scope
 
     assert.equal(res.statusCode, 403);
     assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_TOKEN_SCOPE');
+  });
+});
+
+test('cancel deployment rejects non-members who are not the owner or admin', async (t) => {
+  await withDeploymentsRoutesApp(t, {
+    token: 'outsider-cancel-token-123',
+    actorUserId: outsiderUserId,
+    scopes: ['deployments:cancel'],
+    membershipRows: []
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/projects/${projectId}/deployments/${deploymentId}/cancel`,
+      headers: {
+        authorization: 'Bearer outsider-cancel-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_PROJECT_ACCESS');
   });
 });
 
