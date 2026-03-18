@@ -12,6 +12,8 @@ function createBuildServerDependencies(options?: {
   pingImplementation?: () => Promise<string>;
   queueMetricsImplementation?: () => Promise<QueueMetrics>;
   workerHealthImplementation?: () => Promise<WorkerHealthResult>;
+  closeQueueImplementation?: () => Promise<void>;
+  quitRedisImplementation?: () => Promise<unknown>;
 }) {
   let queueCloseCalls = 0;
   let redisQuitCalls = 0;
@@ -21,6 +23,7 @@ function createBuildServerDependencies(options?: {
   const deploymentQueue = {
     async close() {
       queueCloseCalls += 1;
+      await options?.closeQueueImplementation?.();
     }
   };
 
@@ -30,7 +33,7 @@ function createBuildServerDependencies(options?: {
     },
     async quit() {
       redisQuitCalls += 1;
-      return 'OK';
+      return options?.quitRedisImplementation?.() ?? 'OK';
     }
   };
 
@@ -235,6 +238,26 @@ test('buildServer preserves stale worker health payloads on health endpoint', as
   });
 });
 
+test('buildServer maps thrown worker health errors to unavailable on health endpoint', async () => {
+  const dependencies = createBuildServerDependencies({
+    workerHealthImplementation: async () => {
+      throw new Error('worker health unavailable');
+    }
+  });
+  const app = buildServer(dependencies);
+
+  const res = await app.inject({
+    method: 'GET',
+    url: '/health/worker'
+  });
+
+  await app.close();
+
+  assert.equal(res.statusCode, 503);
+  assert.deepEqual(JSON.parse(res.body).status, 'unavailable');
+  assert.match(JSON.parse(res.body).message, /worker health unavailable/);
+});
+
 test('buildServer exposes raw queue metrics with request id on metrics endpoint', async () => {
   const dependencies = createBuildServerDependencies({
     queueMetricsImplementation: async () => ({
@@ -346,4 +369,26 @@ test('buildServer exposes raw stale worker metrics but maps thrown worker metric
   assert.equal(failingRes.statusCode, 503);
   assert.deepEqual(JSON.parse(failingRes.body).status, 'unavailable');
   assert.match(JSON.parse(failingRes.body).message, /worker metrics unavailable/);
+});
+
+test('buildServer still closes cleanly when queue and redis shutdown hooks fail', async () => {
+  const dependencies = createBuildServerDependencies({
+    closeQueueImplementation: async () => {
+      throw new Error('queue close failed');
+    },
+    quitRedisImplementation: async () => {
+      throw new Error('redis quit failed');
+    }
+  });
+  const app = buildServer(dependencies);
+
+  await app.ready();
+  await app.close();
+
+  assert.deepEqual(dependencies.getCounts(), {
+    queueCloseCalls: 1,
+    redisQuitCalls: 1,
+    alertStartCalls: 1,
+    alertStopCalls: 1
+  });
 });
