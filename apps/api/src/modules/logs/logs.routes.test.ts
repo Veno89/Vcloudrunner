@@ -193,6 +193,46 @@ test('list deployment logs rejects non-members who are not the owner or admin', 
   });
 });
 
+test('stream deployment logs rejects tokens missing logs:read scope', async (t) => {
+  await withLogsRoutesApp(t, {
+    token: 'member-logs-stream-no-read-token-123',
+    actorUserId: memberUserId,
+    scopes: ['deployments:read'],
+    membershipRows: [{ role: 'viewer' }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/projects/${projectId}/deployments/${deploymentId}/logs/stream`,
+      headers: {
+        authorization: 'Bearer member-logs-stream-no-read-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_TOKEN_SCOPE');
+  });
+});
+
+test('stream deployment logs rejects non-members who are not the owner or admin', async (t) => {
+  await withLogsRoutesApp(t, {
+    token: 'outsider-logs-stream-token-123',
+    actorUserId: outsiderUserId,
+    scopes: ['logs:read'],
+    membershipRows: []
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/projects/${projectId}/deployments/${deploymentId}/logs/stream`,
+      headers: {
+        authorization: 'Bearer outsider-logs-stream-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_PROJECT_ACCESS');
+  });
+});
+
 test('stream emits an SSE error event and closes cleanly when polling fails after the initial payload', async (t) => {
   let listCalls = 0;
 
