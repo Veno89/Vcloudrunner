@@ -37,6 +37,16 @@ interface BuildServerDependencies {
   alertMonitor?: AlertMonitorClient;
 }
 
+type StatusCodeError = Error & {
+  statusCode?: number;
+};
+
+function createStatusCodeError(message: string, statusCode: number) {
+  const error = new Error(message) as StatusCodeError;
+  error.statusCode = statusCode;
+  return error;
+}
+
 export const buildServer = (dependencies: BuildServerDependencies = {}) => {
   const app = Fastify({
     logger: {
@@ -88,7 +98,7 @@ export const buildServer = (dependencies: BuildServerDependencies = {}) => {
         return;
       }
 
-      callback(new Error('Origin not allowed by CORS'), false);
+      callback(createStatusCodeError('Origin not allowed by CORS', 403), false);
     }
   });
 

@@ -30,8 +30,9 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - extend `buildServer()` coverage so thrown worker-health checks map to explicit `503 unavailable` payloads and shutdown still completes cleanly when queue or Redis close hooks fail
 - harden `/metrics/queue` and `/metrics/worker` so async metric collection failures return explicit `503 unavailable` payloads instead of bubbling as generic `500` responses, with direct regression coverage for raw metrics passthrough and degraded/failure semantics
 - fix `buildServer()` route registration scope so global rate limiting actually attaches to the health endpoints and sibling `/v1` route plugins instead of silently missing those routes
+- make disallowed CORS origins return an explicit `403` operational rejection instead of surfacing as a generic `500`
 - preserve explicit operational status codes from non-domain Fastify/plugin errors in the shared error handler so rate-limit rejections stay `429` instead of being flattened into `500`
-- add ingress regression coverage for allowlisted CORS headers, global rate-limit headers/throttling, and shared error-handler preservation of plugin-provided `429` responses
+- add ingress regression coverage for allowlisted and blocked CORS origin handling, global rate-limit headers/throttling, and shared error-handler preservation of plugin-provided `429` responses
 - complete the projects-route auth matrix with direct coverage for admin cross-user create/list access, user-boundary rejection on create/list, missing `projects:write` enforcement on create, and missing `projects:read` enforcement on list/get
 - harden live log SSE polling so transient backend read failures emit one final stream error event and close cleanly instead of leaving an unhandled async failure loop
 - add API unit coverage for queue lookup failure fallback and cancellation log partial-failure behavior
@@ -69,6 +70,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - bump the Phase 2 snapshot again to reflect the completed top-level projects auth matrix across create/list/get
 - bump the Phase 2 snapshot again to reflect fuller worker-health error mapping and shutdown-resilience validation in `buildServer()`
 - bump the Phase 2 snapshot again to reflect ingress-contract hardening around CORS, rate limiting, and shared plugin error handling
+- bump the Phase 2 snapshot again to reflect explicit denied-origin CORS handling in the ingress contract
 - align README auth wording with the current membership-aware project access model
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
 - make `apps/api/.env.example` explicitly show `ENABLE_DEV_AUTH=false` alongside the bootstrap token fallback example
@@ -76,6 +78,6 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/api test`
-  - passed (`135/135`)
+  - passed (`136/136`)
 - `npm run typecheck`
   - passed

@@ -280,6 +280,35 @@ test('buildServer applies allowlisted CORS headers for configured origins', asyn
   });
 });
 
+test('buildServer rejects disallowed CORS origins with an explicit 403 response', async () => {
+  await withEnvOverrides({
+    CORS_ALLOWED_ORIGINS: 'https://allowed.example.com',
+    CORS_ALLOW_CREDENTIALS: true
+  }, async () => {
+    const dependencies = createBuildServerDependencies();
+    const app = buildServer(dependencies);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: {
+        origin: 'https://blocked.example.com'
+      }
+    });
+
+    await app.close();
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(res.headers['access-control-allow-origin'], undefined);
+    assert.ok(res.headers['x-request-id']);
+    assert.deepEqual(JSON.parse(res.body), {
+      code: 'REQUEST_ERROR',
+      message: 'Origin not allowed by CORS',
+      requestId: res.headers['x-request-id']
+    });
+  });
+});
+
 test('buildServer maps thrown worker health errors to unavailable on health endpoint', async () => {
   const dependencies = createBuildServerDependencies({
     workerHealthImplementation: async () => {
