@@ -39,6 +39,8 @@ Last updated: 2026-03-18 (Deployment/auth/config hardening follow-through)
   - added focused auth-helper coverage for scope enforcement, user access checks, owner/admin bypass behavior, membership-based project access, and project-not-found handling
   - fixed the project detail route so membership-based access is honored consistently instead of restricting `GET /projects/:projectId` to only owners/admins
   - updated project listing semantics so membership-accessible projects appear alongside owned projects for the requesting user context
+  - scoped deployment-queue construction to the deployments Fastify plugin lifecycle and added best-effort shutdown cleanup so route registration no longer leaks BullMQ handles at module import time
+  - added deployments-route regression coverage so project-member list/create access and cancel-scope enforcement are verified directly at the route layer
   - decoupled dashboard platform-health reads from demo-user/project live-data requirements so queue/worker status still renders when `NEXT_PUBLIC_DEMO_USER_ID` is unset or project-scoped reads are unavailable
   - updated the dashboard status page so deployment-history metrics are labeled as unavailable during project-scoped live-data outages while platform health remains visible
   - made dashboard platform-health fetching resilient per endpoint and aligned the `API` badge to the API `/health` endpoint instead of inferring it from queue/worker responses

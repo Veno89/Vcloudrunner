@@ -6,7 +6,7 @@ import { redisConnection } from './redis.js';
 type QueueLike = Pick<
   Queue<DeploymentJobPayload, unknown, 'deploy'>,
   'add' | 'getJobs' | 'getJob'
->;
+> & Partial<Pick<Queue<DeploymentJobPayload, unknown, 'deploy'>, 'close'>>;
 
 export class DeploymentQueue {
   private readonly queue: QueueLike;
@@ -76,5 +76,9 @@ export class DeploymentQueue {
     }
 
     return removed;
+  }
+
+  async close() {
+    await this.queue.close?.();
   }
 }
