@@ -49,6 +49,7 @@ function createStatusCodeError(message: string, statusCode: number) {
 
 export const buildServer = (dependencies: BuildServerDependencies = {}) => {
   const app = Fastify({
+    trustProxy: env.TRUST_PROXY,
     logger: {
       level: env.LOG_LEVEL,
       base: { service: 'api' },

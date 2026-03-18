@@ -31,6 +31,7 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 4000
+      TRUST_PROXY: true
       LOG_LEVEL: info
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/vcloudrunner
       REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379

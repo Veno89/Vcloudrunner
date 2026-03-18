@@ -131,10 +131,12 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 
 - CORS is now explicit allowlist-based via `CORS_ALLOWED_ORIGINS` (comma-separated origins) instead of permissive wildcard behavior.
 - CORS credentials behavior is controlled by `CORS_ALLOW_CREDENTIALS`.
+- `TRUST_PROXY=true` should be enabled whenever the API sits behind Caddy/cloudflared or another trusted reverse proxy so rate limiting and allowlists key off the forwarded client IP instead of the proxy hop.
 - Global API rate limiting is enabled via `@fastify/rate-limit` using:
    - `API_RATE_LIMIT_MAX`
    - `API_RATE_LIMIT_WINDOW_MS`
    - `API_RATE_LIMIT_ALLOWLIST` (comma-separated client IPs)
+  In the compose stack this now works against the real client IP because the API service explicitly enables trusted-proxy handling behind Caddy.
 
 
 ## Operational Alert Hooks

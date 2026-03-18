@@ -8,6 +8,12 @@ const REQUIRED_ENV = {
   ENCRYPTION_KEY: '12345678901234567890123456789012'
 };
 
+test('parseEnv defaults TRUST_PROXY to false', () => {
+  const env = parseEnv(REQUIRED_ENV);
+
+  assert.equal(env.TRUST_PROXY, false);
+});
+
 test('assertSafeEnv throws when production enables dev auth', () => {
   const env = parseEnv({ ...REQUIRED_ENV, NODE_ENV: 'production', ENABLE_DEV_AUTH: 'true' });
 

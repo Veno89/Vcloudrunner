@@ -399,6 +399,70 @@ test('buildServer enforces configured rate limits and exposes rate-limit headers
   });
 });
 
+test('buildServer ignores forwarded allowlist IPs when trust proxy is disabled', async () => {
+  await withEnvOverrides({
+    TRUST_PROXY: false,
+    API_RATE_LIMIT_MAX: 1,
+    API_RATE_LIMIT_WINDOW_MS: 60_000,
+    API_RATE_LIMIT_ALLOWLIST: '203.0.113.10'
+  }, async () => {
+    const dependencies = createBuildServerDependencies();
+    const app = buildServer(dependencies);
+
+    const firstRes = await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: {
+        'x-forwarded-for': '203.0.113.10'
+      }
+    });
+    const secondRes = await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: {
+        'x-forwarded-for': '203.0.113.10'
+      }
+    });
+
+    await app.close();
+
+    assert.equal(firstRes.statusCode, 200);
+    assert.equal(secondRes.statusCode, 429);
+  });
+});
+
+test('buildServer honors forwarded allowlist IPs when trust proxy is enabled', async () => {
+  await withEnvOverrides({
+    TRUST_PROXY: true,
+    API_RATE_LIMIT_MAX: 1,
+    API_RATE_LIMIT_WINDOW_MS: 60_000,
+    API_RATE_LIMIT_ALLOWLIST: '203.0.113.10'
+  }, async () => {
+    const dependencies = createBuildServerDependencies();
+    const app = buildServer(dependencies);
+
+    const firstRes = await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: {
+        'x-forwarded-for': '203.0.113.10'
+      }
+    });
+    const secondRes = await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: {
+        'x-forwarded-for': '203.0.113.10'
+      }
+    });
+
+    await app.close();
+
+    assert.equal(firstRes.statusCode, 200);
+    assert.equal(secondRes.statusCode, 200);
+  });
+});
+
 test('buildServer maps thrown queue metric errors to unavailable', async () => {
   const dependencies = createBuildServerDependencies({
     queueMetricsImplementation: async () => {
