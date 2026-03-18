@@ -19,6 +19,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - scope deployment-queue construction to the Fastify deployments plugin lifecycle and close it on app shutdown instead of leaking BullMQ handles from module import time
 - add deployments-route regression coverage proving project members can list/create deployments with the right scopes, while outsider access and missing cancel scope are still rejected
 - add environment/logs route regression coverage proving project members can read or mutate those project-scoped resources only with the correct scopes, while outsider access is still denied
+- add api-token route regression coverage for admin cross-user access, non-admin user-boundary rejection, missing write scope, and rotate-not-found mapping
 - harden live log SSE polling so transient backend read failures emit one final stream error event and close cleanly instead of leaving an unhandled async failure loop
 - add API unit coverage for queue lookup failure fallback and cancellation log partial-failure behavior
 - align dashboard deployment filtering/status badges with the backend `stopped` status while preserving backward compatibility for legacy `status=cancelled` URLs
