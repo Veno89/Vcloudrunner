@@ -103,6 +103,76 @@ const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:400
 const demoUserId = process.env.NEXT_PUBLIC_DEMO_USER_ID;
 const apiAuthToken = process.env.API_AUTH_TOKEN;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function normalizeQueueHealthPayload(
+  payload: unknown,
+  fallbackMessage: string
+): ApiQueueHealth {
+  if (!isRecord(payload)) {
+    return {
+      status: 'unavailable',
+      message: fallbackMessage
+    };
+  }
+
+  const status =
+    payload.status === 'ok' || payload.status === 'degraded' || payload.status === 'unavailable'
+      ? payload.status
+      : 'unavailable';
+
+  const counts = isRecord(payload.counts)
+    ? {
+        waiting: typeof payload.counts.waiting === 'number' ? payload.counts.waiting : 0,
+        active: typeof payload.counts.active === 'number' ? payload.counts.active : 0,
+        completed: typeof payload.counts.completed === 'number' ? payload.counts.completed : 0,
+        failed: typeof payload.counts.failed === 'number' ? payload.counts.failed : 0,
+        delayed: typeof payload.counts.delayed === 'number' ? payload.counts.delayed : 0,
+        paused: typeof payload.counts.paused === 'number' ? payload.counts.paused : 0,
+        prioritized: typeof payload.counts.prioritized === 'number' ? payload.counts.prioritized : 0
+      }
+    : undefined;
+
+  return {
+    status,
+    ...(typeof payload.redis === 'string' ? { redis: payload.redis } : {}),
+    ...(typeof payload.queue === 'string' ? { queue: payload.queue } : {}),
+    ...(counts ? { counts } : {}),
+    ...(typeof payload.sampledAt === 'string' ? { sampledAt: payload.sampledAt } : {}),
+    message: typeof payload.message === 'string' ? payload.message : fallbackMessage
+  };
+}
+
+function normalizeWorkerHealthPayload(
+  payload: unknown,
+  fallbackMessage: string
+): ApiWorkerHealth {
+  if (!isRecord(payload)) {
+    return {
+      status: 'unavailable',
+      message: fallbackMessage
+    };
+  }
+
+  const status =
+    payload.status === 'ok' || payload.status === 'stale' || payload.status === 'unavailable'
+      ? payload.status
+      : 'unavailable';
+
+  return {
+    status,
+    ...(typeof payload.heartbeatKey === 'string' ? { heartbeatKey: payload.heartbeatKey } : {}),
+    ...(typeof payload.staleAfterMs === 'number' ? { staleAfterMs: payload.staleAfterMs } : {}),
+    ...(typeof payload.ageMs === 'number' ? { ageMs: payload.ageMs } : {}),
+    ...(typeof payload.timestamp === 'string' ? { timestamp: payload.timestamp } : {}),
+    ...(typeof payload.service === 'string' ? { service: payload.service } : {}),
+    ...(typeof payload.pid === 'number' || payload.pid === null ? { pid: payload.pid } : {}),
+    message: typeof payload.message === 'string' ? payload.message : fallbackMessage
+  };
+}
+
 function buildAuthHeaders(extra?: Record<string, string>): Record<string, string> {
   const headers = extra ? { ...extra } : {};
 
@@ -301,15 +371,13 @@ export async function fetchQueueHealth(): Promise<ApiQueueHealth> {
       headers: buildAuthHeaders()
     });
 
+    const payload = await response.json().catch(() => ({}));
+
     if (!response.ok) {
-      const fallback = await response.json().catch(() => ({}));
-      return {
-        status: 'unavailable',
-        message: typeof fallback?.message === 'string' ? fallback.message : `API_REQUEST_FAILED ${response.status}`
-      };
+      return normalizeQueueHealthPayload(payload, `API_REQUEST_FAILED ${response.status}`);
     }
 
-    return response.json() as Promise<ApiQueueHealth>;
+    return normalizeQueueHealthPayload(payload, 'Queue health payload unavailable.');
   } catch (error) {
     return {
       status: 'unavailable',
@@ -325,15 +393,13 @@ export async function fetchWorkerHealth(): Promise<ApiWorkerHealth> {
       headers: buildAuthHeaders()
     });
 
+    const payload = await response.json().catch(() => ({}));
+
     if (!response.ok) {
-      const fallback = await response.json().catch(() => ({}));
-      return {
-        status: 'unavailable',
-        message: typeof fallback?.message === 'string' ? fallback.message : `API_REQUEST_FAILED ${response.status}`
-      };
+      return normalizeWorkerHealthPayload(payload, `API_REQUEST_FAILED ${response.status}`);
     }
 
-    return response.json() as Promise<ApiWorkerHealth>;
+    return normalizeWorkerHealthPayload(payload, 'Worker health payload unavailable.');
   } catch (error) {
     return {
       status: 'unavailable',

@@ -57,6 +57,7 @@ This guide defines how shared dashboard UI primitives should be used so new scre
 - When deployment/project metadata loads but log history reads fail, keep the route usable and show inline live-data guidance instead of failing the whole page.
 - On status/operational pages, keep platform health visible but label deployment-history metrics as unavailable when project-scoped live data cannot be loaded; do not collapse that case into generic empty-state copy.
 - Keep platform badges semantically separate: the `API` badge should reflect the API `/health` endpoint, not be inferred from queue or worker health results.
+- Preserve upstream operational status semantics even on non-200 health responses; for example, worker `stale` should remain `stale`, not be flattened into generic `unavailable`.
 - Use `<time>` semantics for timestamps where practical.
 
 ## Project Scope and Navigation
