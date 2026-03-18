@@ -171,6 +171,37 @@ test('buildServer returns queue health unavailable when redis ping fails', async
   assert.match(JSON.parse(res.body).message, /redis unavailable/);
 });
 
+test('buildServer marks queue health as degraded when redis ping is not PONG', async () => {
+  const dependencies = createBuildServerDependencies({
+    pingImplementation: async () => 'LOADING'
+  });
+  const app = buildServer(dependencies);
+
+  const res = await app.inject({
+    method: 'GET',
+    url: '/health/queue'
+  });
+
+  await app.close();
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(JSON.parse(res.body), {
+    status: 'degraded',
+    redis: 'LOADING',
+    queue: 'deployment',
+    counts: {
+      waiting: 2,
+      active: 1,
+      completed: 10,
+      failed: 0,
+      delayed: 0,
+      paused: 0,
+      prioritized: 0
+    },
+    sampledAt: '2026-03-18T12:00:00.000Z'
+  });
+});
+
 test('buildServer preserves stale worker health payloads on health endpoint', async () => {
   const dependencies = createBuildServerDependencies({
     workerHealthImplementation: async () => ({
@@ -202,4 +233,117 @@ test('buildServer preserves stale worker health payloads on health endpoint', as
     service: 'worker',
     pid: 4321
   });
+});
+
+test('buildServer exposes raw queue metrics with request id on metrics endpoint', async () => {
+  const dependencies = createBuildServerDependencies({
+    queueMetricsImplementation: async () => ({
+      queue: 'deployment',
+      counts: {
+        waiting: 9,
+        active: 4,
+        completed: 21,
+        failed: 2,
+        delayed: 1,
+        paused: 0,
+        prioritized: 5
+      },
+      sampledAt: '2026-03-18T13:00:00.000Z'
+    })
+  });
+  const app = buildServer(dependencies);
+
+  const res = await app.inject({
+    method: 'GET',
+    url: '/metrics/queue'
+  });
+
+  await app.close();
+
+  assert.equal(res.statusCode, 200);
+  assert.ok(res.headers['x-request-id']);
+  assert.deepEqual(JSON.parse(res.body), {
+    queue: 'deployment',
+    counts: {
+      waiting: 9,
+      active: 4,
+      completed: 21,
+      failed: 2,
+      delayed: 1,
+      paused: 0,
+      prioritized: 5
+    },
+    sampledAt: '2026-03-18T13:00:00.000Z'
+  });
+});
+
+test('buildServer maps thrown queue metric errors to unavailable', async () => {
+  const dependencies = createBuildServerDependencies({
+    queueMetricsImplementation: async () => {
+      throw new Error('queue metrics unavailable');
+    }
+  });
+  const app = buildServer(dependencies);
+
+  const res = await app.inject({
+    method: 'GET',
+    url: '/metrics/queue'
+  });
+
+  await app.close();
+
+  assert.equal(res.statusCode, 503);
+  assert.deepEqual(JSON.parse(res.body).status, 'unavailable');
+  assert.match(JSON.parse(res.body).message, /queue metrics unavailable/);
+});
+
+test('buildServer exposes raw stale worker metrics but maps thrown worker metric errors to unavailable', async () => {
+  const staleDependencies = createBuildServerDependencies({
+    workerHealthImplementation: async () => ({
+      status: 'stale',
+      heartbeatKey: 'vcloudrunner:test:metrics-heartbeat',
+      staleAfterMs: 45_000,
+      ageMs: 70_000,
+      timestamp: '2026-03-18T13:30:00.000Z',
+      service: 'worker',
+      pid: 9876
+    })
+  });
+  const staleApp = buildServer(staleDependencies);
+
+  const staleRes = await staleApp.inject({
+    method: 'GET',
+    url: '/metrics/worker'
+  });
+
+  await staleApp.close();
+
+  assert.equal(staleRes.statusCode, 200);
+  assert.deepEqual(JSON.parse(staleRes.body), {
+    status: 'stale',
+    heartbeatKey: 'vcloudrunner:test:metrics-heartbeat',
+    staleAfterMs: 45_000,
+    ageMs: 70_000,
+    timestamp: '2026-03-18T13:30:00.000Z',
+    service: 'worker',
+    pid: 9876
+  });
+
+  const failingDependencies = createBuildServerDependencies({
+    workerHealthImplementation: async () => {
+      throw new Error('worker metrics unavailable');
+    }
+  });
+  const failingApp = buildServer(failingDependencies);
+
+  const failingRes = await failingApp.inject({
+    method: 'GET',
+    url: '/metrics/worker'
+  });
+
+  await failingApp.close();
+
+  assert.equal(failingRes.statusCode, 503);
+  assert.deepEqual(JSON.parse(failingRes.body).status, 'unavailable');
+  assert.match(JSON.parse(failingRes.body).message, /worker metrics unavailable/);
 });

@@ -23,6 +23,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - add alert-monitor service coverage for worker-heartbeat unavailable/stale handling, queue-metric shaping, webhook cooldown behavior, and operational threshold alert fan-out
 - make alert-monitor startup idempotent so repeated `start()` calls do not stack duplicate polling intervals, with direct tests for start/stop lifecycle behavior and warning-path logging on initial/interval failures
 - add build-server operational endpoint coverage for `/health`, `/health/queue`, and `/health/worker`, plus clean shutdown assertions for the alert monitor, queue client, and redis client via an injected test seam
+- harden `/metrics/queue` and `/metrics/worker` so async metric collection failures return explicit `503 unavailable` payloads instead of bubbling as generic `500` responses, with direct regression coverage for raw metrics passthrough and degraded/failure semantics
 - add projects-route regression coverage for admin cross-user create/list access, user-boundary rejection on create/list, and missing `projects:write` enforcement on project creation
 - harden live log SSE polling so transient backend read failures emit one final stream error event and close cleanly instead of leaving an unhandled async failure loop
 - add API unit coverage for queue lookup failure fallback and cancellation log partial-failure behavior
@@ -52,6 +53,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - bump the Phase 2 snapshot again to reflect the new operational health/alert-monitor validation coverage
 - bump the Phase 2 snapshot again to reflect the new alert-monitor lifecycle hardening and validation coverage
 - bump the Phase 2 snapshot again to reflect the new operational endpoint and shutdown lifecycle validation coverage
+- bump the Phase 2 snapshot again to reflect the new server-metrics endpoint validation and failure-mapping hardening
 - bump the Phase 2 snapshot again to reflect the fuller top-level projects auth-matrix coverage
 - align README auth wording with the current membership-aware project access model
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
@@ -60,6 +62,6 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/api test`
-  - passed (`106/106`)
+  - passed (`110/110`)
 - `npm run typecheck`
   - passed

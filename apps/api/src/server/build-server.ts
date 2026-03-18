@@ -161,7 +161,7 @@ export const buildServer = (dependencies: BuildServerDependencies = {}) => {
 
   app.get('/metrics/queue', async (request, reply) => {
     try {
-      return alertMonitor.getQueueMetrics();
+      return await alertMonitor.getQueueMetrics();
     } catch (error) {
       request.log.error({ error }, 'queue metrics collection failed');
       return reply.code(503).send({
@@ -173,7 +173,7 @@ export const buildServer = (dependencies: BuildServerDependencies = {}) => {
 
   app.get('/metrics/worker', async (request, reply) => {
     try {
-      return alertMonitor.getWorkerHealth();
+      return await alertMonitor.getWorkerHealth();
     } catch (error) {
       request.log.error({ error }, 'worker metrics collection failed');
       return reply.code(503).send({

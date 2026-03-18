@@ -15,9 +15,9 @@ Last updated: 2026-03-18 (Deployment/auth/config hardening follow-through)
 - **Phase 1: Critical stabilization** — ~94% complete
   - done: deployment concurrency invariant (service + DB), queue enqueue failure mapping/state correction, queued-cancel race/idempotency hardening, safer compose defaults, production dev-auth startup guard, root auth/error plugin inheritance fix, broader API auth/deployment regression coverage, fuller api-token route access coverage, and clearer dashboard auth/config failure states
   - left (~6%): rotate any legacy local secrets in existing environments, keep reducing bootstrap-only auth fallback usage in regular dev flows, and add a small amount of end-to-end compose/runtime validation beyond unit coverage
-- **Phase 2: Production readiness foundation** — ~53% complete
-  - done: improved failure taxonomy coverage, regression tests around constraint/error mapping paths, stronger cancellation/auth/config resilience under partial failures, direct route-level authorization coverage across the main API surfaces, alert-monitor/operational-threshold unit coverage, idempotent alert-monitor startup behavior, direct API health/shutdown regression coverage, fuller top-level project route auth-matrix coverage, and clearer operator-facing startup/config guidance
-  - left (~47%): deeper observability dimensions, migration safety gates, backup/restore automation checks, worker/service decomposition, and broader operational validation
+- **Phase 2: Production readiness foundation** — ~54% complete
+  - done: improved failure taxonomy coverage, regression tests around constraint/error mapping paths, stronger cancellation/auth/config resilience under partial failures, direct route-level authorization coverage across the main API surfaces, alert-monitor/operational-threshold unit coverage, idempotent alert-monitor startup behavior, direct API health/shutdown regression coverage, fuller top-level project route auth-matrix coverage, direct server-metrics contract coverage with explicit unavailable mapping, and clearer operator-facing startup/config guidance
+  - left (~46%): deeper observability dimensions, migration safety gates, backup/restore automation checks, worker/service decomposition, and broader operational validation
 - **Phase 3: UI/UX trust and polish** — ~75% complete
   - done: route architecture, loading/error boundaries, action feedback helpers, clearer deployment error messages, stopped-status consistency, in-context failure handling, live-data unavailable/degraded states across the dashboard, platform-health visibility even when project-scoped live data is unavailable, clearer status-page behavior under partial outages, more truthful platform-health badge semantics, preserved worker stale/unavailable distinctions, and more accurate demo-mode/live-data messaging on top-level pages
   - left (~25%): richer deployment progress visibility, stronger logs ergonomics for investigation workflows, and a few remaining operational guidance states
@@ -47,6 +47,7 @@ Last updated: 2026-03-18 (Deployment/auth/config hardening follow-through)
   - added alert-monitor service coverage for queue metric shaping, worker heartbeat unavailable/stale handling, webhook cooldown behavior, and operational alert threshold fan-out
   - hardened alert-monitor lifecycle so repeated `start()` calls do not stack duplicate polling intervals, and added direct coverage for idempotent start/stop behavior plus warning-path logging on initial/interval failures
   - added injected-dependency coverage for API `/health`, `/health/queue`, and `/health/worker` so request-id propagation, queue-health failure mapping, stale-worker semantics, and clean shutdown of the monitor/queue/redis clients are verified without requiring real Redis or BullMQ runtime access
+  - hardened API `/metrics/queue` and `/metrics/worker` so async metric collection failures map to explicit `503 unavailable` payloads instead of bubbling as generic `500` responses, and added regression coverage for degraded queue health plus raw metrics passthrough/failure behavior
   - hardened the live logs SSE route so polling failures now emit a final stream error event and close cleanly instead of risking unhandled async failures during long-lived streams
   - decoupled dashboard platform-health reads from demo-user/project live-data requirements so queue/worker status still renders when `NEXT_PUBLIC_DEMO_USER_ID` is unset or project-scoped reads are unavailable
   - updated the dashboard status page so deployment-history metrics are labeled as unavailable during project-scoped live-data outages while platform health remains visible
@@ -67,6 +68,8 @@ Last updated: 2026-03-18 (Deployment/auth/config hardening follow-through)
   - `apps/api/src/plugins/auth-context.test.ts`
   - `apps/api/src/plugins/error-handler.ts`
   - `apps/api/src/server/api-routes.test.ts`
+  - `apps/api/src/server/build-server.ts`
+  - `apps/api/src/server/build-server.test.ts`
   - `apps/api/src/modules/auth/auth-utils.test.ts`
   - `apps/api/src/modules/projects/projects.repository.ts`
   - `apps/api/src/modules/projects/projects.routes.ts`
@@ -80,7 +83,7 @@ Last updated: 2026-03-18 (Deployment/auth/config hardening follow-through)
 - what is still missing:
   - broader production-readiness and auth-model work is still pending, especially observability depth, worker decomposition, backup/restore validation, and longer-term user/runtime model evolution
 - known issues:
-  - API test execution in the default sandbox hits a Windows `spawn EPERM` restriction and requires elevated validation
+  - direct `npm` PowerShell shims are blocked in this environment, so validation commands should use `npm.cmd`
 - next recommended step:
   - continue reducing bootstrap-only auth fallbacks in regular dev flows and tighten end-to-end operational validation around compose/runtime lifecycle, especially around health/compose startup behavior
 
