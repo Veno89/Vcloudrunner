@@ -1,4 +1,5 @@
 import type { DeploymentStatus } from '@vcloudrunner/shared-types';
+import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { PageLayout } from '@/components/page-layout';
 import { PageHeader } from '@/components/page-header';
 import { PlatformStatusStrip } from '@/components/platform-status-strip';
@@ -21,6 +22,7 @@ export default async function StatusPage() {
   const completed = recent.filter((item) => item.deployment.status === 'running' || item.deployment.status === 'failed');
   const successful = completed.filter((item) => item.deployment.status === 'running').length;
   const successRate = completed.length > 0 ? Math.round((successful / completed.length) * 100) : null;
+  const deploymentHistoryUnavailable = !data.usingLiveData && Boolean(data.liveDataErrorMessage);
 
   return (
     <PageLayout>
@@ -38,16 +40,33 @@ export default async function StatusPage() {
         lastSuccessfulDeployAt={data.health.lastSuccessfulDeployAt}
       />
 
+      {deploymentHistoryUnavailable ? (
+        <DemoModeBanner detail={data.liveDataErrorMessage}>
+          Platform health is live, but deployment history metrics are unavailable.
+        </DemoModeBanner>
+      ) : null}
+
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Deployment Success Rate</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-semibold">{successRate === null ? 'N/A' : `${successRate}%`}</p>
-            <p className="text-xs text-muted-foreground">
-              Based on {completed.length} completed deployments in the latest {recent.length} records.
-            </p>
+            {deploymentHistoryUnavailable ? (
+              <>
+                <p className="text-2xl font-semibold">Unavailable</p>
+                <p className="text-xs text-muted-foreground">
+                  Deployment history metrics require live project/deployment access.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-2xl font-semibold">{successRate === null ? 'N/A' : `${successRate}%`}</p>
+                <p className="text-xs text-muted-foreground">
+                  Based on {completed.length} completed deployments in the latest {recent.length} records.
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -84,7 +103,14 @@ export default async function StatusPage() {
           <CardTitle className="text-sm">Recent Deployment Outcomes</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {recent.length === 0 ? (
+          {deploymentHistoryUnavailable ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Recent deployment outcomes are unavailable.
+              </p>
+              <p className="text-xs text-muted-foreground">{data.liveDataErrorMessage}</p>
+            </>
+          ) : recent.length === 0 ? (
             <p className="text-sm text-muted-foreground">No deployment history available yet.</p>
           ) : (
             recent.map(({ deployment, project }) => (
