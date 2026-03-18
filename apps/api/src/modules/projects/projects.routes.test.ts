@@ -211,6 +211,27 @@ test('list projects allows admin access to another user without explicit token s
   });
 });
 
+test('list projects rejects tokens missing projects:read scope', async (t) => {
+  await withProjectsRoutesApp(t, {
+    token: 'member-list-no-read-token-123',
+    actorUserId: ownerUserId,
+    scopes: ['projects:write'],
+    membershipRows: [],
+    accessibleProjects: [project]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/users/${ownerUserId}/projects`,
+      headers: {
+        authorization: 'Bearer member-list-no-read-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_TOKEN_SCOPE');
+  });
+});
+
 test('get project by id allows project members with projects:read scope', async (t) => {
   await withProjectsRoutesApp(t, {
     token: 'member-token-123',
@@ -227,6 +248,26 @@ test('get project by id allows project members with projects:read scope', async 
 
     assert.equal(res.statusCode, 200);
     assert.deepEqual(JSON.parse(res.body), { data: project });
+  });
+});
+
+test('get project by id rejects tokens missing projects:read scope', async (t) => {
+  await withProjectsRoutesApp(t, {
+    token: 'member-project-no-read-token-123',
+    actorUserId: memberUserId,
+    scopes: ['projects:write'],
+    membershipRows: [{ role: 'viewer' }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/projects/${projectId}`,
+      headers: {
+        authorization: 'Bearer member-project-no-read-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_TOKEN_SCOPE');
   });
 });
 

@@ -28,7 +28,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - make alert-monitor startup idempotent so repeated `start()` calls do not stack duplicate polling intervals, with direct tests for start/stop lifecycle behavior and warning-path logging on initial/interval failures
 - add build-server operational endpoint coverage for `/health`, `/health/queue`, and `/health/worker`, plus clean shutdown assertions for the alert monitor, queue client, and redis client via an injected test seam
 - harden `/metrics/queue` and `/metrics/worker` so async metric collection failures return explicit `503 unavailable` payloads instead of bubbling as generic `500` responses, with direct regression coverage for raw metrics passthrough and degraded/failure semantics
-- add projects-route regression coverage for admin cross-user create/list access, user-boundary rejection on create/list, and missing `projects:write` enforcement on project creation
+- complete the projects-route auth matrix with direct coverage for admin cross-user create/list access, user-boundary rejection on create/list, missing `projects:write` enforcement on create, and missing `projects:read` enforcement on list/get
 - harden live log SSE polling so transient backend read failures emit one final stream error event and close cleanly instead of leaving an unhandled async failure loop
 - add API unit coverage for queue lookup failure fallback and cancellation log partial-failure behavior
 - align dashboard deployment filtering/status badges with the backend `stopped` status while preserving backward compatibility for legacy `status=cancelled` URLs
@@ -62,7 +62,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - bump the Phase 2 snapshot again to reflect the completed deployments-route auth matrix across list/create/cancel
 - bump the Phase 2 snapshot again to reflect the completed api-token route auth matrix across list/rotate/revoke
 - bump the Phase 2 snapshot again to reflect the completed environment route auth matrix across list/upsert/delete
-- bump the Phase 2 snapshot again to reflect the fuller top-level projects auth-matrix coverage
+- bump the Phase 2 snapshot again to reflect the completed top-level projects auth matrix across create/list/get
 - align README auth wording with the current membership-aware project access model
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
 - make `apps/api/.env.example` explicitly show `ENABLE_DEV_AUTH=false` alongside the bootstrap token fallback example
@@ -70,6 +70,6 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/api test`
-  - passed (`128/128`)
+  - passed (`130/130`)
 - `npm run typecheck`
   - passed
