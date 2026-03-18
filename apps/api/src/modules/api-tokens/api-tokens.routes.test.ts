@@ -187,6 +187,25 @@ test('list api tokens rejects non-admin access to another user resource', async 
   });
 });
 
+test('list api tokens rejects tokens missing tokens:read scope', async (t) => {
+  await withApiTokensRoutesApp(t, {
+    token: 'user-no-read-token-123',
+    actorUserId: targetUserId,
+    scopes: ['tokens:write']
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/users/${targetUserId}/api-tokens`,
+      headers: {
+        authorization: 'Bearer user-no-read-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_TOKEN_SCOPE');
+  });
+});
+
 test('create api token allows admin access to another user without explicit token scopes', async (t) => {
   await withApiTokensRoutesApp(t, {
     token: 'admin-create-token-123',
@@ -273,6 +292,77 @@ test('create api token rejects tokens missing tokens:write scope', async (t) => 
   });
 });
 
+test('rotate api token allows admin access to another user without explicit token scopes', async (t) => {
+  await withApiTokensRoutesApp(t, {
+    token: 'admin-rotate-token-123',
+    actorUserId: adminUserId,
+    role: 'admin',
+    scopes: []
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/users/${targetUserId}/api-tokens/${tokenId}/rotate`,
+      headers: {
+        authorization: 'Bearer admin-rotate-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 201);
+    assert.deepEqual(JSON.parse(res.body), {
+      data: {
+        id: createdToken.record.id,
+        userId: createdToken.record.userId,
+        role: createdToken.record.role,
+        scopes: createdToken.record.scopes,
+        label: createdToken.record.label,
+        expiresAt: createdToken.record.expiresAt,
+        revokedAt: createdToken.record.revokedAt,
+        createdAt: createdToken.record.createdAt,
+        updatedAt: createdToken.record.updatedAt,
+        token: createdToken.token
+      }
+    });
+  });
+});
+
+test('rotate api token rejects non-admin access to another user resource', async (t) => {
+  await withApiTokensRoutesApp(t, {
+    token: 'user-rotate-cross-user-token-123',
+    actorUserId: otherUserId,
+    scopes: ['tokens:write']
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/users/${targetUserId}/api-tokens/${tokenId}/rotate`,
+      headers: {
+        authorization: 'Bearer user-rotate-cross-user-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_USER_ACCESS');
+  });
+});
+
+test('rotate api token rejects tokens missing tokens:write scope', async (t) => {
+  await withApiTokensRoutesApp(t, {
+    token: 'user-rotate-no-write-token-123',
+    actorUserId: targetUserId,
+    scopes: ['tokens:read']
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/users/${targetUserId}/api-tokens/${tokenId}/rotate`,
+      headers: {
+        authorization: 'Bearer user-rotate-no-write-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_TOKEN_SCOPE');
+  });
+});
+
 test('rotate api token maps missing token to 404', async (t) => {
   await withApiTokensRoutesApp(t, {
     token: 'user-write-token-123',
@@ -312,6 +402,44 @@ test('revoke api token allows admin access to another user without explicit toke
     assert.deepEqual(JSON.parse(res.body), {
       data: revokedToken
     });
+  });
+});
+
+test('revoke api token rejects non-admin access to another user resource', async (t) => {
+  await withApiTokensRoutesApp(t, {
+    token: 'user-revoke-cross-user-token-123',
+    actorUserId: otherUserId,
+    scopes: ['tokens:write']
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/v1/users/${targetUserId}/api-tokens/${tokenId}`,
+      headers: {
+        authorization: 'Bearer user-revoke-cross-user-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_USER_ACCESS');
+  });
+});
+
+test('revoke api token rejects tokens missing tokens:write scope', async (t) => {
+  await withApiTokensRoutesApp(t, {
+    token: 'user-revoke-no-write-token-123',
+    actorUserId: targetUserId,
+    scopes: ['tokens:read']
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/v1/users/${targetUserId}/api-tokens/${tokenId}`,
+      headers: {
+        authorization: 'Bearer user-revoke-no-write-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_TOKEN_SCOPE');
   });
 });
 
