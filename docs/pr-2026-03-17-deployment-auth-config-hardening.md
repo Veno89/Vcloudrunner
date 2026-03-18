@@ -28,6 +28,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - make the global environment and logs shortcuts distinguish true empty data from auth/config/API outages instead of showing misleading empty-state titles
 - make global and project-scoped environment variable actions preserve user context on invalid input and surface actionable auth/scope/not-found failure messages
 - make project creation fail explicitly when demo-user context is missing and map project create/deploy auth or access errors to actionable dashboard messages
+- make top-level demo-mode banners say live project/deployment data is unavailable instead of incorrectly implying the API itself is always down
 - keep redeploy failures on the current project/deployment page by threading a safe return path through deployment actions and rendering local action toasts on those detail views
 - keep project/deployment detail pages usable when log reads fail by degrading only the log panels and showing explicit inline live-data guidance
 - apply the same partial log-read degradation to the global and project-scoped logs pages so selectors and export controls remain usable during log-history outages

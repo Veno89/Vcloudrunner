@@ -85,7 +85,7 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
 
       {!data.usingLiveData && (
         <DemoModeBanner detail={data.liveDataErrorMessage}>
-          API data unavailable, showing sample deployment data.
+          Live deployment data unavailable, showing sample deployment data.
         </DemoModeBanner>
       )}
 
