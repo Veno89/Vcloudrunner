@@ -55,24 +55,63 @@ export interface DashboardData {
   liveDataErrorMessage: string | null;
 }
 
+export function createFallbackHealth(): PlatformHealth {
+  return {
+    apiStatus: 'degraded',
+    queueStatus: 'unavailable',
+    workerStatus: 'unavailable',
+    queueCounts: { waiting: 0, active: 0, completed: 0, failed: 0 },
+  };
+}
+
+export async function loadPlatformHealth(
+  lastSuccessfulDeployAt?: string
+): Promise<PlatformHealth> {
+  const [queueHealth, workerHealth] = await Promise.all([
+    fetchQueueHealth(),
+    fetchWorkerHealth(),
+  ]);
+
+  const apiStatus =
+    queueHealth.status === 'unavailable' && workerHealth.status === 'unavailable'
+      ? 'degraded'
+      : 'ok';
+
+  const queueCounts = queueHealth.counts
+    ? {
+        waiting: queueHealth.counts.waiting,
+        active: queueHealth.counts.active,
+        completed: queueHealth.counts.completed,
+        failed: queueHealth.counts.failed,
+      }
+    : { waiting: 0, active: 0, completed: 0, failed: 0 };
+
+  return {
+    apiStatus,
+    queueStatus: queueHealth.status,
+    workerStatus: workerHealth.status,
+    queueCounts,
+    workerAgeMs: workerHealth.ageMs,
+    lastSuccessfulDeployAt,
+  };
+}
+
 export async function loadDashboardData(): Promise<DashboardData> {
   const fallback: DashboardData = {
     projects: [],
     sortedDeployments: [],
     deployments: [],
-    health: {
-      apiStatus: 'degraded',
-      queueStatus: 'unavailable',
-      workerStatus: 'unavailable',
-      queueCounts: { waiting: 0, active: 0, completed: 0, failed: 0 },
-    },
+    health: createFallbackHealth(),
     usingLiveData: false,
     liveDataErrorMessage: null,
   };
 
+  const health = await loadPlatformHealth().catch(() => createFallbackHealth());
+
   if (!demoUserId) {
     return {
       ...fallback,
+      health,
       liveDataErrorMessage: describeDashboardLiveDataFailure({
         hasDemoUserId: false,
         hasApiAuthToken: Boolean(apiAuthToken)
@@ -114,47 +153,27 @@ export async function loadDashboardData(): Promise<DashboardData> {
       runtimeUrl: deployment.runtimeUrl,
     }));
 
-    const [queueHealth, workerHealth] = await Promise.all([
-      fetchQueueHealth(),
-      fetchWorkerHealth(),
-    ]);
-
-    const apiStatus =
-      queueHealth.status === 'unavailable' && workerHealth.status === 'unavailable'
-        ? 'degraded'
-        : 'ok';
-
-    const queueCounts = queueHealth.counts
-      ? {
-          waiting: queueHealth.counts.waiting,
-          active: queueHealth.counts.active,
-          completed: queueHealth.counts.completed,
-          failed: queueHealth.counts.failed,
-        }
-      : { waiting: 0, active: 0, completed: 0, failed: 0 };
-
     const lastSuccessful = sortedDeployments.find(
       (item) => item.deployment.status === 'running'
     );
+
+    const nextHealth = {
+      ...health,
+      lastSuccessfulDeployAt: lastSuccessful?.deployment.createdAt,
+    };
 
     return {
       projects,
       sortedDeployments,
       deployments,
-      health: {
-        apiStatus,
-        queueStatus: queueHealth.status,
-        workerStatus: workerHealth.status,
-        queueCounts,
-        workerAgeMs: workerHealth.ageMs,
-        lastSuccessfulDeployAt: lastSuccessful?.deployment.createdAt,
-      },
+      health: nextHealth,
       usingLiveData: true,
       liveDataErrorMessage: null,
     };
   } catch (error) {
     return {
       ...fallback,
+      health,
       liveDataErrorMessage: describeDashboardLiveDataFailure({
         error,
         hasDemoUserId: true,
