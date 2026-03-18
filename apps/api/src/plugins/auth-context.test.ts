@@ -202,3 +202,57 @@ test('requireAuthContext preserves the explicit dev-auth fallback for non-v1 rou
     });
   });
 });
+
+test('auth context plugin rejects malformed API_TOKENS_JSON with an explicit startup error', async (t) => {
+  const originalApiTokensJson = env.API_TOKENS_JSON;
+  env.API_TOKENS_JSON = '[{"token":';
+
+  const app = Fastify({ logger: false });
+  t.after(async () => {
+    env.API_TOKENS_JSON = originalApiTokensJson;
+    await app.close();
+  });
+
+  app.register(errorHandlerPlugin);
+  app.register(authContextPlugin);
+
+  await assert.rejects(
+    async () => {
+      await app.ready();
+    },
+    /Invalid API_TOKENS_JSON: expected a valid JSON array of token entries/
+  );
+});
+
+test('auth context plugin rejects duplicate static token entries at startup', async (t) => {
+  const originalApiTokensJson = env.API_TOKENS_JSON;
+  env.API_TOKENS_JSON = JSON.stringify([
+    {
+      token: 'duplicate-token-123',
+      userId: STATIC_USER_ID,
+      role: 'user',
+      scopes: ['projects:read']
+    },
+    {
+      token: 'duplicate-token-123',
+      userId: DB_USER_ID,
+      role: 'admin'
+    }
+  ]);
+
+  const app = Fastify({ logger: false });
+  t.after(async () => {
+    env.API_TOKENS_JSON = originalApiTokensJson;
+    await app.close();
+  });
+
+  app.register(errorHandlerPlugin);
+  app.register(authContextPlugin);
+
+  await assert.rejects(
+    async () => {
+      await app.ready();
+    },
+    /Invalid API_TOKENS_JSON: Duplicate static token entry/
+  );
+});

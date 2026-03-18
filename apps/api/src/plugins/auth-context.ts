@@ -25,7 +25,22 @@ const tokenEntrySchema = z.object({
   scopes: z.array(z.enum(ALL_TOKEN_SCOPES)).optional()
 });
 
-const tokenEntriesSchema = z.array(tokenEntrySchema);
+const tokenEntriesSchema = z.array(tokenEntrySchema).superRefine((entries, ctx) => {
+  const seenTokens = new Set<string>();
+
+  entries.forEach((entry, index) => {
+    if (seenTokens.has(entry.token)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Duplicate static token entry for token "${entry.token}"`,
+        path: [index, 'token']
+      });
+      return;
+    }
+
+    seenTokens.add(entry.token);
+  });
+});
 
 function parseBearerToken(value: string | undefined): string | null {
   if (!value) {
@@ -52,9 +67,23 @@ function buildStaticTokenLookup() {
     return new Map<string, AuthContext>();
   }
 
-  const parsed = tokenEntriesSchema.parse(JSON.parse(raw));
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(raw);
+  } catch {
+    throw new Error('Invalid API_TOKENS_JSON: expected a valid JSON array of token entries');
+  }
+
+  const parsed = tokenEntriesSchema.safeParse(parsedJson);
+  if (!parsed.success) {
+    const details = parsed.error.issues
+      .map((issue) => issue.message)
+      .join('; ');
+    throw new Error(`Invalid API_TOKENS_JSON: ${details}`);
+  }
+
   return new Map<string, AuthContext>(
-    parsed.map((entry) => [entry.token, {
+    parsed.data.map((entry) => [entry.token, {
       userId: entry.userId,
       role: entry.role,
       scopes: normalizeTokenScopes(entry.scopes, entry.role)
