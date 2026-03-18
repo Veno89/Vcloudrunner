@@ -20,6 +20,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - add deployments-route regression coverage proving project members can list/create deployments with the right scopes, while outsider access and missing cancel scope are still rejected
 - complete the deployments-route auth matrix with direct coverage for missing read/write scopes, outsider denial on create/cancel, and the successful member cancel contract
 - add environment/logs route regression coverage proving project members can read or mutate those project-scoped resources only with the correct scopes, while outsider access is still denied
+- complete the environment route auth matrix with direct coverage for read-scope rejection, write-scope rejection on upsert, outsider denial on upsert/delete, and the successful member delete contract
 - extend logs-route regression coverage to prove the SSE stream endpoint enforces the same `logs:read` scope and membership checks as the list/export paths
 - add api-token route regression coverage for admin cross-user list/create/revoke access, non-admin user-boundary rejection, missing write scope, and token rotate/revoke not-found mappings
 - complete the api-token route auth matrix with direct coverage for list read-scope rejection, successful admin rotate, cross-user rotate/revoke denial, and missing write-scope rejection on rotate/revoke
@@ -60,6 +61,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - bump the Phase 2 snapshot again to reflect the fuller logs-route auth matrix, including the live stream endpoint
 - bump the Phase 2 snapshot again to reflect the completed deployments-route auth matrix across list/create/cancel
 - bump the Phase 2 snapshot again to reflect the completed api-token route auth matrix across list/rotate/revoke
+- bump the Phase 2 snapshot again to reflect the completed environment route auth matrix across list/upsert/delete
 - bump the Phase 2 snapshot again to reflect the fuller top-level projects auth-matrix coverage
 - align README auth wording with the current membership-aware project access model
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
@@ -68,6 +70,6 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/api test`
-  - passed (`123/123`)
+  - passed (`128/128`)
 - `npm run typecheck`
   - passed

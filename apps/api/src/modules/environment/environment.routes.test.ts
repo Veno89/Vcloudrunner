@@ -115,6 +115,26 @@ test('list environment variables allows project members with environment:read sc
   });
 });
 
+test('list environment variables rejects tokens missing environment:read scope', async (t) => {
+  await withEnvironmentRoutesApp(t, {
+    token: 'member-env-no-read-token-123',
+    actorUserId: memberUserId,
+    scopes: ['environment:write'],
+    membershipRows: [{ role: 'editor' }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/projects/${projectId}/environment-variables`,
+      headers: {
+        authorization: 'Bearer member-env-no-read-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_TOKEN_SCOPE');
+  });
+});
+
 test('upsert environment variable allows project members with environment:write scope', async (t) => {
   await withEnvironmentRoutesApp(t, {
     token: 'member-env-write-token-123',
@@ -139,6 +159,74 @@ test('upsert environment variable allows project members with environment:write 
   });
 });
 
+test('upsert environment variable rejects tokens missing environment:write scope', async (t) => {
+  await withEnvironmentRoutesApp(t, {
+    token: 'member-env-upsert-no-write-token-123',
+    actorUserId: memberUserId,
+    scopes: ['environment:read'],
+    membershipRows: [{ role: 'viewer' }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/v1/projects/${projectId}/environment-variables`,
+      headers: {
+        authorization: 'Bearer member-env-upsert-no-write-token-123'
+      },
+      payload: {
+        key: 'API_KEY',
+        value: 'secret-value'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_TOKEN_SCOPE');
+  });
+});
+
+test('upsert environment variable rejects non-members who are not the owner or admin', async (t) => {
+  await withEnvironmentRoutesApp(t, {
+    token: 'outsider-env-write-token-123',
+    actorUserId: outsiderUserId,
+    scopes: ['environment:write'],
+    membershipRows: []
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/v1/projects/${projectId}/environment-variables`,
+      headers: {
+        authorization: 'Bearer outsider-env-write-token-123'
+      },
+      payload: {
+        key: 'API_KEY',
+        value: 'secret-value'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_PROJECT_ACCESS');
+  });
+});
+
+test('delete environment variable allows project members with environment:write scope', async (t) => {
+  await withEnvironmentRoutesApp(t, {
+    token: 'member-env-delete-token-123',
+    actorUserId: memberUserId,
+    scopes: ['environment:write'],
+    membershipRows: [{ role: 'editor' }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/v1/projects/${projectId}/environment-variables/API_KEY`,
+      headers: {
+        authorization: 'Bearer member-env-delete-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 204);
+    assert.equal(res.body, '');
+  });
+});
+
 test('delete environment variable rejects tokens missing environment:write scope', async (t) => {
   await withEnvironmentRoutesApp(t, {
     token: 'member-env-no-write-token-123',
@@ -156,6 +244,26 @@ test('delete environment variable rejects tokens missing environment:write scope
 
     assert.equal(res.statusCode, 403);
     assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_TOKEN_SCOPE');
+  });
+});
+
+test('delete environment variable rejects non-members who are not the owner or admin', async (t) => {
+  await withEnvironmentRoutesApp(t, {
+    token: 'outsider-env-delete-token-123',
+    actorUserId: outsiderUserId,
+    scopes: ['environment:write'],
+    membershipRows: []
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/v1/projects/${projectId}/environment-variables/API_KEY`,
+      headers: {
+        authorization: 'Bearer outsider-env-delete-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_PROJECT_ACCESS');
   });
 });
 
