@@ -22,6 +22,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - add api-token route regression coverage for admin cross-user list/create/revoke access, non-admin user-boundary rejection, missing write scope, and token rotate/revoke not-found mappings
 - add alert-monitor service coverage for worker-heartbeat unavailable/stale handling, queue-metric shaping, webhook cooldown behavior, and operational threshold alert fan-out
 - make alert-monitor startup idempotent so repeated `start()` calls do not stack duplicate polling intervals, with direct tests for start/stop lifecycle behavior and warning-path logging on initial/interval failures
+- add build-server operational endpoint coverage for `/health`, `/health/queue`, and `/health/worker`, plus clean shutdown assertions for the alert monitor, queue client, and redis client via an injected test seam
 - harden live log SSE polling so transient backend read failures emit one final stream error event and close cleanly instead of leaving an unhandled async failure loop
 - add API unit coverage for queue lookup failure fallback and cancellation log partial-failure behavior
 - align dashboard deployment filtering/status badges with the backend `stopped` status while preserving backward compatibility for legacy `status=cancelled` URLs
@@ -49,6 +50,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - recalibrate the top-level phase snapshot again now that the auth and dashboard hardening coverage has moved the phases forward materially
 - bump the Phase 2 snapshot again to reflect the new operational health/alert-monitor validation coverage
 - bump the Phase 2 snapshot again to reflect the new alert-monitor lifecycle hardening and validation coverage
+- bump the Phase 2 snapshot again to reflect the new operational endpoint and shutdown lifecycle validation coverage
 - align README auth wording with the current membership-aware project access model
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
 - make `apps/api/.env.example` explicitly show `ENABLE_DEV_AUTH=false` alongside the bootstrap token fallback example
@@ -56,6 +58,6 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/api test`
-  - passed (`97/97`)
+  - passed (`101/101`)
 - `npm run typecheck`
   - passed

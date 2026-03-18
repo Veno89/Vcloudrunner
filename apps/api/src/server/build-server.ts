@@ -17,7 +17,27 @@ import { errorHandlerPlugin } from '../plugins/error-handler.js';
 import { redisConnection } from '../queue/redis.js';
 import { AlertMonitorService } from '../services/alert-monitor.service.js';
 
-export const buildServer = () => {
+interface DeploymentQueueClient {
+  close(): Promise<void>;
+}
+
+interface RedisClient {
+  ping(): Promise<string>;
+  quit(): Promise<unknown>;
+}
+
+type AlertMonitorClient = Pick<
+  AlertMonitorService,
+  'start' | 'stop' | 'getQueueMetrics' | 'getWorkerHealth'
+>;
+
+interface BuildServerDependencies {
+  deploymentQueue?: DeploymentQueueClient;
+  redisClient?: RedisClient;
+  alertMonitor?: AlertMonitorClient;
+}
+
+export const buildServer = (dependencies: BuildServerDependencies = {}) => {
   const app = Fastify({
     logger: {
       level: env.LOG_LEVEL,
@@ -27,20 +47,23 @@ export const buildServer = () => {
     }
   });
 
-  const deploymentQueue = new Queue<DeploymentJobPayload, unknown, 'deploy'>(QUEUE_NAMES.deployment, {
-    connection: redisConnection
-  });
-  const redisClient = new Redis(env.REDIS_URL, {
-    maxRetriesPerRequest: null,
-    enableReadyCheck: false
-  });
+  const deploymentQueue = dependencies.deploymentQueue
+    ?? new Queue<DeploymentJobPayload, unknown, 'deploy'>(QUEUE_NAMES.deployment, {
+      connection: redisConnection
+    });
+  const redisClient = dependencies.redisClient
+    ?? new Redis(env.REDIS_URL, {
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false
+    });
 
-  const alertMonitor = new AlertMonitorService(
-    deploymentQueue,
-    redisClient,
-    QUEUE_NAMES.deployment,
-    app.log
-  );
+  const alertMonitor = dependencies.alertMonitor
+    ?? new AlertMonitorService(
+      deploymentQueue as Queue<DeploymentJobPayload, unknown, 'deploy'>,
+      redisClient as Redis,
+      QUEUE_NAMES.deployment,
+      app.log
+    );
 
   const corsAllowedOrigins = env.CORS_ALLOWED_ORIGINS
     .split(',')
