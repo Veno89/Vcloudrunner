@@ -58,6 +58,8 @@ async function withLogsRoutesApp(
     actorUserId: string;
     scopes: string[];
     membershipRows: Array<{ role: string }>;
+    listImplementation?: typeof LogsService.prototype.list;
+    exportImplementation?: typeof LogsService.prototype.export;
   },
   run: (app: FastifyInstance) => Promise<void>
 ) {
@@ -78,8 +80,16 @@ async function withLogsRoutesApp(
     'select',
     () => buildSelectResult(options.membershipRows)
   );
-  t.mock.method(LogsService.prototype, 'list', async () => [logEntry]);
-  t.mock.method(LogsService.prototype, 'export', async () => [logEntry]);
+  t.mock.method(
+    LogsService.prototype,
+    'list',
+    options.listImplementation ?? (async () => [logEntry])
+  );
+  t.mock.method(
+    LogsService.prototype,
+    'export',
+    options.exportImplementation ?? (async () => [logEntry])
+  );
 
   const app = Fastify({ logger: false });
   t.after(async () => {
@@ -180,5 +190,47 @@ test('list deployment logs rejects non-members who are not the owner or admin', 
 
     assert.equal(res.statusCode, 403);
     assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_PROJECT_ACCESS');
+  });
+});
+
+test('stream emits an SSE error event and closes cleanly when polling fails after the initial payload', async (t) => {
+  let listCalls = 0;
+
+  t.mock.method(globalThis, 'setInterval', (handler: TimerHandler) => {
+    if (typeof handler === 'function') {
+      handler();
+    }
+    return 1 as unknown as ReturnType<typeof setInterval>;
+  });
+  t.mock.method(globalThis, 'clearInterval', () => undefined);
+
+  await withLogsRoutesApp(t, {
+    token: 'member-logs-stream-token-123',
+    actorUserId: memberUserId,
+    scopes: ['logs:read'],
+    membershipRows: [{ role: 'viewer' }],
+    listImplementation: async () => {
+      listCalls += 1;
+
+      if (listCalls === 1) {
+        return [logEntry];
+      }
+
+      throw new Error('database unavailable');
+    }
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/projects/${projectId}/deployments/${deploymentId}/logs/stream?pollMs=1000`,
+      headers: {
+        authorization: 'Bearer member-logs-stream-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.match(String(res.headers['content-type']), /text\/event-stream/);
+    assert.match(res.body, /"message":"Deployment started"/);
+    assert.match(res.body, /event: error/);
+    assert.match(res.body, /Live log streaming temporarily unavailable/);
   });
 });

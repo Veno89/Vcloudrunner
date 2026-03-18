@@ -57,36 +57,88 @@ export const logsRoutes: FastifyPluginAsync = async (app) => {
     reply.raw.setHeader('connection', 'keep-alive');
     reply.raw.flushHeaders?.();
 
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    let closed = false;
     let lastTimestamp = after;
+
+    const writeChunk = (chunk: string) => {
+      if (closed || reply.raw.destroyed || reply.raw.writableEnded) {
+        return false;
+      }
+
+      reply.raw.write(chunk);
+      return true;
+    };
+
+    const closeStream = (message?: string) => {
+      if (closed) {
+        return;
+      }
+
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+
+      if (message) {
+        if (!reply.raw.destroyed && !reply.raw.writableEnded) {
+          reply.raw.write(`event: error\ndata: ${JSON.stringify({ message })}\n\n`);
+        }
+      }
+
+      closed = true;
+
+      if (!reply.raw.destroyed && !reply.raw.writableEnded) {
+        reply.raw.end();
+      }
+    };
+
     const sendLogs = async () => {
+      if (closed || reply.raw.destroyed || reply.raw.writableEnded) {
+        return;
+      }
+
       const entries = await logsService.list(projectId, deploymentId, lastTimestamp, 200);
 
+      if (closed || reply.raw.destroyed || reply.raw.writableEnded) {
+        return;
+      }
+
       if (entries.length === 0) {
-        reply.raw.write(': keepalive\n\n');
+        writeChunk(': keepalive\n\n');
         return;
       }
 
       for (const item of entries) {
         lastTimestamp = item.timestamp.toISOString();
-        reply.raw.write(`data: ${JSON.stringify({
+        if (!writeChunk(`data: ${JSON.stringify({
           id: item.id,
           level: item.level,
           message: item.message,
           timestamp: item.timestamp
-        })}\n\n`);
+        })}\n\n`)) {
+          return;
+        }
       }
     };
 
-    await sendLogs();
-    const intervalId = setInterval(() => {
-      void sendLogs();
+    try {
+      await sendLogs();
+    } catch (error) {
+      request.log.warn({ error, projectId, deploymentId }, 'initial live log stream send failed');
+      closeStream('Live log streaming temporarily unavailable.');
+      return reply.hijack();
+    }
+
+    intervalId = setInterval(() => {
+      void sendLogs().catch((error) => {
+        request.log.warn({ error, projectId, deploymentId }, 'live log stream polling failed');
+        closeStream('Live log streaming temporarily unavailable.');
+      });
     }, pollMs);
 
     request.raw.on('close', () => {
-      clearInterval(intervalId);
-      if (!reply.raw.destroyed) {
-        reply.raw.end();
-      }
+      closeStream();
     });
 
     return reply.hijack();
