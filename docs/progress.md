@@ -15,9 +15,9 @@ Last updated: 2026-03-18 (Deployment/auth/config hardening follow-through)
 - **Phase 1: Critical stabilization** — ~94% complete
   - done: deployment concurrency invariant (service + DB), queue enqueue failure mapping/state correction, queued-cancel race/idempotency hardening, safer compose defaults, production dev-auth startup guard, root auth/error plugin inheritance fix, broader API auth/deployment regression coverage, fuller api-token route access coverage, and clearer dashboard auth/config failure states
   - left (~6%): rotate any legacy local secrets in existing environments, keep reducing bootstrap-only auth fallback usage in regular dev flows, and add a small amount of end-to-end compose/runtime validation beyond unit coverage
-- **Phase 2: Production readiness foundation** — ~46% complete
-  - done: improved failure taxonomy coverage, regression tests around constraint/error mapping paths, stronger cancellation/auth/config resilience under partial failures, direct route-level authorization coverage across the main API surfaces, and clearer operator-facing startup/config guidance
-  - left (~54%): deeper observability dimensions, migration safety gates, backup/restore automation checks, worker/service decomposition, and broader operational validation
+- **Phase 2: Production readiness foundation** — ~48% complete
+  - done: improved failure taxonomy coverage, regression tests around constraint/error mapping paths, stronger cancellation/auth/config resilience under partial failures, direct route-level authorization coverage across the main API surfaces, alert-monitor/operational-threshold unit coverage, and clearer operator-facing startup/config guidance
+  - left (~52%): deeper observability dimensions, migration safety gates, backup/restore automation checks, worker/service decomposition, and broader operational validation
 - **Phase 3: UI/UX trust and polish** — ~75% complete
   - done: route architecture, loading/error boundaries, action feedback helpers, clearer deployment error messages, stopped-status consistency, in-context failure handling, live-data unavailable/degraded states across the dashboard, platform-health visibility even when project-scoped live data is unavailable, clearer status-page behavior under partial outages, more truthful platform-health badge semantics, preserved worker stale/unavailable distinctions, and more accurate demo-mode/live-data messaging on top-level pages
   - left (~25%): richer deployment progress visibility, stronger logs ergonomics for investigation workflows, and a few remaining operational guidance states
@@ -43,6 +43,7 @@ Last updated: 2026-03-18 (Deployment/auth/config hardening follow-through)
   - added deployments-route regression coverage so project-member list/create access and cancel-scope enforcement are verified directly at the route layer
   - added environment/logs route regression coverage so project-member resource access and route-level scope enforcement are verified directly beyond the shared auth helper tests
   - added api-token route regression coverage for admin cross-user list/create/revoke access, user-boundary denial, missing write scope, and token rotate/revoke not-found handling
+  - added alert-monitor service coverage for queue metric shaping, worker heartbeat unavailable/stale handling, webhook cooldown behavior, and operational alert threshold fan-out
   - hardened the live logs SSE route so polling failures now emit a final stream error event and close cleanly instead of risking unhandled async failures during long-lived streams
   - decoupled dashboard platform-health reads from demo-user/project live-data requirements so queue/worker status still renders when `NEXT_PUBLIC_DEMO_USER_ID` is unset or project-scoped reads are unavailable
   - updated the dashboard status page so deployment-history metrics are labeled as unavailable during project-scoped live-data outages while platform health remains visible
