@@ -7,6 +7,24 @@ process.env.REDIS_URL ??= 'redis://localhost:6379';
 process.env.ENCRYPTION_KEY ??= '12345678901234567890123456789012';
 
 const { buildServer } = await import('./build-server.js');
+const { env } = await import('../config/env.js');
+
+async function withEnvOverrides(
+  overrides: Partial<typeof env>,
+  run: () => Promise<void>
+) {
+  const originalValues = Object.fromEntries(
+    Object.keys(overrides).map((key) => [key, env[key as keyof typeof env]])
+  );
+
+  Object.assign(env, overrides);
+
+  try {
+    await run();
+  } finally {
+    Object.assign(env, originalValues);
+  }
+}
 
 function createBuildServerDependencies(options?: {
   pingImplementation?: () => Promise<string>;
@@ -238,6 +256,30 @@ test('buildServer preserves stale worker health payloads on health endpoint', as
   });
 });
 
+test('buildServer applies allowlisted CORS headers for configured origins', async () => {
+  await withEnvOverrides({
+    CORS_ALLOWED_ORIGINS: 'https://allowed.example.com',
+    CORS_ALLOW_CREDENTIALS: true
+  }, async () => {
+    const dependencies = createBuildServerDependencies();
+    const app = buildServer(dependencies);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: {
+        origin: 'https://allowed.example.com'
+      }
+    });
+
+    await app.close();
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.headers['access-control-allow-origin'], 'https://allowed.example.com');
+    assert.equal(res.headers['access-control-allow-credentials'], 'true');
+  });
+});
+
 test('buildServer maps thrown worker health errors to unavailable on health endpoint', async () => {
   const dependencies = createBuildServerDependencies({
     workerHealthImplementation: async () => {
@@ -297,6 +339,34 @@ test('buildServer exposes raw queue metrics with request id on metrics endpoint'
       prioritized: 5
     },
     sampledAt: '2026-03-18T13:00:00.000Z'
+  });
+});
+
+test('buildServer enforces configured rate limits and exposes rate-limit headers', async () => {
+  await withEnvOverrides({
+    API_RATE_LIMIT_MAX: 1,
+    API_RATE_LIMIT_WINDOW_MS: 60_000,
+    API_RATE_LIMIT_ALLOWLIST: ''
+  }, async () => {
+    const dependencies = createBuildServerDependencies();
+    const app = buildServer(dependencies);
+
+    const firstRes = await app.inject({
+      method: 'GET',
+      url: '/health'
+    });
+    const secondRes = await app.inject({
+      method: 'GET',
+      url: '/health'
+    });
+
+    await app.close();
+
+    assert.equal(firstRes.statusCode, 200);
+    assert.equal(firstRes.headers['x-ratelimit-limit'], '1');
+    assert.ok(firstRes.headers['x-ratelimit-remaining']);
+    assert.ok(firstRes.headers['x-ratelimit-reset']);
+    assert.equal(secondRes.statusCode, 429);
   });
 });
 

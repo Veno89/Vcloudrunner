@@ -121,73 +121,75 @@ export const buildServer = (dependencies: BuildServerDependencies = {}) => {
 
   alertMonitor.start();
 
-  app.get('/health', async () => ({ status: 'ok' }));
+  app.register(async (routeApp) => {
+    routeApp.get('/health', async () => ({ status: 'ok' }));
 
-  app.get('/health/queue', async (request, reply) => {
-    try {
-      const ping = await redisClient.ping();
-      const metrics = await alertMonitor.getQueueMetrics();
+    routeApp.get('/health/queue', async (request, reply) => {
+      try {
+        const ping = await redisClient.ping();
+        const metrics = await alertMonitor.getQueueMetrics();
 
-      return {
-        status: ping === 'PONG' ? 'ok' : 'degraded',
-        redis: ping,
-        ...metrics
-      };
-    } catch (error) {
-      request.log.error({ error }, 'queue health check failed');
-      return reply.code(503).send({
-        status: 'unavailable',
-        message: error instanceof Error ? error.message : String(error)
-      });
-    }
-  });
-
-  app.get('/health/worker', async (request, reply) => {
-    try {
-      const worker = await alertMonitor.getWorkerHealth();
-      if (worker.status !== 'ok') {
-        return reply.code(503).send(worker);
+        return {
+          status: ping === 'PONG' ? 'ok' : 'degraded',
+          redis: ping,
+          ...metrics
+        };
+      } catch (error) {
+        request.log.error({ error }, 'queue health check failed');
+        return reply.code(503).send({
+          status: 'unavailable',
+          message: error instanceof Error ? error.message : String(error)
+        });
       }
+    });
 
-      return worker;
-    } catch (error) {
-      request.log.error({ error }, 'worker health check failed');
-      return reply.code(503).send({
-        status: 'unavailable',
-        message: error instanceof Error ? error.message : String(error)
-      });
-    }
+    routeApp.get('/health/worker', async (request, reply) => {
+      try {
+        const worker = await alertMonitor.getWorkerHealth();
+        if (worker.status !== 'ok') {
+          return reply.code(503).send(worker);
+        }
+
+        return worker;
+      } catch (error) {
+        request.log.error({ error }, 'worker health check failed');
+        return reply.code(503).send({
+          status: 'unavailable',
+          message: error instanceof Error ? error.message : String(error)
+        });
+      }
+    });
+
+    routeApp.get('/metrics/queue', async (request, reply) => {
+      try {
+        return await alertMonitor.getQueueMetrics();
+      } catch (error) {
+        request.log.error({ error }, 'queue metrics collection failed');
+        return reply.code(503).send({
+          status: 'unavailable',
+          message: error instanceof Error ? error.message : String(error)
+        });
+      }
+    });
+
+    routeApp.get('/metrics/worker', async (request, reply) => {
+      try {
+        return await alertMonitor.getWorkerHealth();
+      } catch (error) {
+        request.log.error({ error }, 'worker metrics collection failed');
+        return reply.code(503).send({
+          status: 'unavailable',
+          message: error instanceof Error ? error.message : String(error)
+        });
+      }
+    });
+
+    routeApp.register(projectsRoutes, { prefix: '/v1' });
+    routeApp.register(apiTokensRoutes, { prefix: '/v1' });
+    routeApp.register(deploymentsRoutes, { prefix: '/v1' });
+    routeApp.register(environmentRoutes, { prefix: '/v1' });
+    routeApp.register(logsRoutes, { prefix: '/v1' });
   });
-
-  app.get('/metrics/queue', async (request, reply) => {
-    try {
-      return await alertMonitor.getQueueMetrics();
-    } catch (error) {
-      request.log.error({ error }, 'queue metrics collection failed');
-      return reply.code(503).send({
-        status: 'unavailable',
-        message: error instanceof Error ? error.message : String(error)
-      });
-    }
-  });
-
-  app.get('/metrics/worker', async (request, reply) => {
-    try {
-      return await alertMonitor.getWorkerHealth();
-    } catch (error) {
-      request.log.error({ error }, 'worker metrics collection failed');
-      return reply.code(503).send({
-        status: 'unavailable',
-        message: error instanceof Error ? error.message : String(error)
-      });
-    }
-  });
-
-  app.register(projectsRoutes, { prefix: '/v1' });
-  app.register(apiTokensRoutes, { prefix: '/v1' });
-  app.register(deploymentsRoutes, { prefix: '/v1' });
-  app.register(environmentRoutes, { prefix: '/v1' });
-  app.register(logsRoutes, { prefix: '/v1' });
 
   return app;
 };

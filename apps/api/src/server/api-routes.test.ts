@@ -180,6 +180,22 @@ test('error handler returns 500 for non-domain errors', async () => {
   assert.equal(res.statusCode, 500);
 });
 
+test('error handler preserves explicit operational status codes on non-domain errors', async () => {
+  const app = buildTestApp();
+  app.get('/test', async () => {
+    const error = new Error('Rate limit exceeded, retry in 1 minute') as Error & { statusCode?: number };
+    error.statusCode = 429;
+    throw error;
+  });
+
+  const res = await app.inject({ method: 'GET', url: '/test' });
+  assert.equal(res.statusCode, 429);
+  const body = JSON.parse(res.body);
+  assert.equal(body.code, 'RATE_LIMIT_EXCEEDED');
+  assert.equal(body.message, 'Rate limit exceeded, retry in 1 minute');
+  assert.ok(body.requestId);
+});
+
 test('unknown route returns 404 JSON', async () => {
   const app = buildTestApp();
 
