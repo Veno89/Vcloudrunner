@@ -3,6 +3,7 @@ import type { DeploymentStatus } from '@vcloudrunner/shared-types';
 import {
   apiAuthToken,
   demoUserId,
+  fetchApiHealth,
   fetchProjectsForDemoUser,
   fetchDeploymentsForProject,
   fetchQueueHealth,
@@ -67,15 +68,11 @@ export function createFallbackHealth(): PlatformHealth {
 export async function loadPlatformHealth(
   lastSuccessfulDeployAt?: string
 ): Promise<PlatformHealth> {
-  const [queueHealth, workerHealth] = await Promise.all([
+  const [apiHealth, queueHealth, workerHealth] = await Promise.all([
+    fetchApiHealth(),
     fetchQueueHealth(),
     fetchWorkerHealth(),
   ]);
-
-  const apiStatus =
-    queueHealth.status === 'unavailable' && workerHealth.status === 'unavailable'
-      ? 'degraded'
-      : 'ok';
 
   const queueCounts = queueHealth.counts
     ? {
@@ -87,7 +84,7 @@ export async function loadPlatformHealth(
     : { waiting: 0, active: 0, completed: 0, failed: 0 };
 
   return {
-    apiStatus,
+    apiStatus: apiHealth.status,
     queueStatus: queueHealth.status,
     workerStatus: workerHealth.status,
     queueCounts,

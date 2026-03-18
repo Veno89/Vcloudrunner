@@ -56,6 +56,7 @@ This guide defines how shared dashboard UI primitives should be used so new scre
 - Keep live log UX consistent: level filter, search, stream status badge, and scroll-to-bottom action.
 - When deployment/project metadata loads but log history reads fail, keep the route usable and show inline live-data guidance instead of failing the whole page.
 - On status/operational pages, keep platform health visible but label deployment-history metrics as unavailable when project-scoped live data cannot be loaded; do not collapse that case into generic empty-state copy.
+- Keep platform badges semantically separate: the `API` badge should reflect the API `/health` endpoint, not be inferred from queue or worker health results.
 - Use `<time>` semantics for timestamps where practical.
 
 ## Project Scope and Navigation

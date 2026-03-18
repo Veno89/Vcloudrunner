@@ -49,6 +49,11 @@ export interface ApiWorkerHealth {
   message?: string;
 }
 
+export interface ApiServiceHealth {
+  status: 'ok' | 'unavailable';
+  message?: string;
+}
+
 export interface ApiEnvironmentVariable {
   id: string;
   key: string;
@@ -290,37 +295,78 @@ export async function fetchDeploymentLogs(
 }
 
 export async function fetchQueueHealth(): Promise<ApiQueueHealth> {
-  const response = await fetch(`${apiBaseUrl}/health/queue`, {
-    cache: 'no-store',
-    headers: buildAuthHeaders()
-  });
+  try {
+    const response = await fetch(`${apiBaseUrl}/health/queue`, {
+      cache: 'no-store',
+      headers: buildAuthHeaders()
+    });
 
-  if (!response.ok) {
-    const fallback = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const fallback = await response.json().catch(() => ({}));
+      return {
+        status: 'unavailable',
+        message: typeof fallback?.message === 'string' ? fallback.message : `API_REQUEST_FAILED ${response.status}`
+      };
+    }
+
+    return response.json() as Promise<ApiQueueHealth>;
+  } catch (error) {
     return {
       status: 'unavailable',
-      message: typeof fallback?.message === 'string' ? fallback.message : `API_REQUEST_FAILED ${response.status}`
+      message: error instanceof Error ? error.message : String(error)
     };
   }
-
-  return response.json() as Promise<ApiQueueHealth>;
 }
 
 export async function fetchWorkerHealth(): Promise<ApiWorkerHealth> {
-  const response = await fetch(`${apiBaseUrl}/health/worker`, {
-    cache: 'no-store',
-    headers: buildAuthHeaders()
-  });
+  try {
+    const response = await fetch(`${apiBaseUrl}/health/worker`, {
+      cache: 'no-store',
+      headers: buildAuthHeaders()
+    });
 
-  if (!response.ok) {
-    const fallback = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const fallback = await response.json().catch(() => ({}));
+      return {
+        status: 'unavailable',
+        message: typeof fallback?.message === 'string' ? fallback.message : `API_REQUEST_FAILED ${response.status}`
+      };
+    }
+
+    return response.json() as Promise<ApiWorkerHealth>;
+  } catch (error) {
     return {
       status: 'unavailable',
-      message: typeof fallback?.message === 'string' ? fallback.message : `API_REQUEST_FAILED ${response.status}`
+      message: error instanceof Error ? error.message : String(error)
     };
   }
+}
 
-  return response.json() as Promise<ApiWorkerHealth>;
+export async function fetchApiHealth(): Promise<ApiServiceHealth> {
+  try {
+    const response = await fetch(`${apiBaseUrl}/health`, {
+      cache: 'no-store'
+    });
+
+    if (!response.ok) {
+      const fallback = await response.json().catch(() => ({}));
+      return {
+        status: 'unavailable',
+        message: typeof fallback?.message === 'string' ? fallback.message : `API_REQUEST_FAILED ${response.status}`
+      };
+    }
+
+    const payload = await response.json().catch(() => ({} as { status?: string; message?: string }));
+    return {
+      status: payload.status === 'ok' ? 'ok' : 'unavailable',
+      ...(typeof payload.message === 'string' ? { message: payload.message } : {})
+    };
+  } catch (error) {
+    return {
+      status: 'unavailable',
+      message: error instanceof Error ? error.message : String(error)
+    };
+  }
 }
 
 export { apiBaseUrl, demoUserId, apiAuthToken };

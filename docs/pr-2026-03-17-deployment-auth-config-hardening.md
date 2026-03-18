@@ -33,6 +33,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - apply the same partial log-read degradation to the global and project-scoped logs pages so selectors and export controls remain usable during log-history outages
 - keep dashboard platform health visible even when `NEXT_PUBLIC_DEMO_USER_ID` is unset by decoupling queue/worker health reads from project-scoped live-data requirements
 - keep the status page honest under partial outages by showing live platform health while marking deployment-history metrics as unavailable instead of implying there is simply no deployment history
+- make dashboard platform-health loading resilient per endpoint and back the `API` badge with the real `/health` endpoint instead of inferring it from queue/worker responses
 - clarify compose quick start requirements for `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `ENCRYPTION_KEY`, optional dashboard auth variables, and the separation from app-local `.env` files
 - align the production-readiness audit wording with the current compose/auth defaults so it no longer describes compose as enabling dev auth by default
 - recalibrate the top-level phase snapshot in `docs/progress.md` so the reported phase-left percentages reflect the work already landed during this hardening pass

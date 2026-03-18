@@ -19,7 +19,7 @@ Last updated: 2026-03-18 (Deployment/auth/config hardening follow-through)
   - done: improved failure taxonomy coverage, regression tests around constraint/error mapping paths, stronger cancellation/auth/config resilience under partial failures, and clearer operator-facing startup/config guidance
   - left (~58%): deeper observability dimensions, migration safety gates, backup/restore automation checks, worker/service decomposition, and broader operational validation
 - **Phase 3: UI/UX trust and polish** — ~72% complete
-  - done: route architecture, loading/error boundaries, action feedback helpers, clearer deployment error messages, stopped-status consistency, in-context failure handling, live-data unavailable/degraded states across the dashboard, platform-health visibility even when project-scoped live data is unavailable, and clearer status-page behavior under partial outages
+  - done: route architecture, loading/error boundaries, action feedback helpers, clearer deployment error messages, stopped-status consistency, in-context failure handling, live-data unavailable/degraded states across the dashboard, platform-health visibility even when project-scoped live data is unavailable, clearer status-page behavior under partial outages, and more truthful platform-health badge semantics
   - left (~28%): richer deployment progress visibility, stronger logs ergonomics for investigation workflows, and a few remaining operational guidance states
 - **Phase 4: Extensibility and platform maturity** — ~15% complete
   - done: runtime and deployment lifecycle seams exist, basic domain boundaries in place
@@ -41,6 +41,7 @@ Last updated: 2026-03-18 (Deployment/auth/config hardening follow-through)
   - updated project listing semantics so membership-accessible projects appear alongside owned projects for the requesting user context
   - decoupled dashboard platform-health reads from demo-user/project live-data requirements so queue/worker status still renders when `NEXT_PUBLIC_DEMO_USER_ID` is unset or project-scoped reads are unavailable
   - updated the dashboard status page so deployment-history metrics are labeled as unavailable during project-scoped live-data outages while platform health remains visible
+  - made dashboard platform-health fetching resilient per endpoint and aligned the `API` badge to the API `/health` endpoint instead of inferring it from queue/worker responses
   - expanded API unit coverage for queue-cancel race/idempotency behavior and cancellation partial-failure behavior
   - aligned README quick-start guidance with actual compose expectations (required secrets, optional dashboard auth vars, and separation between compose runtime vs direct workspace `.env` files)
   - aligned the production-readiness audit wording with the current compose/auth defaults so it no longer claims compose enables dev auth by default
