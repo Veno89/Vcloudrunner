@@ -131,6 +131,52 @@ test('list deployment logs allows project members with logs:read scope', async (
   });
 });
 
+test('list deployment logs treats blank limit as the documented default', async (t) => {
+  let capturedLimit: number | undefined;
+
+  await withLogsRoutesApp(t, {
+    token: 'member-logs-blank-limit-token-123',
+    actorUserId: memberUserId,
+    scopes: ['logs:read'],
+    membershipRows: [{ role: 'viewer' }],
+    listImplementation: async (_projectId, _deploymentId, _after, limit) => {
+      capturedLimit = limit;
+      return [logEntry];
+    }
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/projects/${projectId}/deployments/${deploymentId}/logs?limit=`,
+      headers: {
+        authorization: 'Bearer member-logs-blank-limit-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(capturedLimit, 200);
+  });
+});
+
+test('list deployment logs rejects non-integer limit values', async (t) => {
+  await withLogsRoutesApp(t, {
+    token: 'member-logs-invalid-limit-token-123',
+    actorUserId: memberUserId,
+    scopes: ['logs:read'],
+    membershipRows: [{ role: 'viewer' }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/projects/${projectId}/deployments/${deploymentId}/logs?limit=12.5`,
+      headers: {
+        authorization: 'Bearer member-logs-invalid-limit-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 400);
+    assert.equal(JSON.parse(res.body).code, 'VALIDATION_ERROR');
+  });
+});
+
 test('export deployment logs allows project members with logs:read scope', async (t) => {
   await withLogsRoutesApp(t, {
     token: 'member-logs-export-token-123',
@@ -272,5 +318,67 @@ test('stream emits an SSE error event and closes cleanly when polling fails afte
     assert.match(res.body, /"message":"Deployment started"/);
     assert.match(res.body, /event: error/);
     assert.match(res.body, /Live log streaming temporarily unavailable/);
+  });
+});
+
+test('stream deployment logs treats blank pollMs as the documented default', async (t) => {
+  let capturedPollMs: number | undefined;
+  let listCalls = 0;
+
+  t.mock.method(globalThis, 'setInterval', (((handler: TimerHandler, timeout?: number) => {
+    capturedPollMs = timeout as number | undefined;
+    if (typeof handler === 'function') {
+      handler();
+    }
+    return 1 as unknown as ReturnType<typeof setInterval>;
+  }) as unknown as typeof setInterval));
+  t.mock.method(globalThis, 'clearInterval', () => undefined);
+
+  await withLogsRoutesApp(t, {
+    token: 'member-logs-stream-blank-poll-token-123',
+    actorUserId: memberUserId,
+    scopes: ['logs:read'],
+    membershipRows: [{ role: 'viewer' }],
+    listImplementation: async () => {
+      listCalls += 1;
+
+      if (listCalls === 1) {
+        return [];
+      }
+
+      throw new Error('database unavailable');
+    }
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/projects/${projectId}/deployments/${deploymentId}/logs/stream?pollMs=`,
+      headers: {
+        authorization: 'Bearer member-logs-stream-blank-poll-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(capturedPollMs, 2000);
+    assert.match(res.body, /event: error/);
+  });
+});
+
+test('stream deployment logs rejects non-integer pollMs values', async (t) => {
+  await withLogsRoutesApp(t, {
+    token: 'member-logs-stream-invalid-poll-token-123',
+    actorUserId: memberUserId,
+    scopes: ['logs:read'],
+    membershipRows: [{ role: 'viewer' }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/projects/${projectId}/deployments/${deploymentId}/logs/stream?pollMs=1500.5`,
+      headers: {
+        authorization: 'Bearer member-logs-stream-invalid-poll-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 400);
+    assert.equal(JSON.parse(res.body).code, 'VALIDATION_ERROR');
   });
 });

@@ -16,14 +16,40 @@ const paramsSchema = z.object({
   deploymentId: z.string().uuid()
 });
 
+function queryInteger<T extends z.ZodNumber>(schema: T, defaultValue: number) {
+  return z.preprocess((value) => {
+    if (value === undefined) {
+      return defaultValue;
+    }
+
+    if (typeof value === 'number') {
+      return Number.isInteger(value) ? value : value;
+    }
+
+    if (typeof value === 'string') {
+      const normalized = value.trim();
+
+      if (normalized.length === 0) {
+        return defaultValue;
+      }
+
+      if (/^-?\d+$/.test(normalized)) {
+        return Number(normalized);
+      }
+    }
+
+    return value;
+  }, schema);
+}
+
 const querySchema = z.object({
   after: z.string().datetime().optional(),
-  limit: z.coerce.number().min(1).max(1000).default(200)
+  limit: queryInteger(z.number().int().min(1).max(1000), 200)
 });
 
 const streamQuerySchema = z.object({
   after: z.string().datetime().optional(),
-  pollMs: z.coerce.number().min(1000).max(10000).default(2000)
+  pollMs: queryInteger(z.number().int().min(1000).max(10000), 2000)
 });
 
 const exportQuerySchema = z.object({
