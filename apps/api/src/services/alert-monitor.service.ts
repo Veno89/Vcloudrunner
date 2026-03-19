@@ -144,12 +144,27 @@ export class AlertMonitorService {
     this.lastAlertAtByKey.set(payload.key, now);
   }
 
+  private async deliverAlert(payload: AlertPayload): Promise<void> {
+    try {
+      await this.sendAlert(payload);
+    } catch (error) {
+      this.logger.warn(
+        {
+          error,
+          key: payload.key,
+          severity: payload.severity
+        },
+        'operational alert delivery failed'
+      );
+    }
+  }
+
   async evaluateOperationalAlerts(): Promise<void> {
     const queueMetrics = await this.getQueueMetrics();
     const workerHealth = await this.getWorkerHealth();
 
     if (workerHealth.status !== 'ok') {
-      await this.sendAlert({
+      await this.deliverAlert({
         key: `worker-health:${workerHealth.status}`,
         severity: 'critical',
         message: 'Worker health degraded',
@@ -158,7 +173,7 @@ export class AlertMonitorService {
     }
 
     if (queueMetrics.counts.waiting >= env.ALERT_QUEUE_WAITING_THRESHOLD) {
-      await this.sendAlert({
+      await this.deliverAlert({
         key: 'queue-waiting-threshold',
         severity: 'warn',
         message: 'Deployment queue waiting backlog exceeded threshold',
@@ -167,7 +182,7 @@ export class AlertMonitorService {
     }
 
     if (queueMetrics.counts.active >= env.ALERT_QUEUE_ACTIVE_THRESHOLD) {
-      await this.sendAlert({
+      await this.deliverAlert({
         key: 'queue-active-threshold',
         severity: 'warn',
         message: 'Deployment queue active jobs exceeded threshold',
@@ -176,7 +191,7 @@ export class AlertMonitorService {
     }
 
     if (queueMetrics.counts.failed >= env.ALERT_QUEUE_FAILED_THRESHOLD) {
-      await this.sendAlert({
+      await this.deliverAlert({
         key: 'queue-failed-threshold',
         severity: 'critical',
         message: 'Deployment queue failed jobs exceeded threshold',

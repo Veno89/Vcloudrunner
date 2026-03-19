@@ -86,6 +86,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - let worker recovery/archive sweeps continue past per-item failures so one bad deployment or artifact no longer aborts the whole reconciliation/archive/upload pass
 - let worker archive upload and cleanup sweeps continue past unreadable or undeletable artifact entries so one corrupted local archive shape no longer blocks the rest of the pass
 - normalize bootstrap startup failures further so API telemetry-init errors still clean up/exit consistently and worker ready-handling can retry after a synchronous scheduler-start failure
+- continue operational alert evaluation after one webhook delivery fails so a single failing alert send no longer suppresses later threshold/health alerts in the same cycle
 - clarify compose quick start requirements for `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `ENCRYPTION_KEY`, optional dashboard auth variables, and the separation from app-local `.env` files
 - align the production-readiness audit wording with the current compose/auth defaults so it no longer describes compose as enabling dev auth by default
 - recalibrate the top-level phase snapshot in `docs/progress.md` so the reported phase-left percentages reflect the work already landed during this hardening pass

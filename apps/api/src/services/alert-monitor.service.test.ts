@@ -335,6 +335,63 @@ test('evaluateOperationalAlerts emits alerts for degraded worker health and queu
   ]);
 });
 
+test('evaluateOperationalAlerts continues delivering later alerts when one alert send fails', async (t) => {
+  withAlertEnv(t, {
+    ALERT_QUEUE_WAITING_THRESHOLD: 5,
+    ALERT_QUEUE_ACTIVE_THRESHOLD: 3,
+    ALERT_QUEUE_FAILED_THRESHOLD: 2,
+    WORKER_HEARTBEAT_STALE_MS: 1000
+  });
+
+  const warnings: Array<{ obj: Record<string, unknown>; msg: string }> = [];
+  const service = createService({
+    counts: {
+      waiting: 7,
+      active: 4,
+      completed: 10,
+      failed: 3,
+      delayed: 0,
+      paused: 0,
+      prioritized: 0
+    },
+    heartbeat: JSON.stringify({
+      timestamp: new Date(Date.now() - 5000).toISOString(),
+      service: 'worker',
+      pid: 4321
+    }),
+    logger: {
+      warn: (obj, msg) => {
+        warnings.push({ obj, msg });
+      }
+    }
+  });
+
+  const attemptedKeys: string[] = [];
+  t.mock.method(
+    service,
+    'sendAlert',
+    async (payload: Parameters<AlertMonitorService['sendAlert']>[0]) => {
+      attemptedKeys.push(payload.key);
+      if (payload.key === 'worker-health:stale') {
+        throw new Error('webhook unavailable');
+      }
+    }
+  );
+
+  await service.evaluateOperationalAlerts();
+
+  assert.deepEqual(attemptedKeys, [
+    'worker-health:stale',
+    'queue-waiting-threshold',
+    'queue-active-threshold',
+    'queue-failed-threshold'
+  ]);
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0]?.msg, 'operational alert delivery failed');
+  assert.ok(warnings[0]?.obj.error instanceof Error);
+  assert.equal(warnings[0]?.obj.key, 'worker-health:stale');
+});
+
 test('start is idempotent until stop is called, then schedules again', async (t) => {
   withAlertEnv(t, {
     ALERT_MONITOR_INTERVAL_MS: 30_000
