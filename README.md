@@ -123,7 +123,7 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 - Any non-empty `API_TOKENS_JSON` emits a startup warning; production startup rejects `API_TOKENS_JSON` and `ENABLE_DEV_AUTH=true`.
 - Bootstrap `API_TOKENS_JSON` entries must be a valid JSON array with unique token values; malformed or duplicate entries now fail startup explicitly.
 - When `ENABLE_DEV_AUTH=true`, the local bypass only applies when auth credentials are absent; invalid or malformed `Authorization` headers now fail explicitly instead of silently falling back to admin.
-- Boolean env flags like `ENABLE_DEV_AUTH`, `TRUST_PROXY`, and `CORS_ALLOW_CREDENTIALS` now parse `.env` string values strictly, so explicit values like `false`, `0`, `no`, and `off` stay disabled instead of being treated as truthy.
+- Boolean env flags like `ENABLE_DEV_AUTH`, `TRUST_PROXY`, `CORS_ALLOW_CREDENTIALS`, and `OTEL_ENABLED` now parse `.env` string values strictly, so explicit values like `false`, `0`, `no`, and `off` stay disabled while truthy forms like `true`, `1`, `yes`, and `on` are honored consistently.
 - Numeric env settings like `PORT`, `*_MS`, `*_MB`, `*_DAYS`, and retry/threshold counts now parse string values strictly too, so blank strings fall back to documented defaults while malformed numeric values fail fast at startup.
 - The compose quick-start path now pins `ENABLE_DEV_AUTH` off even if a local root `.env` enables it for host-run development.
 - `admin` role can access all projects; `user` role can access owned projects plus projects granted through `project_members`.

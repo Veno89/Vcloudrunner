@@ -23,6 +23,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - make worker archive/service tests bootstrap a deterministic runtime env before importing the worker config singleton, so local developer `.env` values can no longer leak into archive upload/auth assertions
 - replace lossy numeric env coercion in the API and worker with strict integer parsing, so blank strings use documented defaults while malformed numeric values fail fast instead of quietly coercing to `0` or `NaN`
 - make the worker background scheduler idempotent so repeated `ready` events do not stack duplicate interval tasks, with direct lifecycle coverage for start/stop behavior
+- harden OpenTelemetry bootstrap so `OTEL_ENABLED=yes|on` now behaves consistently with the validated env parser, repeated init/shutdown calls are safe, and failed optional-dependency startup attempts remain retryable
 - add regression coverage proving root-registered auth and error plugins still apply when protected routes are registered through sibling route plugins
 - add focused authorization-helper coverage for scope enforcement, user access checks, project-owner/admin bypass paths, membership-based access, and project-not-found handling
 - fix `GET /projects/:projectId` so project members inherit the same membership-aware access policy as other project-scoped routes, with route tests covering member and non-member cases
@@ -95,6 +96,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - bump the Phase 2 snapshot again to reflect deterministic worker test bootstrap env setup that no longer depends on local developer `.env` state
 - align README startup/config guidance with strict numeric env parsing for runtime interval/port/threshold settings
 - bump the Phase 2 snapshot again to reflect idempotent worker background scheduler startup behavior with direct lifecycle coverage
+- align README startup/config guidance with the now-consistent `OTEL_ENABLED` boolean semantics on the telemetry bootstrap path
 - align README auth wording with the current membership-aware project access model
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
 - make `apps/api/.env.example` explicitly show `ENABLE_DEV_AUTH=false` alongside the bootstrap token fallback example
@@ -104,6 +106,6 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - `npm --workspace @vcloudrunner/worker test`
   - passed (`30/30`)
 - `npm --workspace @vcloudrunner/api test`
-  - passed (`158/158`)
+  - passed (`160/160`)
 - `npm run typecheck`
   - passed
