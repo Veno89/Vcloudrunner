@@ -9,6 +9,7 @@ import { join } from 'node:path';
 await import('../test/worker-test-env.js');
 
 const { env } = await import('../config/env.js');
+const { logger } = await import('../logger/logger.js');
 const { DeploymentStateService } = await import('./deployment-state.service.js');
 
 class MockPool {
@@ -291,6 +292,60 @@ test('uploadPendingArchives removes local archive when delete-local-after-upload
     const markerPath = `${archivePath}.uploaded`;
     assert.equal(await exists(archivePath), false);
     assert.equal(await exists(markerPath), true);
+  } finally {
+    env.DEPLOYMENT_LOG_ARCHIVE_DELETE_LOCAL_AFTER_UPLOAD = false;
+    await server.close();
+    await fixture.cleanup();
+  }
+});
+
+test('uploadPendingArchives keeps successful uploads when local delete fails after marker write', async (t) => {
+  const fixture = await withArchiveFixture('delete-local-warning');
+  const server = await startCaptureServer();
+  const archivePath = join(fixture.dir, fixture.fileName);
+  const warnings: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
+
+  t.mock.method(logger, 'warn', (message: string, metadata?: Record<string, unknown>) => {
+    warnings.push({ message, metadata });
+  });
+
+  try {
+    env.DEPLOYMENT_LOG_ARCHIVE_DIR = fixture.dir;
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER = 'http';
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_BASE_URL = server.baseUrl;
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_AUTH_TOKEN = 'upload-token';
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_MAX_ATTEMPTS = 1;
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS = 2_000;
+    env.DEPLOYMENT_LOG_ARCHIVE_DELETE_LOCAL_AFTER_UPLOAD = true;
+
+    const service = new DeploymentStateService(new MockPool()) as unknown as {
+      uploadArchiveWithRetry: (input: {
+        targetUrl: string;
+        payload: Buffer;
+        headers: Record<string, string>;
+      }) => Promise<void>;
+      uploadPendingArchives: () => Promise<number>;
+    };
+    const originalUploadArchiveWithRetry = service.uploadArchiveWithRetry.bind(service);
+
+    service.uploadArchiveWithRetry = async (input: {
+      targetUrl: string;
+      payload: Buffer;
+      headers: Record<string, string>;
+    }) => {
+      await originalUploadArchiveWithRetry(input);
+      await rm(archivePath, { force: true });
+      await mkdir(archivePath);
+    };
+
+    const uploaded = await service.uploadPendingArchives();
+
+    assert.equal(uploaded, 1);
+    assert.equal(server.requests.length, 1);
+    assert.equal(await exists(`${archivePath}.uploaded`), true);
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0]?.message, 'deployment log archive local cleanup failed after upload');
+    assert.equal(warnings[0]?.metadata?.fileName, fixture.fileName);
   } finally {
     env.DEPLOYMENT_LOG_ARCHIVE_DELETE_LOCAL_AFTER_UPLOAD = false;
     await server.close();

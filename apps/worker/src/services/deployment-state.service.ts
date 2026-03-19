@@ -191,7 +191,15 @@ export class DeploymentStateService {
         );
 
         if (env.DEPLOYMENT_LOG_ARCHIVE_DELETE_LOCAL_AFTER_UPLOAD) {
-          await unlink(archivePath);
+          try {
+            await unlink(archivePath);
+          } catch (error) {
+            logger.warn('deployment log archive local cleanup failed after upload', {
+              fileName,
+              archivePath,
+              message: getErrorMessage(error)
+            });
+          }
         }
 
         uploadedCount += 1;
