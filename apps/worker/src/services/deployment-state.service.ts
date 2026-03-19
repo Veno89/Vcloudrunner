@@ -434,6 +434,11 @@ export class DeploymentStateService {
     const signature = signer.sign(privateKey).toString('base64url');
     const assertion = `${unsignedToken}.${signature}`;
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS);
+
     let response: Response;
     try {
       response = await fetch('https://oauth2.googleapis.com/token', {
@@ -445,12 +450,16 @@ export class DeploymentStateService {
           grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
           assertion
         }),
-        signal: AbortSignal.timeout(env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS)
+        signal: controller.signal
       });
     } catch (error) {
       throw new Error(
-        `failed to obtain GCS access token: request failed: ${getErrorMessage(error)}`
+        controller.signal.aborted
+          ? `failed to obtain GCS access token: request timed out after ${env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS}ms`
+          : `failed to obtain GCS access token: request failed: ${getErrorMessage(error)}`
       );
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     if (!response.ok) {

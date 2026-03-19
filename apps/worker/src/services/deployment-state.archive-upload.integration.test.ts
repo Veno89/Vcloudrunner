@@ -328,6 +328,50 @@ test('createArchiveUploadRequest wraps GCS token fetch network failures with a s
   );
 });
 
+test('createArchiveUploadRequest wraps GCS token fetch timeout failures with a stable message', async (t) => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 1024 });
+
+  env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER = 'gcs';
+  env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS = 2_000;
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_BUCKET = 'gcs-bucket';
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_PREFIX = 'archives';
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_ACCESS_TOKEN = '';
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_SERVICE_ACCOUNT_EMAIL = 'worker@example.test';
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_PRIVATE_KEY = privateKey.export({
+    type: 'pkcs8',
+    format: 'pem'
+  }).toString();
+
+  const timeoutHandle = { timeout: true } as unknown as ReturnType<typeof setTimeout>;
+  t.mock.method(globalThis, 'setTimeout', (((handler: () => void) => {
+    handler();
+    return timeoutHandle;
+  }) as unknown) as typeof setTimeout);
+  t.mock.method(globalThis, 'clearTimeout', (() => undefined) as typeof clearTimeout);
+  t.mock.method(
+    globalThis,
+    'fetch',
+    async (_url: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      if ((init?.signal as AbortSignal | undefined)?.aborted) {
+        throw new Error('aborted by signal');
+      }
+
+      throw new Error('expected timeout abort');
+    }
+  );
+
+  const service = new DeploymentStateService(new MockPool());
+
+  await assert.rejects(
+    service.createArchiveUploadRequest({
+      fileName: 'dep-fixture.ndjson.gz',
+      baseUrl: 'https://storage.googleapis.com/upload/storage/v1/b',
+      payload: Buffer.from('fixture')
+    }),
+    /failed to obtain GCS access token: request timed out after 2000ms/
+  );
+});
+
 test('createArchiveUploadRequest wraps invalid GCS token JSON responses with a stable message', async (t) => {
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 1024 });
 

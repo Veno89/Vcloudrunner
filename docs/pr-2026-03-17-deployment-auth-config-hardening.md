@@ -116,11 +116,12 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
 - make `apps/api/.env.example` explicitly show `ENABLE_DEV_AUTH=false` alongside the bootstrap token fallback example
 - normalize malformed GCS token success responses so invalid JSON bodies fail with a stable message and bad `expires_in` values fall back to the default cache TTL instead of poisoning the worker token cache
+- normalize GCS token-fetch timeout failures so archive token exchange now reports a stable `request timed out after ...ms` message instead of raw fetch abort strings
 
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
-  - passed (`48/48`)
+  - passed (`49/49`)
 - `npm --workspace @vcloudrunner/api test`
   - passed (`171/171`)
 - `npm run typecheck`
