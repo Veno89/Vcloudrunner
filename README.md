@@ -64,7 +64,7 @@ No Kubernetes or multi-node orchestration is introduced in the MVP.
    cp apps/worker/.env.example apps/worker/.env
    cp apps/dashboard/.env.example apps/dashboard/.env
    ```
-   The API, its `drizzle-kit` commands, and the worker load the root `.env` first and then their app-local `.env` files as an override for host-run development. `apps/api/.env.example` keeps `API_TOKENS_JSON` as a bootstrap/dev-only fallback and will emit a startup warning when used. `ENABLE_DEV_AUTH` remains an explicit opt-in bypass.
+   The API, its `drizzle-kit` commands, and the worker resolve the repo root first, then load the root `.env` and their app-local `.env` files as an override for host-run development. That now works consistently whether you start commands from the repo root or from the individual app directory. `apps/api/.env.example` keeps `API_TOKENS_JSON` as a bootstrap/dev-only fallback and will emit a startup warning when used. `ENABLE_DEV_AUTH` remains an explicit opt-in bypass.
 
 6. For future schema changes, generate and commit SQL migration files:
    ```bash

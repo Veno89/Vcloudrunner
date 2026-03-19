@@ -1,24 +1,27 @@
 import dotenv from 'dotenv';
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 interface LoadEnvFilesOptions {
-  cwd?: string;
+  workspaceRoot?: string;
   exists?: (path: string) => boolean;
   load?: (options: { path: string; override?: boolean }) => unknown;
 }
 
+const defaultWorkspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../');
+
 export function loadEnvFiles(options: LoadEnvFilesOptions = {}) {
-  const cwd = options.cwd ?? process.cwd();
+  const workspaceRoot = options.workspaceRoot ?? defaultWorkspaceRoot;
   const pathExists = options.exists ?? existsSync;
   const load = options.load ?? dotenv.config;
 
-  const rootEnvPath = resolve(cwd, '.env');
+  const rootEnvPath = resolve(workspaceRoot, '.env');
   if (pathExists(rootEnvPath)) {
     load({ path: rootEnvPath });
   }
 
-  const apiEnvPath = resolve(cwd, 'apps/api/.env');
+  const apiEnvPath = resolve(workspaceRoot, 'apps/api/.env');
   if (pathExists(apiEnvPath)) {
     load({ path: apiEnvPath, override: true });
   }
