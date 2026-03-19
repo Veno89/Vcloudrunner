@@ -47,9 +47,15 @@ export function createWorkerLifecycle(dependencies: WorkerLifecycleDependencies)
   } = dependencies;
   const exit = dependencies.exit ?? process.exit;
 
+  let readyHandled = false;
   let shutdownPromise: Promise<void> | undefined;
 
   const handleReady = (): void => {
+    if (readyHandled) {
+      return;
+    }
+
+    readyHandled = true;
     logger.info('deployment worker ready');
 
     void scheduler.publishHeartbeat().catch((error) => {

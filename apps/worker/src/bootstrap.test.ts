@@ -65,6 +65,49 @@ test('handleReady starts the scheduler and degrades gracefully when heartbeat an
   assert.equal(logger.errors[0]?.message, 'startup state reconciliation failed');
 });
 
+test('handleReady ignores repeated ready events after startup work has already begun', async () => {
+  const logger = createLogger();
+  let schedulerStarts = 0;
+  let publishCalls = 0;
+  let reconcileCalls = 0;
+
+  const lifecycle = createWorkerLifecycle({
+    logger,
+    scheduler: {
+      start() {
+        schedulerStarts += 1;
+      },
+      async stop() {
+        return undefined;
+      },
+      async publishHeartbeat() {
+        publishCalls += 1;
+      }
+    },
+    stateService: {
+      async reconcileRunningDeployments() {
+        reconcileCalls += 1;
+        return 0;
+      }
+    },
+    isContainerRunning: async () => true,
+    closeWorker: async () => undefined,
+    exit: () => undefined
+  });
+
+  lifecycle.handleReady();
+  lifecycle.handleReady();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(schedulerStarts, 1);
+  assert.equal(publishCalls, 1);
+  assert.equal(reconcileCalls, 1);
+  assert.equal(logger.infos.length, 2);
+  assert.equal(logger.infos[0]?.message, 'deployment worker ready');
+  assert.equal(logger.infos[1]?.message, 'startup state reconciliation: all running deployments verified');
+});
+
 test('shutdown shares one cleanup path across repeated signals', async () => {
   const logger = createLogger();
   const exitCodes: number[] = [];

@@ -26,6 +26,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - harden OpenTelemetry bootstrap so `OTEL_ENABLED=yes|on` now behaves consistently with the validated env parser, repeated init/shutdown calls are safe, and failed optional-dependency startup attempts remain retryable
 - factor API startup/shutdown into a testable lifecycle so build/listen failures clean up server resources plus telemetry before exit, and repeated shutdown signals share one cleanup path instead of racing duplicate closes
 - factor worker lifecycle wiring into a testable bootstrap helper so ready-path partial failures degrade cleanly, repeated shutdown signals share one cleanup path, and worker close still runs when scheduler shutdown fails
+- make worker startup work idempotent across repeated BullMQ `ready` events so reconnects do not re-run startup reconciliation or the one-off bootstrap heartbeat publish
 - replace lossy `z.coerce.number()` parsing on live-log list/stream query parameters so blank `limit`/`pollMs` values now fall back to documented defaults while decimal or malformed inputs fail validation explicitly
 - add regression coverage proving root-registered auth and error plugins still apply when protected routes are registered through sibling route plugins
 - add focused authorization-helper coverage for scope enforcement, user access checks, project-owner/admin bypass paths, membership-based access, and project-not-found handling
@@ -102,6 +103,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - align README startup/config guidance with the now-consistent `OTEL_ENABLED` boolean semantics on the telemetry bootstrap path
 - bump the Phase 2 snapshot again to reflect API startup/shutdown lifecycle hardening around startup-failure cleanup and repeated signal handling
 - bump the Phase 2 snapshot again to reflect worker startup/shutdown lifecycle hardening around ready-path partial failures and repeated signal handling
+- bump the Phase 2 snapshot again to reflect idempotent worker startup handling across repeated BullMQ `ready` events
 - bump the Phase 2 snapshot again to reflect stricter validation around live-log query parameters and their documented defaults
 - align README auth wording with the current membership-aware project access model
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
@@ -110,7 +112,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
-  - passed (`33/33`)
+  - passed (`34/34`)
 - `npm --workspace @vcloudrunner/api test`
   - passed (`167/167`)
 - `npm run typecheck`
