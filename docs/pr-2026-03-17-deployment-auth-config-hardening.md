@@ -29,6 +29,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - make worker startup work idempotent across repeated BullMQ `ready` events so reconnects do not re-run startup reconciliation or the one-off bootstrap heartbeat publish
 - replace lossy `z.coerce.number()` parsing on live-log list/stream query parameters so blank `limit`/`pollMs` values now fall back to documented defaults while decimal or malformed inputs fail validation explicitly
 - prevent overlapping alert-monitor evaluations and worker background sweeps so slow interval runs now skip duplicate in-flight work instead of stacking duplicate alerts, archive sweeps, or retention/recovery passes
+- prevent overlapping live-log SSE poll ticks so slow log queries now skip duplicate in-flight reads instead of stacking concurrent stream polls for the same client
 - add regression coverage proving root-registered auth and error plugins still apply when protected routes are registered through sibling route plugins
 - add focused authorization-helper coverage for scope enforcement, user access checks, project-owner/admin bypass paths, membership-based access, and project-not-found handling
 - fix `GET /projects/:projectId` so project members inherit the same membership-aware access policy as other project-scoped routes, with route tests covering member and non-member cases
@@ -115,6 +116,6 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - `npm --workspace @vcloudrunner/worker test`
   - passed (`35/35`)
 - `npm --workspace @vcloudrunner/api test`
-  - passed (`168/168`)
+  - passed (`169/169`)
 - `npm run typecheck`
   - passed

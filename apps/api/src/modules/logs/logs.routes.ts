@@ -86,6 +86,7 @@ export const logsRoutes: FastifyPluginAsync = async (app) => {
     let intervalId: ReturnType<typeof setInterval> | null = null;
     let closed = false;
     let lastTimestamp = after;
+    let pollInFlight = false;
 
     const writeChunk = (chunk: string) => {
       if (closed || reply.raw.destroyed || reply.raw.writableEnded) {
@@ -148,8 +149,22 @@ export const logsRoutes: FastifyPluginAsync = async (app) => {
       }
     };
 
+    const sendLogsWithGuard = async () => {
+      if (pollInFlight) {
+        return;
+      }
+
+      pollInFlight = true;
+
+      try {
+        await sendLogs();
+      } finally {
+        pollInFlight = false;
+      }
+    };
+
     try {
-      await sendLogs();
+      await sendLogsWithGuard();
     } catch (error) {
       request.log.warn({ error, projectId, deploymentId }, 'initial live log stream send failed');
       closeStream('Live log streaming temporarily unavailable.');
@@ -157,7 +172,7 @@ export const logsRoutes: FastifyPluginAsync = async (app) => {
     }
 
     intervalId = setInterval(() => {
-      void sendLogs().catch((error) => {
+      void sendLogsWithGuard().catch((error) => {
         request.log.warn({ error, projectId, deploymentId }, 'live log stream polling failed');
         closeStream('Live log streaming temporarily unavailable.');
       });

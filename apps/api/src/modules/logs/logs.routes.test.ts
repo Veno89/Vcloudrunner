@@ -321,6 +321,64 @@ test('stream emits an SSE error event and closes cleanly when polling fails afte
   });
 });
 
+test('stream skips overlapping poll ticks until the active log query settles', async (t) => {
+  let listCalls = 0;
+  let releaseSlowPoll: (() => void) | undefined;
+  const slowPoll = new Promise<void>((resolve) => {
+    releaseSlowPoll = resolve;
+  });
+
+  t.mock.method(globalThis, 'setInterval', (handler: TimerHandler) => {
+    if (typeof handler === 'function') {
+      handler();
+      handler();
+
+      void (async () => {
+        releaseSlowPoll?.();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        handler();
+      })();
+    }
+
+    return 1 as unknown as ReturnType<typeof setInterval>;
+  });
+  t.mock.method(globalThis, 'clearInterval', () => undefined);
+
+  await withLogsRoutesApp(t, {
+    token: 'member-logs-stream-overlap-token-123',
+    actorUserId: memberUserId,
+    scopes: ['logs:read'],
+    membershipRows: [{ role: 'viewer' }],
+    listImplementation: async () => {
+      listCalls += 1;
+
+      if (listCalls === 1) {
+        return [];
+      }
+
+      if (listCalls === 2) {
+        await slowPoll;
+        return [];
+      }
+
+      throw new Error('database unavailable');
+    }
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/projects/${projectId}/deployments/${deploymentId}/logs/stream?pollMs=1000`,
+      headers: {
+        authorization: 'Bearer member-logs-stream-overlap-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(listCalls, 3);
+    assert.match(res.body, /event: error/);
+    assert.match(res.body, /Live log streaming temporarily unavailable/);
+  });
+});
+
 test('stream deployment logs treats blank pollMs as the documented default', async (t) => {
   let capturedPollMs: number | undefined;
   let listCalls = 0;
