@@ -234,6 +234,43 @@ test('sendAlert wraps webhook network failures with an actionable message', asyn
   );
 });
 
+test('sendAlert normalizes webhook timeout failures with an actionable message', async (t) => {
+  withAlertEnv(t, {
+    ALERT_WEBHOOK_URL: 'https://alerts.example.test/webhook',
+    ALERT_WEBHOOK_AUTH_TOKEN: ''
+  });
+
+  const service = createService();
+  const timeoutHandle = { timeout: true } as unknown as ReturnType<typeof setTimeout>;
+
+  t.mock.method(globalThis, 'setTimeout', (((handler: () => void) => {
+    handler();
+    return timeoutHandle;
+  }) as unknown) as typeof setTimeout);
+  t.mock.method(globalThis, 'clearTimeout', (() => undefined) as typeof clearTimeout);
+  t.mock.method(
+    globalThis,
+    'fetch',
+    async (_url: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      if ((init?.signal as AbortSignal | undefined)?.aborted) {
+        throw new Error('aborted by signal');
+      }
+
+      throw new Error('expected timeout abort');
+    }
+  );
+
+  await assert.rejects(
+    service.sendAlert({
+      key: 'worker-health:stale',
+      severity: 'critical',
+      message: 'Worker health degraded',
+      details: { status: 'stale' }
+    }),
+    /alert webhook request timed out after 10000ms/
+  );
+});
+
 test('evaluateOperationalAlerts emits alerts for degraded worker health and queue threshold breaches', async (t) => {
   withAlertEnv(t, {
     ALERT_QUEUE_WAITING_THRESHOLD: 5,

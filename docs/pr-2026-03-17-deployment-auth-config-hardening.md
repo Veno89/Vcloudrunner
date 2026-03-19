@@ -31,6 +31,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - prevent overlapping alert-monitor evaluations and worker background sweeps so slow interval runs now skip duplicate in-flight work instead of stacking duplicate alerts, archive sweeps, or retention/recovery passes
 - prevent overlapping live-log SSE poll ticks so slow log queries now skip duplicate in-flight reads instead of stacking concurrent stream polls for the same client
 - bound alert-webhook delivery and Caddy admin route updates with explicit 10-second request timeouts plus clearer network-failure messages, so partial outages fail fast instead of hanging deployment or alerting flows indefinitely
+- normalize timeout failures on alert webhooks, deployment lifecycle webhooks, and Caddy admin route updates so operator logs now use stable `timed out after ...ms` messages instead of raw fetch abort strings
 - normalize deployment lifecycle webhook delivery so blank/whitespace URLs are ignored, outbound requests still time out after 10 seconds, and network failures now log a stable actionable message instead of surfacing raw fetch behavior
 - normalize archive upload retries and GCS token-fetch failures so worker object-storage paths now surface stable “request failed” messages instead of raw fetch transport errors when remote storage or token exchange is unreachable
 - add regression coverage proving root-registered auth and error plugins still apply when protected routes are registered through sibling route plugins
@@ -118,8 +119,8 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
-  - passed (`46/46`)
+  - passed (`48/48`)
 - `npm --workspace @vcloudrunner/api test`
-  - passed (`170/170`)
+  - passed (`171/171`)
 - `npm run typecheck`
   - passed

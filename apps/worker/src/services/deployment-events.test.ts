@@ -111,6 +111,45 @@ test('emitDeploymentEvent logs a normalized warning when webhook delivery throws
   );
 });
 
+test('emitDeploymentEvent logs a normalized warning when webhook delivery times out', async (t) => {
+  withWebhookEnv(t, {
+    url: 'https://hooks.example.test/deployments'
+  });
+
+  const warnings: Array<{ message: string; payload?: Record<string, unknown> }> = [];
+  const timeoutHandle = { timeout: true } as unknown as ReturnType<typeof setTimeout>;
+
+  t.mock.method(logger, 'warn', ((message: string, payload?: Record<string, unknown>) => {
+    warnings.push({ message, payload });
+  }) as typeof logger.warn);
+  t.mock.method(globalThis, 'setTimeout', (((handler: () => void) => {
+    handler();
+    return timeoutHandle;
+  }) as unknown) as typeof setTimeout);
+  t.mock.method(globalThis, 'clearTimeout', (() => undefined) as typeof clearTimeout);
+  t.mock.method(
+    globalThis,
+    'fetch',
+    async (_url: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      if ((init?.signal as AbortSignal | undefined)?.aborted) {
+        throw new Error('aborted by signal');
+      }
+
+      throw new Error('expected timeout abort');
+    }
+  );
+
+  emitDeploymentEvent(baseEvent);
+  await flushAsyncWork();
+
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0]?.message, 'deployment lifecycle webhook delivery failed');
+  assert.equal(
+    warnings[0]?.payload?.message,
+    'deployment lifecycle webhook request timed out after 10000ms'
+  );
+});
+
 test('emitDeploymentEvent logs a warning when the webhook returns a non-OK status', async (t) => {
   withWebhookEnv(t, {
     url: 'https://hooks.example.test/deployments'

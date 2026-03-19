@@ -18,6 +18,10 @@ interface AlertPayload {
 
 const ALERT_WEBHOOK_TIMEOUT_MS = 10_000;
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export interface QueueMetrics {
   queue: string;
   counts: Record<string, number>;
@@ -107,6 +111,11 @@ export class AlertMonitorService {
     const lastAlertAt = this.lastAlertAtByKey.get(payload.key);
     if (typeof lastAlertAt === 'number' && now - lastAlertAt < env.ALERT_COOLDOWN_MS) return;
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, ALERT_WEBHOOK_TIMEOUT_MS);
+
     let response: Response;
     try {
       response = await fetch(webhookUrl, {
@@ -118,10 +127,14 @@ export class AlertMonitorService {
             : {}),
         },
         body: JSON.stringify({ source: 'api', ...payload, timestamp: new Date().toISOString() }),
-        signal: AbortSignal.timeout(ALERT_WEBHOOK_TIMEOUT_MS),
+        signal: controller.signal,
       });
     } catch (error) {
-      throw new Error(`alert webhook request failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw controller.signal.aborted
+        ? new Error(`alert webhook request timed out after ${ALERT_WEBHOOK_TIMEOUT_MS}ms`)
+        : new Error(`alert webhook request failed: ${getErrorMessage(error)}`);
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     if (!response.ok) {

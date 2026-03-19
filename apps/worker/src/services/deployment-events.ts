@@ -4,6 +4,10 @@ import { env } from '../config/env.js';
 
 const DEPLOYMENT_LIFECYCLE_WEBHOOK_TIMEOUT_MS = 10_000;
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export type DeploymentEventType =
   | 'deployment.queued'
   | 'deployment.building'
@@ -66,16 +70,25 @@ async function deliverWebhook(url: string, event: DeploymentEvent): Promise<void
     headers['Authorization'] = `Bearer ${token}`;
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, DEPLOYMENT_LIFECYCLE_WEBHOOK_TIMEOUT_MS);
+
   let response: Response;
   try {
     response = await fetch(url, {
       method: 'POST',
       headers,
       body,
-      signal: AbortSignal.timeout(DEPLOYMENT_LIFECYCLE_WEBHOOK_TIMEOUT_MS),
+      signal: controller.signal,
     });
   } catch (error) {
-    throw new Error(`deployment lifecycle webhook request failed: ${error instanceof Error ? error.message : String(error)}`);
+    throw controller.signal.aborted
+      ? new Error(`deployment lifecycle webhook request timed out after ${DEPLOYMENT_LIFECYCLE_WEBHOOK_TIMEOUT_MS}ms`)
+      : new Error(`deployment lifecycle webhook request failed: ${getErrorMessage(error)}`);
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   if (!response.ok) {

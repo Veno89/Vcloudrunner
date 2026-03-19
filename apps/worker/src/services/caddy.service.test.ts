@@ -79,6 +79,38 @@ test('upsertRoute wraps Caddy network failures with a stable error prefix', asyn
   );
 });
 
+test('upsertRoute normalizes timeout failures with a stable error prefix', async (t) => {
+  withCaddyEnv(t, 'http://caddy.internal:2019');
+
+  const service = new CaddyService();
+  const timeoutHandle = { timeout: true } as unknown as ReturnType<typeof setTimeout>;
+
+  t.mock.method(globalThis, 'setTimeout', (((handler: () => void) => {
+    handler();
+    return timeoutHandle;
+  }) as unknown) as typeof setTimeout);
+  t.mock.method(globalThis, 'clearTimeout', (() => undefined) as typeof clearTimeout);
+  t.mock.method(
+    globalThis,
+    'fetch',
+    async (_url: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      if ((init?.signal as AbortSignal | undefined)?.aborted) {
+        throw new Error('aborted by signal');
+      }
+
+      throw new Error('expected timeout abort');
+    }
+  );
+
+  await assert.rejects(
+    service.upsertRoute({
+      host: 'app.example.test',
+      upstreamPort: 4321
+    }),
+    /CADDY_ROUTE_UPDATE_FAILED: request timed out after 10000ms/
+  );
+});
+
 test('upsertRoute preserves non-OK Caddy responses in the failure message', async (t) => {
   withCaddyEnv(t, 'http://caddy.internal:2019');
 
