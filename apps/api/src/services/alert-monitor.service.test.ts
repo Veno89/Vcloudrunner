@@ -199,10 +199,34 @@ test('sendAlert posts webhook payloads once per cooldown window', async (t) => {
   assert.equal(calls[0]?.url, 'https://alerts.example.test/webhook');
   assert.equal(calls[0]?.init?.method, 'POST');
   assert.equal(calls[0]?.init?.headers && (calls[0].init.headers as Record<string, string>).authorization, 'Bearer alert-secret-token');
+  assert.ok(calls[0]?.init?.signal instanceof AbortSignal);
   const body = JSON.parse(String(calls[0]?.init?.body));
   assert.equal(body.source, 'api');
   assert.equal(body.key, 'worker-health:stale');
   assert.equal(body.severity, 'critical');
+});
+
+test('sendAlert wraps webhook network failures with an actionable message', async (t) => {
+  withAlertEnv(t, {
+    ALERT_WEBHOOK_URL: 'https://alerts.example.test/webhook',
+    ALERT_WEBHOOK_AUTH_TOKEN: ''
+  });
+
+  const service = createService();
+
+  t.mock.method(globalThis, 'fetch', async () => {
+    throw new Error('socket hang up');
+  });
+
+  await assert.rejects(
+    service.sendAlert({
+      key: 'worker-health:stale',
+      severity: 'critical',
+      message: 'Worker health degraded',
+      details: { status: 'stale' }
+    }),
+    /alert webhook request failed: socket hang up/
+  );
 });
 
 test('evaluateOperationalAlerts emits alerts for degraded worker health and queue threshold breaches', async (t) => {

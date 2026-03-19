@@ -30,6 +30,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - replace lossy `z.coerce.number()` parsing on live-log list/stream query parameters so blank `limit`/`pollMs` values now fall back to documented defaults while decimal or malformed inputs fail validation explicitly
 - prevent overlapping alert-monitor evaluations and worker background sweeps so slow interval runs now skip duplicate in-flight work instead of stacking duplicate alerts, archive sweeps, or retention/recovery passes
 - prevent overlapping live-log SSE poll ticks so slow log queries now skip duplicate in-flight reads instead of stacking concurrent stream polls for the same client
+- bound alert-webhook delivery and Caddy admin route updates with explicit 10-second request timeouts plus clearer network-failure messages, so partial outages fail fast instead of hanging deployment or alerting flows indefinitely
 - add regression coverage proving root-registered auth and error plugins still apply when protected routes are registered through sibling route plugins
 - add focused authorization-helper coverage for scope enforcement, user access checks, project-owner/admin bypass paths, membership-based access, and project-not-found handling
 - fix `GET /projects/:projectId` so project members inherit the same membership-aware access policy as other project-scoped routes, with route tests covering member and non-member cases
@@ -114,8 +115,8 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
-  - passed (`35/35`)
+  - passed (`38/38`)
 - `npm --workspace @vcloudrunner/api test`
-  - passed (`169/169`)
+  - passed (`170/170`)
 - `npm run typecheck`
   - passed

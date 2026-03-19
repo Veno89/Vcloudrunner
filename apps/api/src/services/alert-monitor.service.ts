@@ -16,6 +16,8 @@ interface AlertPayload {
   details: Record<string, unknown>;
 }
 
+const ALERT_WEBHOOK_TIMEOUT_MS = 10_000;
+
 export interface QueueMetrics {
   queue: string;
   counts: Record<string, number>;
@@ -105,16 +107,22 @@ export class AlertMonitorService {
     const lastAlertAt = this.lastAlertAtByKey.get(payload.key);
     if (typeof lastAlertAt === 'number' && now - lastAlertAt < env.ALERT_COOLDOWN_MS) return;
 
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        ...(env.ALERT_WEBHOOK_AUTH_TOKEN.trim().length > 0
-          ? { authorization: `Bearer ${env.ALERT_WEBHOOK_AUTH_TOKEN}` }
-          : {}),
-      },
-      body: JSON.stringify({ source: 'api', ...payload, timestamp: new Date().toISOString() }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(env.ALERT_WEBHOOK_AUTH_TOKEN.trim().length > 0
+            ? { authorization: `Bearer ${env.ALERT_WEBHOOK_AUTH_TOKEN}` }
+            : {}),
+        },
+        body: JSON.stringify({ source: 'api', ...payload, timestamp: new Date().toISOString() }),
+        signal: AbortSignal.timeout(ALERT_WEBHOOK_TIMEOUT_MS),
+      });
+    } catch (error) {
+      throw new Error(`alert webhook request failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
 
     if (!response.ok) {
       throw new Error(`alert webhook responded with status ${response.status}`);
