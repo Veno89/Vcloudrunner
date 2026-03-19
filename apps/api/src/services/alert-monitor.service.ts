@@ -36,6 +36,7 @@ export interface WorkerHealthResult {
 export class AlertMonitorService {
   private readonly lastAlertAtByKey = new Map<string, number>();
   private intervalId: ReturnType<typeof setInterval> | null = null;
+  private evaluationInFlight = false;
 
   constructor(
     private readonly queue: Queue,
@@ -163,20 +164,32 @@ export class AlertMonitorService {
     }
   }
 
+  private async evaluateWithGuard(failureMessage: string): Promise<void> {
+    if (this.evaluationInFlight) {
+      return;
+    }
+
+    this.evaluationInFlight = true;
+
+    try {
+      await this.evaluateOperationalAlerts();
+    } catch (error) {
+      this.logger.warn({ error }, failureMessage);
+    } finally {
+      this.evaluationInFlight = false;
+    }
+  }
+
   start(): void {
     if (this.intervalId) {
       return;
     }
 
     this.intervalId = setInterval(() => {
-      void this.evaluateOperationalAlerts().catch((error) => {
-        this.logger.warn({ error }, 'operational alert evaluation failed');
-      });
+      void this.evaluateWithGuard('operational alert evaluation failed');
     }, env.ALERT_MONITOR_INTERVAL_MS);
 
-    void this.evaluateOperationalAlerts().catch((error) => {
-      this.logger.warn({ error }, 'initial operational alert evaluation failed');
-    });
+    void this.evaluateWithGuard('initial operational alert evaluation failed');
   }
 
   stop(): void {

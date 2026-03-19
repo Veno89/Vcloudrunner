@@ -33,6 +33,26 @@ class MockStateService {
   async recoverStuckDeployments() { return 0; }
 }
 
+class BlockingStateService extends MockStateService {
+  pruneCalls = 0;
+  private releasePrune: (() => void) | undefined;
+  private readonly firstPrune = new Promise<void>((resolve) => {
+    this.releasePrune = resolve;
+  });
+
+  override async pruneLogsByRetentionWindow() {
+    this.pruneCalls += 1;
+
+    if (this.pruneCalls === 1) {
+      await this.firstPrune;
+    }
+  }
+
+  finishFirstPrune() {
+    this.releasePrune?.();
+  }
+}
+
 function createClock() {
   const scheduled: Array<{ timer: object; intervalMs: number }> = [];
   const cleared: object[] = [];
@@ -111,4 +131,41 @@ test('stop clears scheduled timers so start can reschedule cleanly', async () =>
   assert.equal(scheduled.length, 12);
   assert.deepEqual(redis.delCalls, [env.WORKER_HEARTBEAT_KEY]);
   assert.equal(redis.quitCalls, 1);
+});
+
+test('task handlers skip overlapping interval ticks until the active run settles', async () => {
+  const redis = new MockRedis();
+  const stateService = new BlockingStateService();
+  const { scheduled, clock } = createClock();
+  const scheduler = new BackgroundScheduler(
+    stateService as never,
+    redis as never,
+    createLogger() as never,
+    clock
+  );
+
+  scheduler.start();
+
+  const firstScheduledTask = scheduled[0]?.timer as { handler?: () => void } | undefined;
+  const runPruneTask = firstScheduledTask?.handler;
+  if (!runPruneTask) {
+    throw new Error('expected prune task to be scheduled');
+  }
+
+  runPruneTask();
+  await Promise.resolve();
+  runPruneTask();
+  await Promise.resolve();
+
+  assert.equal(stateService.pruneCalls, 1);
+
+  stateService.finishFirstPrune();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+
+  runPruneTask();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+
+  assert.equal(stateService.pruneCalls, 2);
+
+  await scheduler.stop();
 });

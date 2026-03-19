@@ -364,3 +364,55 @@ test('start logs initial and interval evaluation failures without throwing', asy
   assert.equal(warnings[1]?.msg, 'operational alert evaluation failed');
   assert.ok(warnings[1]?.obj.error instanceof Error);
 });
+
+test('start skips overlapping alert evaluations until the active run settles', async (t) => {
+  withAlertEnv(t, {
+    ALERT_MONITOR_INTERVAL_MS: 30_000
+  } as Partial<typeof env>);
+
+  const service = createService();
+  const intervalHandlers: Array<() => void> = [];
+  let evaluationCalls = 0;
+  let releaseEvaluation: (() => void) | undefined;
+  const firstEvaluation = new Promise<void>((resolve) => {
+    releaseEvaluation = resolve;
+  });
+
+  t.mock.method(
+    globalThis,
+    'setInterval',
+    ((handler: () => void) => {
+      intervalHandlers.push(handler);
+      return { timer: 'overlap-test' } as unknown as ReturnType<typeof setInterval>;
+    }) as typeof setInterval
+  );
+
+  t.mock.method(service, 'evaluateOperationalAlerts', async () => {
+    evaluationCalls += 1;
+    if (evaluationCalls === 1) {
+      await firstEvaluation;
+    }
+  });
+
+  service.start();
+  await Promise.resolve();
+
+  assert.equal(evaluationCalls, 1);
+
+  const registeredIntervalHandler = intervalHandlers[0];
+  if (!registeredIntervalHandler) {
+    throw new Error('expected interval handler to be registered');
+  }
+
+  registeredIntervalHandler();
+  await Promise.resolve();
+  assert.equal(evaluationCalls, 1);
+
+  releaseEvaluation?.();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  registeredIntervalHandler();
+  await Promise.resolve();
+  assert.equal(evaluationCalls, 2);
+});

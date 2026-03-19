@@ -10,6 +10,7 @@ interface ScheduledTask {
   intervalMs: number;
   handler: () => Promise<void>;
   timer?: ReturnType<typeof setInterval>;
+  running?: boolean;
 }
 
 interface SchedulerClock {
@@ -95,6 +96,22 @@ export class BackgroundScheduler {
     );
   }
 
+  private runTask(task: ScheduledTask): void {
+    if (task.running) {
+      return;
+    }
+
+    task.running = true;
+
+    void task.handler().catch((error) => {
+      this.logger.warn(`${task.name} background task failed`, {
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }).finally(() => {
+      task.running = false;
+    });
+  }
+
   start(): void {
     if (this.started) {
       return;
@@ -104,11 +121,7 @@ export class BackgroundScheduler {
 
     for (const task of this.tasks) {
       task.timer = this.clock.setInterval(() => {
-        void task.handler().catch((error) => {
-          this.logger.warn(`${task.name} background task failed`, {
-            message: error instanceof Error ? error.message : String(error),
-          });
-        });
+        this.runTask(task);
       }, task.intervalMs);
     }
   }
