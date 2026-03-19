@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface LogsAutoRefreshProps {
@@ -10,6 +10,7 @@ interface LogsAutoRefreshProps {
 
 export function LogsAutoRefresh({ enabled, intervalMs = 5000 }: LogsAutoRefreshProps) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (!enabled) {
@@ -17,13 +18,19 @@ export function LogsAutoRefresh({ enabled, intervalMs = 5000 }: LogsAutoRefreshP
     }
 
     const intervalId = window.setInterval(() => {
-      router.refresh();
+      if (document.visibilityState === 'hidden' || isPending) {
+        return;
+      }
+
+      startTransition(() => {
+        router.refresh();
+      });
     }, intervalMs);
 
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [enabled, intervalMs, router]);
+  }, [enabled, intervalMs, isPending, router, startTransition]);
 
   return null;
 }

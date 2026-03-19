@@ -1,7 +1,7 @@
 'use client';
 
 import type { DeploymentStatus } from '@vcloudrunner/shared-types';
-import { useEffect } from 'react';
+import { useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface DeploymentAutoRefreshProps {
@@ -11,6 +11,7 @@ interface DeploymentAutoRefreshProps {
 
 export function DeploymentAutoRefresh({ status, intervalMs = 3000 }: DeploymentAutoRefreshProps) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const shouldRefresh = status === 'queued' || status === 'building';
 
   useEffect(() => {
@@ -19,13 +20,19 @@ export function DeploymentAutoRefresh({ status, intervalMs = 3000 }: DeploymentA
     }
 
     const id = window.setInterval(() => {
-      router.refresh();
+      if (document.visibilityState === 'hidden' || isPending) {
+        return;
+      }
+
+      startTransition(() => {
+        router.refresh();
+      });
     }, intervalMs);
 
     return () => {
       window.clearInterval(id);
     };
-  }, [intervalMs, router, shouldRefresh]);
+  }, [intervalMs, isPending, router, shouldRefresh, startTransition]);
 
   if (!shouldRefresh) {
     return null;
@@ -33,7 +40,7 @@ export function DeploymentAutoRefresh({ status, intervalMs = 3000 }: DeploymentA
 
   return (
     <p className="text-xs text-muted-foreground">
-      Deployment is {status}. Auto-refreshing every {Math.round(intervalMs / 1000)}s.
+      Deployment is {status}. Auto-refreshing every {Math.round(intervalMs / 1000)}s when the tab is visible.
     </p>
   );
 }
