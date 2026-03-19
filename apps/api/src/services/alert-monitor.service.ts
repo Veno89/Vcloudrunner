@@ -160,10 +160,31 @@ export class AlertMonitorService {
   }
 
   async evaluateOperationalAlerts(): Promise<void> {
-    const queueMetrics = await this.getQueueMetrics();
-    const workerHealth = await this.getWorkerHealth();
+    const [queueMetricsResult, workerHealthResult] = await Promise.allSettled([
+      this.getQueueMetrics(),
+      this.getWorkerHealth()
+    ]);
 
-    if (workerHealth.status !== 'ok') {
+    const queueMetrics =
+      queueMetricsResult.status === 'fulfilled' ? queueMetricsResult.value : null;
+    const workerHealth =
+      workerHealthResult.status === 'fulfilled' ? workerHealthResult.value : null;
+
+    if (queueMetricsResult.status === 'rejected') {
+      this.logger.warn(
+        { error: queueMetricsResult.reason },
+        'operational queue metrics collection failed'
+      );
+    }
+
+    if (workerHealthResult.status === 'rejected') {
+      this.logger.warn(
+        { error: workerHealthResult.reason },
+        'operational worker health check failed'
+      );
+    }
+
+    if (workerHealth && workerHealth.status !== 'ok') {
       await this.deliverAlert({
         key: `worker-health:${workerHealth.status}`,
         severity: 'critical',
@@ -172,7 +193,7 @@ export class AlertMonitorService {
       });
     }
 
-    if (queueMetrics.counts.waiting >= env.ALERT_QUEUE_WAITING_THRESHOLD) {
+    if (queueMetrics && queueMetrics.counts.waiting >= env.ALERT_QUEUE_WAITING_THRESHOLD) {
       await this.deliverAlert({
         key: 'queue-waiting-threshold',
         severity: 'warn',
@@ -181,7 +202,7 @@ export class AlertMonitorService {
       });
     }
 
-    if (queueMetrics.counts.active >= env.ALERT_QUEUE_ACTIVE_THRESHOLD) {
+    if (queueMetrics && queueMetrics.counts.active >= env.ALERT_QUEUE_ACTIVE_THRESHOLD) {
       await this.deliverAlert({
         key: 'queue-active-threshold',
         severity: 'warn',
@@ -190,7 +211,7 @@ export class AlertMonitorService {
       });
     }
 
-    if (queueMetrics.counts.failed >= env.ALERT_QUEUE_FAILED_THRESHOLD) {
+    if (queueMetrics && queueMetrics.counts.failed >= env.ALERT_QUEUE_FAILED_THRESHOLD) {
       await this.deliverAlert({
         key: 'queue-failed-threshold',
         severity: 'critical',
