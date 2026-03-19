@@ -328,6 +328,85 @@ test('createArchiveUploadRequest wraps GCS token fetch network failures with a s
   );
 });
 
+test('createArchiveUploadRequest wraps invalid GCS token JSON responses with a stable message', async (t) => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 1024 });
+
+  env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER = 'gcs';
+  env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS = 2_000;
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_BUCKET = 'gcs-bucket';
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_PREFIX = 'archives';
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_ACCESS_TOKEN = '';
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_SERVICE_ACCOUNT_EMAIL = 'worker@example.test';
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_PRIVATE_KEY = privateKey.export({
+    type: 'pkcs8',
+    format: 'pem'
+  }).toString();
+
+  t.mock.method(
+    globalThis,
+    'fetch',
+    async () => new Response('not-json', { status: 200, headers: { 'content-type': 'application/json' } })
+  );
+
+  const service = new DeploymentStateService(new MockPool());
+
+  await assert.rejects(
+    service.createArchiveUploadRequest({
+      fileName: 'dep-fixture.ndjson.gz',
+      baseUrl: 'https://storage.googleapis.com/upload/storage/v1/b',
+      payload: Buffer.from('fixture')
+    }),
+    /failed to obtain GCS access token: invalid JSON response/
+  );
+});
+
+test('createArchiveUploadRequest falls back to the default GCS token TTL when expires_in is invalid', async (t) => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 1024 });
+
+  env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER = 'gcs';
+  env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS = 2_000;
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_BUCKET = 'gcs-bucket';
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_PREFIX = 'archives';
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_ACCESS_TOKEN = '';
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_SERVICE_ACCOUNT_EMAIL = 'worker@example.test';
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_PRIVATE_KEY = privateKey.export({
+    type: 'pkcs8',
+    format: 'pem'
+  }).toString();
+
+  let fetchCalls = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    fetchCalls += 1;
+    return new Response(
+      JSON.stringify({
+        access_token: 'gcs-cached-token',
+        expires_in: 'not-a-number'
+      }),
+      {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      }
+    );
+  });
+
+  const service = new DeploymentStateService(new MockPool());
+
+  const first = await service.createArchiveUploadRequest({
+    fileName: 'dep-fixture.ndjson.gz',
+    baseUrl: 'https://storage.googleapis.com/upload/storage/v1/b',
+    payload: Buffer.from('fixture')
+  });
+  const second = await service.createArchiveUploadRequest({
+    fileName: 'dep-fixture.ndjson.gz',
+    baseUrl: 'https://storage.googleapis.com/upload/storage/v1/b',
+    payload: Buffer.from('fixture')
+  });
+
+  assert.equal(first.headers.authorization, 'Bearer gcs-cached-token');
+  assert.equal(second.headers.authorization, 'Bearer gcs-cached-token');
+  assert.equal(fetchCalls, 1);
+});
+
 test('uploadPendingArchives wraps repeated network failures with a stable retry-exhausted message', async (t) => {
   const fixture = await withArchiveFixture('network-failure');
 

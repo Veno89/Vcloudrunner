@@ -457,14 +457,26 @@ export class DeploymentStateService {
       throw new Error(`failed to obtain GCS access token: ${response.status}`);
     }
 
-    const data = (await response.json()) as { access_token?: string; expires_in?: number };
-    if (!data.access_token) {
+    let data: { access_token?: unknown; expires_in?: unknown };
+    try {
+      data = (await response.json()) as { access_token?: unknown; expires_in?: unknown };
+    } catch {
+      throw new Error('failed to obtain GCS access token: invalid JSON response');
+    }
+
+    const accessToken = typeof data.access_token === 'string' ? data.access_token.trim() : '';
+    if (accessToken.length === 0) {
       throw new Error('failed to obtain GCS access token: missing access_token');
     }
 
-    const expiryMs = Date.now() + (data.expires_in ?? 3600) * 1000;
-    this.gcsAccessTokenCache = { token: data.access_token, expiresAt: expiryMs };
-    return data.access_token;
+    const expiresInSeconds =
+      typeof data.expires_in === 'number' && Number.isFinite(data.expires_in) && data.expires_in > 0
+        ? data.expires_in
+        : 3600;
+
+    const expiryMs = Date.now() + expiresInSeconds * 1000;
+    this.gcsAccessTokenCache = { token: accessToken, expiresAt: expiryMs };
+    return accessToken;
   }
 
   private joinObjectKey(prefix: string, fileName: string) {
