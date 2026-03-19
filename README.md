@@ -53,6 +53,7 @@ No Kubernetes or multi-node orchestration is introduced in the MVP.
    npm install
    npm --workspace @vcloudrunner/api run db:migrate
    ```
+   The API runtime and `drizzle-kit` commands now use the same env-file loading order: root `.env` first, then `apps/api/.env` as an override. `db:migrate` now fails fast if `DATABASE_URL` is missing instead of silently falling back to a local default database.
 4. (Optional) Start the Cloudflare tunnel profile:
    ```bash
    docker compose --profile tunnel up -d cloudflared
@@ -63,7 +64,7 @@ No Kubernetes or multi-node orchestration is introduced in the MVP.
    cp apps/worker/.env.example apps/worker/.env
    cp apps/dashboard/.env.example apps/dashboard/.env
    ```
-   The API and worker load the root `.env` first and then their app-local `.env` files as an override for host-run development. `apps/api/.env.example` keeps `API_TOKENS_JSON` as a bootstrap/dev-only fallback and will emit a startup warning when used. `ENABLE_DEV_AUTH` remains an explicit opt-in bypass.
+   The API, its `drizzle-kit` commands, and the worker load the root `.env` first and then their app-local `.env` files as an override for host-run development. `apps/api/.env.example` keeps `API_TOKENS_JSON` as a bootstrap/dev-only fallback and will emit a startup warning when used. `ENABLE_DEV_AUTH` remains an explicit opt-in bypass.
 
 6. For future schema changes, generate and commit SQL migration files:
    ```bash

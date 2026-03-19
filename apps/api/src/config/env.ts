@@ -1,17 +1,7 @@
-import dotenv from 'dotenv';
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { assertSafeEnv, emitStartupWarnings, parseEnv, type AppEnv } from './env-core.js';
+import { loadEnvFiles } from './env-loader.js';
 
-const rootEnvPath = resolve(process.cwd(), '.env');
-if (existsSync(rootEnvPath)) {
-  dotenv.config({ path: rootEnvPath });
-}
-
-const apiEnvPath = resolve(process.cwd(), 'apps/api/.env');
-if (existsSync(apiEnvPath)) {
-  dotenv.config({ path: apiEnvPath, override: true });
-}
+loadEnvFiles();
 
 const parsedEnv = parseEnv(process.env);
 assertSafeEnv(parsedEnv);

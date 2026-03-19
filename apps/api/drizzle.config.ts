@@ -1,14 +1,14 @@
-import dotenv from 'dotenv';
-import { resolve } from 'node:path';
 import { defineConfig } from 'drizzle-kit';
+import { loadEnvFiles } from './src/config/env-loader.js';
+import { requireDrizzleDatabaseUrl } from './src/config/drizzle-env.js';
 
-dotenv.config({ path: resolve(process.cwd(), 'apps/api/.env'), override: true });
+loadEnvFiles();
 
 export default defineConfig({
   schema: './src/db/schema.ts',
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5432/vcloudrunner'
+    url: requireDrizzleDatabaseUrl(process.env)
   }
 });
