@@ -2,6 +2,8 @@ import { EventEmitter } from 'node:events';
 import { logger } from '../logger/logger.js';
 import { env } from '../config/env.js';
 
+const DEPLOYMENT_LIFECYCLE_WEBHOOK_TIMEOUT_MS = 10_000;
+
 export type DeploymentEventType =
   | 'deployment.queued'
   | 'deployment.building'
@@ -40,8 +42,8 @@ export function emitDeploymentEvent(event: DeploymentEvent): void {
 
 // Webhook delivery listener
 deploymentEvents.on('deployment', (event) => {
-  const url = env.DEPLOYMENT_LIFECYCLE_WEBHOOK_URL;
-  if (!url) return;
+  const url = env.DEPLOYMENT_LIFECYCLE_WEBHOOK_URL.trim();
+  if (url.length === 0) return;
 
   void deliverWebhook(url, event).catch((error) => {
     logger.warn('deployment lifecycle webhook delivery failed', {
@@ -64,12 +66,17 @@ async function deliverWebhook(url: string, event: DeploymentEvent): Promise<void
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body,
-    signal: AbortSignal.timeout(10_000),
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body,
+      signal: AbortSignal.timeout(DEPLOYMENT_LIFECYCLE_WEBHOOK_TIMEOUT_MS),
+    });
+  } catch (error) {
+    throw new Error(`deployment lifecycle webhook request failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
 
   if (!response.ok) {
     logger.warn('deployment lifecycle webhook returned non-OK status', {
