@@ -12,13 +12,25 @@ interface ScheduledTask {
   timer?: ReturnType<typeof setInterval>;
 }
 
+interface SchedulerClock {
+  setInterval(handler: () => void, intervalMs: number): ReturnType<typeof setInterval>;
+  clearInterval(timer: ReturnType<typeof setInterval>): void;
+}
+
+const defaultClock: SchedulerClock = {
+  setInterval: (handler, intervalMs) => setInterval(handler, intervalMs),
+  clearInterval: (timer) => clearInterval(timer)
+};
+
 export class BackgroundScheduler {
   private tasks: ScheduledTask[] = [];
+  private started = false;
 
   constructor(
     private readonly stateService: DeploymentStateService,
     private readonly heartbeatRedis: Redis,
-    private readonly logger: Logger
+    private readonly logger: Logger,
+    private readonly clock: SchedulerClock = defaultClock
   ) {
     this.registerTasks();
   }
@@ -84,8 +96,14 @@ export class BackgroundScheduler {
   }
 
   start(): void {
+    if (this.started) {
+      return;
+    }
+
+    this.started = true;
+
     for (const task of this.tasks) {
-      task.timer = setInterval(() => {
+      task.timer = this.clock.setInterval(() => {
         void task.handler().catch((error) => {
           this.logger.warn(`${task.name} background task failed`, {
             message: error instanceof Error ? error.message : String(error),
@@ -97,8 +115,14 @@ export class BackgroundScheduler {
 
   async stop(): Promise<void> {
     for (const task of this.tasks) {
-      if (task.timer) clearInterval(task.timer);
+      if (task.timer) {
+        this.clock.clearInterval(task.timer);
+        task.timer = undefined;
+      }
     }
+
+    this.started = false;
+
     await this.heartbeatRedis.del(env.WORKER_HEARTBEAT_KEY).catch(() => undefined);
     await this.heartbeatRedis.quit().catch(() => undefined);
   }
