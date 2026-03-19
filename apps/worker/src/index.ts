@@ -3,6 +3,7 @@ import { env } from './config/env.js';
 import { DeploymentStateService } from './services/deployment-state.service.js';
 import { BackgroundScheduler } from './services/background-scheduler.js';
 import { deploymentWorker } from './workers/deployment.worker.js';
+import { createWorkerLifecycle } from './bootstrap.js';
 import { Redis } from 'ioredis';
 import Docker from 'dockerode';
 
@@ -14,60 +15,38 @@ const heartbeatRedis = new Redis(env.REDIS_URL, {
 });
 
 const scheduler = new BackgroundScheduler(stateService, heartbeatRedis, logger);
-
-deploymentWorker.on('ready', () => {
-  logger.info('deployment worker ready');
-  void scheduler.publishHeartbeat().catch((error) => {
-    logger.warn('worker heartbeat publish failed', {
-      message: error instanceof Error ? error.message : String(error)
-    });
-  });
-
-  void stateService.reconcileRunningDeployments(async (containerId) => {
+const lifecycle = createWorkerLifecycle({
+  logger,
+  scheduler,
+  stateService,
+  isContainerRunning: async (containerId) => {
     try {
       const info = await docker.getContainer(containerId).inspect();
       return info.State.Running === true;
     } catch {
       return false;
     }
-  }).then((reconciledCount) => {
-    if (reconciledCount > 0) {
-      logger.warn('startup state reconciliation completed', { reconciledCount });
-    } else {
-      logger.info('startup state reconciliation: all running deployments verified');
-    }
-  }).catch((error) => {
-    logger.error('startup state reconciliation failed', {
-      message: error instanceof Error ? error.message : String(error)
-    });
-  });
+  },
+  closeWorker: async () => {
+    await deploymentWorker.close();
+  }
+});
 
-  scheduler.start();
+deploymentWorker.on('ready', () => {
+  lifecycle.handleReady();
 });
 
 deploymentWorker.on('completed', (job) => {
-  logger.info('job completed', {
-    jobId: job.id,
-    deploymentId: job.data.deploymentId,
-    correlationId: job.data.correlationId ?? `queue-job:${job.id ?? 'unknown'}`
-  });
+  lifecycle.handleCompleted(job);
 });
 
 deploymentWorker.on('failed', (job, error) => {
-  logger.error('job failed', {
-    jobId: job?.id,
-    deploymentId: job?.data.deploymentId,
-    correlationId: job?.data.correlationId ?? `queue-job:${job?.id ?? 'unknown'}`,
-    message: error.message
-  });
+  lifecycle.handleFailed(job, error);
 });
 
 const stopSignals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
 for (const signal of stopSignals) {
-  process.on(signal, async () => {
-    logger.info(`received ${signal}, shutting down worker`);
-    await scheduler.stop();
-    await deploymentWorker.close();
-    process.exit(0);
+  process.on(signal, () => {
+    void lifecycle.shutdown(signal);
   });
 }
