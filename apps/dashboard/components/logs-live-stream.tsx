@@ -89,16 +89,19 @@ const areLogsEqual = (left: LogItem[], right: LogItem[]) => {
 
 export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiveStreamProps) {
   const [logs, setLogs] = useState<LogItem[]>(() => normalizeLogWindow(initialLogs));
-  const [status, setStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
+  const [status, setStatus] = useState<'connecting' | 'live' | 'paused' | 'error'>('connecting');
   const [levelFilter, setLevelFilter] = useState<'all' | 'error' | 'warn' | 'info' | 'debug'>('all');
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState(false);
+  const [isDocumentVisible, setIsDocumentVisible] = useState(
+    () => typeof document === 'undefined' || document.visibilityState !== 'hidden'
+  );
   const listRef = useRef<HTMLDivElement>(null);
   const autoFollowRef = useRef(true);
-  const initialAfterRef = useRef('');
   const contextKey = `${projectId}:${deploymentId}`;
   const contextKeyRef = useRef(contextKey);
   const seenSignaturesRef = useRef(toSignatureSet(logs));
+  const streamAfterRef = useRef('');
 
   const normalizedInitialLogs = useMemo(() => normalizeLogWindow(initialLogs), [initialLogs]);
 
@@ -140,8 +143,16 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
   }, [contextKey, normalizedInitialLogs]);
 
   useEffect(() => {
-    initialAfterRef.current = latestTimestamp(normalizedInitialLogs);
-  }, [normalizedInitialLogs]);
+    const handleVisibilityChange = () => {
+      setIsDocumentVisible(document.visibilityState !== 'hidden');
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     setStatus('connecting');
@@ -152,14 +163,37 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
   }, [projectId, deploymentId]);
 
   useEffect(() => {
+    const latestSeenTimestamp = latestTimestamp(logs);
+
+    if (!latestSeenTimestamp) {
+      streamAfterRef.current = '';
+      return;
+    }
+
+    const parsedTimestamp = Date.parse(latestSeenTimestamp);
+    if (!Number.isFinite(parsedTimestamp)) {
+      streamAfterRef.current = latestSeenTimestamp;
+      return;
+    }
+
+    streamAfterRef.current = new Date(Math.max(0, parsedTimestamp - 1)).toISOString();
+  }, [logs]);
+
+  useEffect(() => {
+    if (!isDocumentVisible) {
+      setStatus('paused');
+      return;
+    }
+
     const streamUrl = new URL('/api/log-stream', window.location.origin);
     streamUrl.searchParams.set('projectId', projectId);
     streamUrl.searchParams.set('deploymentId', deploymentId);
 
-    if (initialAfterRef.current) {
-      streamUrl.searchParams.set('after', initialAfterRef.current);
+    if (streamAfterRef.current) {
+      streamUrl.searchParams.set('after', streamAfterRef.current);
     }
 
+    setStatus('connecting');
     const eventSource = new EventSource(streamUrl.toString());
 
     eventSource.onopen = () => {
@@ -189,7 +223,7 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
     return () => {
       eventSource.close();
     };
-  }, [projectId, deploymentId]);
+  }, [deploymentId, isDocumentVisible, projectId]);
 
   useEffect(() => {
     if (!autoFollowRef.current) {
@@ -227,6 +261,7 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
 
   const streamStatusVariant =
     status === 'live' ? 'success' : status === 'error' ? 'destructive' : 'warning';
+  const streamStatusLabel = status === 'paused' ? 'paused' : status;
 
   return (
     <div className="mt-3 rounded-md border bg-card p-3 font-mono text-xs text-card-foreground">
@@ -235,7 +270,7 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
           <div className="flex items-center gap-2" role="status" aria-live="polite">
             <span>Live stream status:</span>
             <Badge variant={streamStatusVariant} className="font-sans text-[10px]">
-              {status}
+              {streamStatusLabel}
             </Badge>
           </div>
           <span aria-hidden>•</span>
@@ -281,6 +316,11 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
             className="h-8 text-xs"
           />
         </div>
+        {status === 'paused' ? (
+          <p className="text-[11px]">
+            Live log streaming pauses while this tab is hidden and resumes automatically when you return.
+          </p>
+        ) : null}
         {status === 'error' ? (
           <p className="text-[11px] text-destructive">
             Live log streaming disconnected. Refresh the page, and if it persists check{' '}
