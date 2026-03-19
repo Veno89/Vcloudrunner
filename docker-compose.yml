@@ -39,7 +39,7 @@ services:
       DEPLOYMENT_DEFAULT_CONTAINER_PORT: 3000
       DEPLOYMENT_DEFAULT_MEMORY_MB: 512
       DEPLOYMENT_DEFAULT_CPU_MILLICORES: 500
-      ENABLE_DEV_AUTH: ${ENABLE_DEV_AUTH:-false}
+      ENABLE_DEV_AUTH: false
     depends_on:
       postgres:
         condition: service_healthy

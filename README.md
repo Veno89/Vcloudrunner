@@ -43,7 +43,7 @@ No Kubernetes or multi-node orchestration is introduced in the MVP.
    export NEXT_PUBLIC_DEMO_USER_ID='replace-with-existing-user-uuid'  # optional; leave unset until you have a real user ID for live dashboard user-scoped pages
    export API_AUTH_TOKEN='replace-with-db-backed-api-token'  # optional; needed for live dashboard API calls
    ```
-   Keep `ENABLE_DEV_AUTH` unset/`false` and leave `API_TOKENS_JSON` empty for this production-like compose path. If `NEXT_PUBLIC_DEMO_USER_ID` is unset, the dashboard now stays up and shows explicit live-data unavailable guidance instead of pretending a placeholder user exists.
+   The production-like compose path now pins `ENABLE_DEV_AUTH=false` regardless of local host-run `.env` settings, and keeps `API_TOKENS_JSON` empty. If `NEXT_PUBLIC_DEMO_USER_ID` is unset, the dashboard now stays up and shows explicit live-data unavailable guidance instead of pretending a placeholder user exists.
 2. Build and start the core platform stack:
    ```bash
    docker compose up -d --build
@@ -124,7 +124,7 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 - Bootstrap `API_TOKENS_JSON` entries must be a valid JSON array with unique token values; malformed or duplicate entries now fail startup explicitly.
 - When `ENABLE_DEV_AUTH=true`, the local bypass only applies when auth credentials are absent; invalid or malformed `Authorization` headers now fail explicitly instead of silently falling back to admin.
 - Boolean env flags like `ENABLE_DEV_AUTH`, `TRUST_PROXY`, and `CORS_ALLOW_CREDENTIALS` now parse `.env` string values strictly, so explicit values like `false`, `0`, `no`, and `off` stay disabled instead of being treated as truthy.
-- The compose quick-start path keeps `ENABLE_DEV_AUTH` disabled by default.
+- The compose quick-start path now pins `ENABLE_DEV_AUTH` off even if a local root `.env` enables it for host-run development.
 - `admin` role can access all projects; `user` role can access owned projects plus projects granted through `project_members`.
 - API tokens now support explicit scope sets (e.g. `projects:read`, `deployments:write`, `logs:read`, `tokens:write`) with route-level scope guards.
 - Existing legacy tokens without scope metadata are normalized to compatibility defaults during auth resolution.
