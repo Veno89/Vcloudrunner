@@ -79,7 +79,14 @@ export function createWorkerLifecycle(dependencies: WorkerLifecycleDependencies)
         });
       });
 
-    scheduler.start();
+    try {
+      scheduler.start();
+    } catch (error) {
+      readyHandled = false;
+      logger.error('worker scheduler start failed', {
+        message: errorMessage(error)
+      });
+    }
   };
 
   const handleCompleted = (job: WorkerJob): void => {

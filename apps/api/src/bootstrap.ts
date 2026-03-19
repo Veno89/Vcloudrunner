@@ -100,9 +100,8 @@ export function createApiLifecycle(dependencies: BootstrapDependencies = {}) {
     }
 
     startPromise = (async () => {
-      await startTelemetry();
-
       try {
+        await startTelemetry();
         app = buildApp();
         await app.listen({
           host: config.HOST,

@@ -81,6 +81,47 @@ test('start still shuts down telemetry when buildServer throws before returning 
   assert.deepEqual(exitCodes, [1]);
 });
 
+test('start still shuts down telemetry and exits when telemetry initialization fails', async () => {
+  const logger = createLogger();
+  const exitCodes: number[] = [];
+  let buildCalls = 0;
+  let shutdownCalls = 0;
+
+  const lifecycle = createApiLifecycle({
+    env: { HOST: '127.0.0.1', PORT: 4000 },
+    buildServer: () => {
+      buildCalls += 1;
+      return {
+        log: logger,
+        async listen() {
+          return undefined;
+        },
+        async close() {
+          return undefined;
+        }
+      };
+    },
+    initTelemetry: async () => {
+      throw new Error('telemetry init failed');
+    },
+    shutdownTelemetry: async () => {
+      shutdownCalls += 1;
+    },
+    exit: (code) => {
+      exitCodes.push(code);
+    },
+    logger
+  });
+
+  await lifecycle.start();
+
+  assert.equal(buildCalls, 0);
+  assert.equal(shutdownCalls, 1);
+  assert.deepEqual(exitCodes, [1]);
+  assert.equal(logger.errors.length, 1);
+  assert.equal(logger.errors[0][1], 'server failed to start');
+});
+
 test('shutdown shares one cleanup path across repeated signals', async () => {
   const logger = createLogger();
   const exitCodes: number[] = [];

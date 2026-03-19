@@ -108,6 +108,51 @@ test('handleReady ignores repeated ready events after startup work has already b
   assert.equal(logger.infos[1]?.message, 'startup state reconciliation: all running deployments verified');
 });
 
+test('handleReady retries startup when scheduler start throws synchronously', async () => {
+  const logger = createLogger();
+  let schedulerStarts = 0;
+  let publishCalls = 0;
+  let reconcileCalls = 0;
+
+  const lifecycle = createWorkerLifecycle({
+    logger,
+    scheduler: {
+      start() {
+        schedulerStarts += 1;
+        if (schedulerStarts === 1) {
+          throw new Error('scheduler unavailable');
+        }
+      },
+      async stop() {
+        return undefined;
+      },
+      async publishHeartbeat() {
+        publishCalls += 1;
+      }
+    },
+    stateService: {
+      async reconcileRunningDeployments() {
+        reconcileCalls += 1;
+        return 0;
+      }
+    },
+    isContainerRunning: async () => true,
+    closeWorker: async () => undefined,
+    exit: () => undefined
+  });
+
+  lifecycle.handleReady();
+  lifecycle.handleReady();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(schedulerStarts, 2);
+  assert.equal(publishCalls, 2);
+  assert.equal(reconcileCalls, 2);
+  assert.equal(logger.errors[0]?.message, 'worker scheduler start failed');
+  assert.equal(logger.infos.at(-1)?.message, 'startup state reconciliation: all running deployments verified');
+});
+
 test('shutdown shares one cleanup path across repeated signals', async () => {
   const logger = createLogger();
   const exitCodes: number[] = [];
