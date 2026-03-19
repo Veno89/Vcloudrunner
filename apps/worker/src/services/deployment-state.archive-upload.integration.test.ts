@@ -267,6 +267,31 @@ test('uploadPendingArchives is idempotent after marker is written', async () => 
   }
 });
 
+test('uploadPendingArchives skips uploads when the marker already exists as a directory', async () => {
+  const fixture = await withArchiveFixture('marker-directory');
+  const server = await startCaptureServer();
+
+  try {
+    env.DEPLOYMENT_LOG_ARCHIVE_DIR = fixture.dir;
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER = 'http';
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_BASE_URL = server.baseUrl;
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_AUTH_TOKEN = 'upload-token';
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_MAX_ATTEMPTS = 1;
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS = 2_000;
+
+    await mkdir(join(fixture.dir, `${fixture.fileName}.uploaded`));
+
+    const service = new DeploymentStateService(new MockPool());
+    const uploaded = await service.uploadPendingArchives();
+
+    assert.equal(uploaded, 0);
+    assert.equal(server.requests.length, 0);
+  } finally {
+    await server.close();
+    await fixture.cleanup();
+  }
+});
+
 test('uploadPendingArchives removes local archive when delete-local-after-upload is enabled', async () => {
   const fixture = await withArchiveFixture('delete-local');
   const server = await startCaptureServer();

@@ -92,6 +92,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - make API and worker Redis queue parsing reject malformed `REDIS_URL` database paths explicitly instead of silently coercing invalid BullMQ connection settings
 - tolerate worker deployment-network “already exists” races by rechecking Docker state instead of failing the whole deployment start path
 - keep successful archive uploads successful even when the optional local delete step fails afterward, logging cleanup as a warning instead of an upload failure
+- detect existing archive upload markers by filesystem existence instead of file readability, so odd marker remnants still preserve upload idempotency and do not trigger duplicate remote uploads
 - clarify compose quick start requirements for `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `ENCRYPTION_KEY`, optional dashboard auth variables, and the separation from app-local `.env` files
 - align the production-readiness audit wording with the current compose/auth defaults so it no longer describes compose as enabling dev auth by default
 - recalibrate the top-level phase snapshot in `docs/progress.md` so the reported phase-left percentages reflect the work already landed during this hardening pass
@@ -134,9 +135,9 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
-  - passed (`49/49`)
+  - passed (`66/66`)
 - `npm --workspace @vcloudrunner/api test`
-  - passed (`171/171`)
+  - passed (`179/179`)
 - `npm run typecheck`
   - passed
 - `npm run lint`

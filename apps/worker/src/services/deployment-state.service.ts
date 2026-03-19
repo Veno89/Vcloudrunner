@@ -627,7 +627,7 @@ export class DeploymentStateService {
 
   private async fileExists(path: string) {
     try {
-      await readFile(path);
+      await stat(path);
       return true;
     } catch {
       return false;
