@@ -9,9 +9,9 @@ type TestJob = {
 };
 
 async function loadDeploymentQueue() {
-  process.env.DATABASE_URL ??= 'postgres://user:pass@localhost:5432/db';
-  process.env.REDIS_URL ??= 'redis://:pass@localhost:6379/0';
-  process.env.ENCRYPTION_KEY ??= '12345678901234567890123456789012';
+  process.env.DATABASE_URL = 'postgres://user:pass@localhost:5432/db';
+  process.env.REDIS_URL = 'redis://:pass@localhost:6379/0';
+  process.env.ENCRYPTION_KEY = '12345678901234567890123456789012';
 
   const module = await import('./deployment-queue.js');
   return module.DeploymentQueue;

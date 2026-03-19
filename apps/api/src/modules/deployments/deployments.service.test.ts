@@ -9,9 +9,9 @@ import {
   ProjectNotFoundError
 } from '../../server/domain-errors.js';
 
-process.env.DATABASE_URL ??= 'postgres://postgres:postgres@localhost:5432/vcloudrunner';
-process.env.REDIS_URL ??= 'redis://localhost:6379';
-process.env.ENCRYPTION_KEY ??= '12345678901234567890123456789012';
+process.env.DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/vcloudrunner';
+process.env.REDIS_URL = 'redis://localhost:6379';
+process.env.ENCRYPTION_KEY = '12345678901234567890123456789012';
 
 const { DeploymentsService } = await import('./deployments.service.js');
 

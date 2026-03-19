@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { QueueMetrics, WorkerHealthResult } from '../services/alert-monitor.service.js';
 
-process.env.DATABASE_URL ??= 'postgres://postgres:postgres@localhost:5432/vcloudrunner';
-process.env.REDIS_URL ??= 'redis://localhost:6379';
-process.env.ENCRYPTION_KEY ??= '12345678901234567890123456789012';
+process.env.DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/vcloudrunner';
+process.env.REDIS_URL = 'redis://localhost:6379';
+process.env.ENCRYPTION_KEY = '12345678901234567890123456789012';
 
 const { buildServer } = await import('./build-server.js');
 const { env } = await import('../config/env.js');

@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import Fastify, { type FastifyInstance } from 'fastify';
 
-process.env.DATABASE_URL ??= 'postgres://postgres:postgres@localhost:5432/vcloudrunner';
-process.env.REDIS_URL ??= 'redis://localhost:6379';
-process.env.ENCRYPTION_KEY ??= '12345678901234567890123456789012';
+process.env.DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/vcloudrunner';
+process.env.REDIS_URL = 'redis://localhost:6379';
+process.env.ENCRYPTION_KEY = '12345678901234567890123456789012';
 
 const { env } = await import('../../config/env.js');
 const { db } = await import('../../db/client.js');
