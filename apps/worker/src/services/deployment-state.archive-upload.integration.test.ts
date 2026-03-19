@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage } from 'node:http';
 import { generateKeyPairSync } from 'node:crypto';
-import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -473,6 +473,38 @@ test('uploadPendingArchives continues after repeated network failures on one art
     const markerPath = join(fixture.dir, `${fixture.fileName}.uploaded`);
     assert.equal(await exists(markerPath), false);
   } finally {
+    await fixture.cleanup();
+  }
+});
+
+test('uploadPendingArchives continues after one archive entry cannot be read', async () => {
+  const fixture = await withArchiveFixture('read-failure');
+  const server = await startCaptureServer();
+  const unreadableEntryPath = join(fixture.dir, 'dep-bad.ndjson.gz');
+
+  try {
+    env.DEPLOYMENT_LOG_ARCHIVE_DIR = fixture.dir;
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER = 'http';
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_BASE_URL = server.baseUrl;
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_AUTH_TOKEN = 'upload-token';
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_MAX_ATTEMPTS = 1;
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS = 2_000;
+
+    await rm(unreadableEntryPath, { recursive: true, force: true });
+    await access(join(fixture.dir, fixture.fileName));
+    await mkdir(unreadableEntryPath);
+
+    const service = new DeploymentStateService(new MockPool());
+    const uploaded = await service.uploadPendingArchives();
+
+    assert.equal(uploaded, 1);
+    assert.equal(server.requests.length, 1);
+    const [request] = server.requests;
+    assert.equal(request.url, `/${fixture.fileName}`);
+    assert.equal(await exists(join(fixture.dir, `${fixture.fileName}.uploaded`)), true);
+    assert.equal(await exists(`${unreadableEntryPath}.uploaded`), false);
+  } finally {
+    await server.close();
     await fixture.cleanup();
   }
 });

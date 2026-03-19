@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -235,6 +235,37 @@ test('uploadPendingArchives continues after one artifact upload fails', async ()
   } finally {
     env.DEPLOYMENT_LOG_ARCHIVE_DIR = originalArchiveDir;
     env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_BASE_URL = originalUploadBaseUrl;
+    await rm(fixtureDir, { recursive: true, force: true });
+  }
+});
+
+test('cleanupArchivedArtifacts continues after one artifact cleanup fails', async () => {
+  const originalArchiveDir = env.DEPLOYMENT_LOG_ARCHIVE_DIR;
+  const originalArchiveMaxAgeDays = env.DEPLOYMENT_LOG_ARCHIVE_LOCAL_MAX_AGE_DAYS;
+  const originalMarkerMaxAgeDays = env.DEPLOYMENT_LOG_ARCHIVE_MARKER_MAX_AGE_DAYS;
+  const fixtureDir = await mkdtemp(join(tmpdir(), 'vcloudrunner-cleanup-partial-'));
+  const badMarkerPath = join(fixtureDir, 'dep-bad.ndjson.gz.uploaded');
+  const goodMarkerPath = join(fixtureDir, 'dep-good.ndjson.gz.uploaded');
+
+  try {
+    env.DEPLOYMENT_LOG_ARCHIVE_DIR = fixtureDir;
+    env.DEPLOYMENT_LOG_ARCHIVE_LOCAL_MAX_AGE_DAYS = 0;
+    env.DEPLOYMENT_LOG_ARCHIVE_MARKER_MAX_AGE_DAYS = 0;
+
+    await mkdir(badMarkerPath);
+    await writeFile(goodMarkerPath, 'uploaded');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const service = new DeploymentStateService(new MockPool());
+    const deletedCount = await service.cleanupArchivedArtifacts();
+
+    assert.equal(deletedCount, 1);
+    assert.equal(await exists(badMarkerPath), true);
+    assert.equal(await exists(goodMarkerPath), false);
+  } finally {
+    env.DEPLOYMENT_LOG_ARCHIVE_DIR = originalArchiveDir;
+    env.DEPLOYMENT_LOG_ARCHIVE_LOCAL_MAX_AGE_DAYS = originalArchiveMaxAgeDays;
+    env.DEPLOYMENT_LOG_ARCHIVE_MARKER_MAX_AGE_DAYS = originalMarkerMaxAgeDays;
     await rm(fixtureDir, { recursive: true, force: true });
   }
 });

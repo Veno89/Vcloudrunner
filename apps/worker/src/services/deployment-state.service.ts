@@ -175,8 +175,8 @@ export class DeploymentStateService {
         continue;
       }
 
-      const payload = await readFile(archivePath);
       try {
+        const payload = await readFile(archivePath);
         const uploadRequest = await this.createArchiveUploadRequest({ fileName, baseUrl, payload });
 
         await this.uploadArchiveWithRetry({
@@ -224,23 +224,31 @@ export class DeploymentStateService {
         continue;
       }
 
-      const info = await stat(filePath);
-      const ageMs = now - info.mtimeMs;
+      try {
+        const info = await stat(filePath);
+        const ageMs = now - info.mtimeMs;
 
-      if (fileName.endsWith('.ndjson.gz.uploaded')) {
-        if (ageMs > markerMaxAgeMs) {
+        if (fileName.endsWith('.ndjson.gz.uploaded')) {
+          if (ageMs > markerMaxAgeMs) {
+            await unlink(filePath);
+            deletedCount += 1;
+          }
+          continue;
+        }
+
+        const markerPath = `${filePath}.uploaded`;
+        const hasMarker = await this.fileExists(markerPath);
+
+        if (hasMarker && ageMs > archiveMaxAgeMs) {
           await unlink(filePath);
           deletedCount += 1;
         }
-        continue;
-      }
-
-      const markerPath = `${filePath}.uploaded`;
-      const hasMarker = await this.fileExists(markerPath);
-
-      if (hasMarker && ageMs > archiveMaxAgeMs) {
-        await unlink(filePath);
-        deletedCount += 1;
+      } catch (error) {
+        logger.warn('deployment log archive cleanup failed for one artifact', {
+          fileName,
+          filePath,
+          message: getErrorMessage(error)
+        });
       }
     }
 
