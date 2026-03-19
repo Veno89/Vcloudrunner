@@ -11,6 +11,8 @@ interface QueueSample {
 }
 
 const MAX_SAMPLES = 12;
+const QUEUE_HEALTH_POLL_INTERVAL_MS = 10_000;
+const QUEUE_HEALTH_POLL_TIMEOUT_MS = 8_000;
 
 function formatTimeLabel(timestamp: string) {
   const parsed = new Date(timestamp);
@@ -27,18 +29,35 @@ export function StatusQueueTrend() {
 
   useEffect(() => {
     let cancelled = false;
+    let requestInFlight = false;
+    let activeController: AbortController | null = null;
 
     const loadSnapshot = async () => {
+      if (cancelled || requestInFlight) {
+        return;
+      }
+
+      requestInFlight = true;
+      const controller = new AbortController();
+      activeController = controller;
+      const timeoutId = window.setTimeout(() => {
+        controller.abort();
+      }, QUEUE_HEALTH_POLL_TIMEOUT_MS);
+
       try {
-        const response = await fetch('/api/queue-health', { cache: 'no-store' });
+        const response = await fetch('/api/queue-health', {
+          cache: 'no-store',
+          signal: controller.signal
+        });
         const payload = await response.json() as {
           status?: 'ok' | 'degraded' | 'unavailable';
+          sampledAt?: string;
           counts?: { waiting?: number; active?: number; failed?: number };
         };
 
         const nextStatus = payload.status === 'ok' ? 'ok' : 'degraded';
         const sample: QueueSample = {
-          timestamp: new Date().toISOString(),
+          timestamp: typeof payload.sampledAt === 'string' ? payload.sampledAt : new Date().toISOString(),
           waiting: payload.counts?.waiting ?? 0,
           active: payload.counts?.active ?? 0,
           failed: payload.counts?.failed ?? 0,
@@ -54,14 +73,21 @@ export function StatusQueueTrend() {
         if (!cancelled) {
           setStatus('degraded');
         }
+      } finally {
+        window.clearTimeout(timeoutId);
+        if (activeController === controller) {
+          activeController = null;
+        }
+        requestInFlight = false;
       }
     };
 
     loadSnapshot();
-    const id = window.setInterval(loadSnapshot, 10000);
+    const id = window.setInterval(loadSnapshot, QUEUE_HEALTH_POLL_INTERVAL_MS);
 
     return () => {
       cancelled = true;
+      activeController?.abort();
       window.clearInterval(id);
     };
   }, []);
@@ -74,7 +100,7 @@ export function StatusQueueTrend() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">Live queue-depth trend (10s sampling)</p>
+        <p className="text-xs text-muted-foreground">Live queue-depth trend (10s sampling, overlap-safe)</p>
         <Badge variant={status === 'ok' ? 'success' : status === 'loading' ? 'warning' : 'destructive'}>
           {status}
         </Badge>
