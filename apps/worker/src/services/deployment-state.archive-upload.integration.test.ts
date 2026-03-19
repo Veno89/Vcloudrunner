@@ -451,7 +451,7 @@ test('createArchiveUploadRequest falls back to the default GCS token TTL when ex
   assert.equal(fetchCalls, 1);
 });
 
-test('uploadPendingArchives wraps repeated network failures with a stable retry-exhausted message', async (t) => {
+test('uploadPendingArchives continues after repeated network failures on one artifact', async (t) => {
   const fixture = await withArchiveFixture('network-failure');
 
   try {
@@ -467,11 +467,11 @@ test('uploadPendingArchives wraps repeated network failures with a stable retry-
     });
 
     const service = new DeploymentStateService(new MockPool());
+    const uploaded = await service.uploadPendingArchives();
 
-    await assert.rejects(
-      service.uploadPendingArchives(),
-      /archive upload failed after retries: archive upload request failed: socket hang up/
-    );
+    assert.equal(uploaded, 0);
+    const markerPath = join(fixture.dir, `${fixture.fileName}.uploaded`);
+    assert.equal(await exists(markerPath), false);
   } finally {
     await fixture.cleanup();
   }

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
 import { env } from '../config/env.js';
+import { logger } from '../logger/logger.js';
 import { DeploymentStateRepository, type Queryable, type SuccessInput } from './deployment-state.repository.js';
 
 interface ArchiveUploadRequest {
@@ -85,8 +86,16 @@ export class DeploymentStateService {
         ? `DEPLOYMENT_STUCK_RECOVERY: queued deployment exceeded ${env.DEPLOYMENT_STUCK_QUEUED_MAX_AGE_MINUTES} minutes`
         : `DEPLOYMENT_STUCK_RECOVERY: building deployment exceeded ${env.DEPLOYMENT_STUCK_BUILDING_MAX_AGE_MINUTES} minutes`;
 
-      await this.markFailed(row.id, reason);
-      recoveredCount += 1;
+      try {
+        await this.markFailed(row.id, reason);
+        recoveredCount += 1;
+      } catch (error) {
+        logger.warn('stuck deployment recovery failed for one deployment', {
+          deploymentId: row.id,
+          status: row.status,
+          message: getErrorMessage(error)
+        });
+      }
     }
 
     return recoveredCount;
@@ -99,13 +108,21 @@ export class DeploymentStateService {
     let reconciledCount = 0;
 
     for (const row of rows) {
-      const running = await isContainerRunning(row.container_id);
-      if (!running) {
-        await this.markFailed(
-          row.deployment_id,
-          'STATE_RECONCILIATION: container not found or not running on worker startup'
-        );
-        reconciledCount += 1;
+      try {
+        const running = await isContainerRunning(row.container_id);
+        if (!running) {
+          await this.markFailed(
+            row.deployment_id,
+            'STATE_RECONCILIATION: container not found or not running on worker startup'
+          );
+          reconciledCount += 1;
+        }
+      } catch (error) {
+        logger.warn('running deployment reconciliation failed for one deployment', {
+          deploymentId: row.deployment_id,
+          containerId: row.container_id,
+          message: getErrorMessage(error)
+        });
       }
     }
 
@@ -119,9 +136,16 @@ export class DeploymentStateService {
     await mkdir(env.DEPLOYMENT_LOG_ARCHIVE_DIR, { recursive: true });
 
     for (const deploymentId of candidates) {
-      const wasArchived = await this.archiveDeployment(deploymentId);
-      if (wasArchived) {
-        archivedCount += 1;
+      try {
+        const wasArchived = await this.archiveDeployment(deploymentId);
+        if (wasArchived) {
+          archivedCount += 1;
+        }
+      } catch (error) {
+        logger.warn('deployment log archive failed for one deployment', {
+          deploymentId,
+          message: getErrorMessage(error)
+        });
       }
     }
 
@@ -152,24 +176,32 @@ export class DeploymentStateService {
       }
 
       const payload = await readFile(archivePath);
-      const uploadRequest = await this.createArchiveUploadRequest({ fileName, baseUrl, payload });
+      try {
+        const uploadRequest = await this.createArchiveUploadRequest({ fileName, baseUrl, payload });
 
-      await this.uploadArchiveWithRetry({
-        targetUrl: uploadRequest.targetUrl,
-        payload,
-        headers: uploadRequest.headers
-      });
+        await this.uploadArchiveWithRetry({
+          targetUrl: uploadRequest.targetUrl,
+          payload,
+          headers: uploadRequest.headers
+        });
 
-      await writeFile(
-        markerPath,
-        JSON.stringify({ uploadedAt: new Date().toISOString(), targetUrl: uploadRequest.targetUrl })
-      );
+        await writeFile(
+          markerPath,
+          JSON.stringify({ uploadedAt: new Date().toISOString(), targetUrl: uploadRequest.targetUrl })
+        );
 
-      if (env.DEPLOYMENT_LOG_ARCHIVE_DELETE_LOCAL_AFTER_UPLOAD) {
-        await unlink(archivePath);
+        if (env.DEPLOYMENT_LOG_ARCHIVE_DELETE_LOCAL_AFTER_UPLOAD) {
+          await unlink(archivePath);
+        }
+
+        uploadedCount += 1;
+      } catch (error) {
+        logger.warn('deployment log archive upload failed for one artifact', {
+          fileName,
+          archivePath,
+          message: getErrorMessage(error)
+        });
       }
-
-      uploadedCount += 1;
     }
 
     return uploadedCount;
