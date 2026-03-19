@@ -155,6 +155,8 @@ export class DeploymentRunner {
         return;
       }
 
+      let removedCount = 0;
+
       for (const item of matches) {
         const container = this.docker.getContainer(item.Id);
         try {
@@ -169,10 +171,21 @@ export class DeploymentRunner {
           });
         }
 
-        await container.remove({ force: true });
+        try {
+          await container.remove({ force: true });
+          removedCount += 1;
+        } catch (error) {
+          logger.warn('failed removing stale container before retry', {
+            containerName,
+            containerId: item.Id,
+            message: error instanceof Error ? error.message : String(error)
+          });
+        }
       }
 
-      logger.info('removed stale deployment container before run', { containerName });
+      if (removedCount > 0) {
+        logger.info('removed stale deployment container before run', { containerName, removedCount });
+      }
     } catch (error) {
       logger.warn('failed to remove stale container before run', {
         containerName,
