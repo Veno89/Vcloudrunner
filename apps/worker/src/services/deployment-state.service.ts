@@ -31,6 +31,10 @@ function normalizePrivateKey(raw: string) {
   return raw.replace(/\\n/g, '\n');
 }
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export class DeploymentStateService {
   private readonly repository: DeploymentStateRepository;
   private gcsAccessTokenCache: { token: string; expiresAt: number } | null = null;
@@ -430,16 +434,24 @@ export class DeploymentStateService {
     const signature = signer.sign(privateKey).toString('base64url');
     const assertion = `${unsignedToken}.${signature}`;
 
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/x-www-form-urlencoded'
-      },
-      body: new URLSearchParams({
-        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        assertion
-      })
-    });
+    let response: Response;
+    try {
+      response = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({
+          grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+          assertion
+        }),
+        signal: AbortSignal.timeout(env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS)
+      });
+    } catch (error) {
+      throw new Error(
+        `failed to obtain GCS access token: request failed: ${getErrorMessage(error)}`
+      );
+    }
 
     if (!response.ok) {
       throw new Error(`failed to obtain GCS access token: ${response.status}`);
@@ -491,7 +503,9 @@ export class DeploymentStateService {
 
         return;
       } catch (error) {
-        lastError = error;
+        lastError = controller.signal.aborted
+          ? new Error(`archive upload timed out after ${env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS}ms`)
+          : new Error(`archive upload request failed: ${getErrorMessage(error)}`);
 
         if (attempt === env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_MAX_ATTEMPTS) {
           break;
@@ -507,7 +521,7 @@ export class DeploymentStateService {
       }
     }
 
-    const message = lastError instanceof Error ? lastError.message : String(lastError);
+    const message = getErrorMessage(lastError);
     throw new Error(`archive upload failed after retries: ${message}`);
   }
 

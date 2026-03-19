@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage } from 'node:http';
+import { generateKeyPairSync } from 'node:crypto';
 import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -293,6 +294,62 @@ test('uploadPendingArchives removes local archive when delete-local-after-upload
   } finally {
     env.DEPLOYMENT_LOG_ARCHIVE_DELETE_LOCAL_AFTER_UPLOAD = false;
     await server.close();
+    await fixture.cleanup();
+  }
+});
+
+test('createArchiveUploadRequest wraps GCS token fetch network failures with a stable message', async (t) => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 1024 });
+
+  env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER = 'gcs';
+  env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS = 2_000;
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_BUCKET = 'gcs-bucket';
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_PREFIX = 'archives';
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_ACCESS_TOKEN = '';
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_SERVICE_ACCOUNT_EMAIL = 'worker@example.test';
+  env.DEPLOYMENT_LOG_ARCHIVE_GCS_PRIVATE_KEY = privateKey.export({
+    type: 'pkcs8',
+    format: 'pem'
+  }).toString();
+
+  t.mock.method(globalThis, 'fetch', async () => {
+    throw new Error('socket hang up');
+  });
+
+  const service = new DeploymentStateService(new MockPool());
+
+  await assert.rejects(
+    service.createArchiveUploadRequest({
+      fileName: 'dep-fixture.ndjson.gz',
+      baseUrl: 'https://storage.googleapis.com/upload/storage/v1/b',
+      payload: Buffer.from('fixture')
+    }),
+    /failed to obtain GCS access token: request failed: socket hang up/
+  );
+});
+
+test('uploadPendingArchives wraps repeated network failures with a stable retry-exhausted message', async (t) => {
+  const fixture = await withArchiveFixture('network-failure');
+
+  try {
+    env.DEPLOYMENT_LOG_ARCHIVE_DIR = fixture.dir;
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER = 'http';
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_BASE_URL = 'https://uploads.example.test';
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_AUTH_TOKEN = 'upload-token';
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_MAX_ATTEMPTS = 2;
+    env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS = 2_000;
+
+    t.mock.method(globalThis, 'fetch', async () => {
+      throw new Error('socket hang up');
+    });
+
+    const service = new DeploymentStateService(new MockPool());
+
+    await assert.rejects(
+      service.uploadPendingArchives(),
+      /archive upload failed after retries: archive upload request failed: socket hang up/
+    );
+  } finally {
     await fixture.cleanup();
   }
 });
