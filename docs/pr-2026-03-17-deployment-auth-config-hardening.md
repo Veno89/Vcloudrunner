@@ -15,6 +15,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another
 - stop invalid or malformed `Authorization` headers from silently falling back to the local dev-auth admin bypass; that bypass now applies only when credentials are absent
 - replace lossy `z.coerce.boolean()` env parsing with strict string-aware boolean parsing so `.env` values like `ENABLE_DEV_AUTH=false`, `TRUST_PROXY=false`, and `CORS_ALLOW_CREDENTIALS=false` stay disabled instead of being treated as truthy
+- extract worker env parsing into a testable core, replace lossy `z.coerce.boolean()` parsing for `DEPLOYMENT_LOG_ARCHIVE_DELETE_LOCAL_AFTER_UPLOAD`, and make host-run worker startup load root `.env` first plus `apps/worker/.env` as an override so it matches the documented quick-start flow
 - add regression coverage proving root-registered auth and error plugins still apply when protected routes are registered through sibling route plugins
 - add focused authorization-helper coverage for scope enforcement, user access checks, project-owner/admin bypass paths, membership-based access, and project-not-found handling
 - fix `GET /projects/:projectId` so project members inherit the same membership-aware access policy as other project-scoped routes, with route tests covering member and non-member cases
@@ -79,12 +80,15 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - bump the Phase 1 snapshot again to reflect stricter bootstrap token startup validation on the remaining auth fallback path
 - bump the Phase 1 snapshot again to reflect explicit rejection of invalid credentials during dev-auth fallback flows
 - bump the Phase 1 snapshot again to reflect strict env-boolean parsing on the remaining auth/ingress configuration flags
+- bump the Phase 1 snapshot again to reflect worker env-loader parity with the documented app-local `.env` flow plus strict parsing for the worker archive deletion flag
 - align README auth wording with the current membership-aware project access model
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
 - make `apps/api/.env.example` explicitly show `ENABLE_DEV_AUTH=false` alongside the bootstrap token fallback example
 
 ## Tests Run
 
+- `npm --workspace @vcloudrunner/worker test`
+  - passed (`24/24`)
 - `npm --workspace @vcloudrunner/api test`
   - passed (`148/148`)
 - `npm run typecheck`
