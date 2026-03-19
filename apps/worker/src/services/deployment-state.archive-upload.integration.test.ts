@@ -5,8 +5,10 @@ import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { env } from '../config/env.js';
-import { DeploymentStateService } from './deployment-state.service.js';
+await import('../test/worker-test-env.js');
+
+const { env } = await import('../config/env.js');
+const { DeploymentStateService } = await import('./deployment-state.service.js');
 
 class MockPool {
   async query() {

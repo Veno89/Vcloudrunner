@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { env } from '../config/env.js';
-import { DeploymentStateService } from './deployment-state.service.js';
+await import('../test/worker-test-env.js');
+
+const { env } = await import('../config/env.js');
+const { DeploymentStateService } = await import('./deployment-state.service.js');
 
 interface RecordedQuery {
   text: string;

@@ -20,6 +20,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - pin `ENABLE_DEV_AUTH` to `false` in the production-like compose API service so local host-run `.env` settings can no longer leak that bypass into compose startup, with static regression coverage for the compose contract
 - remove remaining cwd sensitivity from the API/worker env loaders so repo-root plus app-local `.env` resolution now works even when commands start from `apps/api` or `apps/worker`
 - make API tests set required bootstrap env values explicitly instead of using `??=` defaults, so local developer `.env` contents can no longer leak into the suite and alter test behavior
+- make worker archive/service tests bootstrap a deterministic runtime env before importing the worker config singleton, so local developer `.env` values can no longer leak into archive upload/auth assertions
 - add regression coverage proving root-registered auth and error plugins still apply when protected routes are registered through sibling route plugins
 - add focused authorization-helper coverage for scope enforcement, user access checks, project-owner/admin bypass paths, membership-based access, and project-not-found handling
 - fix `GET /projects/:projectId` so project members inherit the same membership-aware access policy as other project-scoped routes, with route tests covering member and non-member cases
@@ -89,6 +90,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - bump the Phase 1 snapshot again to reflect compose pinning of `ENABLE_DEV_AUTH=false` independent of local host-run `.env` settings
 - bump the Phase 1 snapshot again to reflect cwd-independent repo-root env resolution for API/worker startup and API `drizzle-kit` commands
 - bump the Phase 2 snapshot again to reflect deterministic API test bootstrap env setup that no longer depends on local developer `.env` state
+- bump the Phase 2 snapshot again to reflect deterministic worker test bootstrap env setup that no longer depends on local developer `.env` state
 - align README auth wording with the current membership-aware project access model
 - document the current cancellation semantics and refresh progress wording so `ENABLE_DEV_AUTH`, `API_TOKENS_JSON`, and `stopped` status references match the implementation
 - make `apps/api/.env.example` explicitly show `ENABLE_DEV_AUTH=false` alongside the bootstrap token fallback example
