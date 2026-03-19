@@ -93,17 +93,41 @@ test('initTelemetry warns on missing deps and remains retryable afterwards', asy
       case '@opentelemetry/sdk-node':
         return { NodeSDK: FakeNodeSdk };
       case '@opentelemetry/exporter-trace-otlp-http':
-        return { OTLPTraceExporter: class { constructor(_options: Record<string, unknown>) {} } };
+        return {
+          OTLPTraceExporter: class {
+            constructor(options: Record<string, unknown>) {
+              void options;
+            }
+          }
+        };
       case '@opentelemetry/exporter-metrics-otlp-http':
-        return { OTLPMetricExporter: class { constructor(_options: Record<string, unknown>) {} } };
+        return {
+          OTLPMetricExporter: class {
+            constructor(options: Record<string, unknown>) {
+              void options;
+            }
+          }
+        };
       case '@opentelemetry/sdk-metrics':
-        return { PeriodicExportingMetricReader: class { constructor(_options: Record<string, unknown>) {} } };
+        return {
+          PeriodicExportingMetricReader: class {
+            constructor(options: Record<string, unknown>) {
+              void options;
+            }
+          }
+        };
       case '@opentelemetry/auto-instrumentations-node':
         return { getNodeAutoInstrumentations: () => ({}) };
       case '@opentelemetry/semantic-conventions':
         return { ATTR_SERVICE_NAME: 'service.name' };
       case '@opentelemetry/resources':
-        return { Resource: class { constructor(_attributes: Record<string, string>) {} } };
+        return {
+          Resource: class {
+            constructor(attributes: Record<string, string>) {
+              void attributes;
+            }
+          }
+        };
       default:
         throw new Error(`Unexpected import: ${specifier}`);
     }

@@ -12,7 +12,8 @@ type JobCounts = Record<string, number>;
 class MockQueue {
   constructor(private readonly counts: JobCounts) {}
 
-  async getJobCounts(..._statuses: string[]) {
+  async getJobCounts(...statuses: string[]) {
+    void statuses;
     return this.counts;
   }
 }
@@ -20,7 +21,8 @@ class MockQueue {
 class MockRedis {
   constructor(private readonly heartbeat: string | null) {}
 
-  async get(_key: string) {
+  async get(key: string) {
+    void key;
     return this.heartbeat;
   }
 }
@@ -31,7 +33,10 @@ function createService(options?: {
   logger?: { warn: (obj: Record<string, unknown>, msg: string) => void };
 }) {
   const logger = options?.logger ?? {
-    warn: (_obj: Record<string, unknown>, _msg: string) => {}
+    warn: (obj: Record<string, unknown>, msg: string) => {
+      void obj;
+      void msg;
+    }
   };
 
   return new AlertMonitorService(
