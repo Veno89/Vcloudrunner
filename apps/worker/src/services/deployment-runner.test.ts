@@ -6,6 +6,82 @@ await import('../test/worker-test-env.js');
 const { logger } = await import('../logger/logger.js');
 const { DeploymentRunner } = await import('./deployment-runner.js');
 
+test('ensureDeploymentNetwork tolerates already-exists races and caches the result', async (t) => {
+  const infos: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
+  const listCalls: Array<{ filters: { name: string[] } }> = [];
+  const createCalls: Array<{ Name: string }> = [];
+
+  t.mock.method(logger, 'info', (message: string, metadata?: Record<string, unknown>) => {
+    infos.push({ message, metadata });
+  });
+
+  const runner = new DeploymentRunner() as unknown as {
+    docker: {
+      listNetworks: (input: { filters: { name: string[] } }) => Promise<Array<{ Name?: string }>>;
+      createNetwork: (input: {
+        Name: string;
+        Driver: string;
+        Internal: boolean;
+        Labels: Record<string, string>;
+      }) => Promise<void>;
+    };
+    ensureDeploymentNetwork: () => Promise<string>;
+  };
+
+  let listAttempt = 0;
+  runner.docker = {
+    listNetworks: async (input) => {
+      listCalls.push(input);
+      listAttempt += 1;
+      return listAttempt === 1 ? [] : [{ Name: 'vcloudrunner-deployments' }];
+    },
+    createNetwork: async (input) => {
+      createCalls.push({ Name: input.Name });
+      const error = new Error('network with name vcloudrunner-deployments already exists') as Error & {
+        statusCode?: number;
+      };
+      error.statusCode = 409;
+      throw error;
+    }
+  };
+
+  const firstNetworkName = await runner.ensureDeploymentNetwork();
+  const secondNetworkName = await runner.ensureDeploymentNetwork();
+
+  assert.equal(firstNetworkName, 'vcloudrunner-deployments');
+  assert.equal(secondNetworkName, 'vcloudrunner-deployments');
+  assert.deepEqual(createCalls, [{ Name: 'vcloudrunner-deployments' }]);
+  assert.equal(listCalls.length, 2);
+  assert.equal(infos.length, 0);
+});
+
+test('ensureDeploymentNetwork rethrows unexpected network creation failures', async () => {
+  const runner = new DeploymentRunner() as unknown as {
+    docker: {
+      listNetworks: (input: { filters: { name: string[] } }) => Promise<Array<{ Name?: string }>>;
+      createNetwork: (input: {
+        Name: string;
+        Driver: string;
+        Internal: boolean;
+        Labels: Record<string, string>;
+      }) => Promise<void>;
+    };
+    ensureDeploymentNetwork: () => Promise<string>;
+  };
+
+  runner.docker = {
+    listNetworks: async () => [],
+    createNetwork: async () => {
+      throw new Error('docker daemon unavailable');
+    }
+  };
+
+  await assert.rejects(
+    runner.ensureDeploymentNetwork(),
+    /docker daemon unavailable/
+  );
+});
+
 test('removeContainerByName continues removing later stale containers when one removal fails', async (t) => {
   const warnings: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
   const infos: Array<{ message: string; metadata?: Record<string, unknown> }> = [];

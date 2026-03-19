@@ -17,6 +17,19 @@ export class DeploymentRunner {
   private readonly docker = new Docker({ socketPath: env.DOCKER_SOCKET_PATH });
   private networkEnsured = false;
 
+  private isNetworkAlreadyExistsError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    const statusCode = (error as unknown as { statusCode?: unknown }).statusCode;
+
+    return (
+      (typeof statusCode === 'number' && statusCode === 409) ||
+      /already exists/i.test(error.message)
+    );
+  }
+
   private async ensureDeploymentNetwork(): Promise<string> {
     const networkName = env.DEPLOYMENT_NETWORK_NAME;
     if (this.networkEnsured) return networkName;
@@ -24,13 +37,30 @@ export class DeploymentRunner {
     const networks = await this.docker.listNetworks({ filters: { name: [networkName] } });
     const exact = networks.find((network: { Name?: string }) => network.Name === networkName);
     if (!exact) {
-      await this.docker.createNetwork({
-        Name: networkName,
-        Driver: 'bridge',
-        Internal: false,
-        Labels: { 'managed-by': 'vcloudrunner' },
-      });
-      logger.info('created deployment network', { networkName });
+      try {
+        await this.docker.createNetwork({
+          Name: networkName,
+          Driver: 'bridge',
+          Internal: false,
+          Labels: { 'managed-by': 'vcloudrunner' },
+        });
+        logger.info('created deployment network', { networkName });
+      } catch (error) {
+        if (!this.isNetworkAlreadyExistsError(error)) {
+          throw error;
+        }
+
+        const refreshedNetworks = await this.docker.listNetworks({
+          filters: { name: [networkName] }
+        });
+        const refreshedExact = refreshedNetworks.find(
+          (network: { Name?: string }) => network.Name === networkName
+        );
+
+        if (!refreshedExact) {
+          throw error;
+        }
+      }
     }
     this.networkEnsured = true;
     return networkName;

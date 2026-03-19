@@ -90,6 +90,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - continue stale deployment-container cleanup before runs even if one old container removal races or fails, so later stale matches still get removed when possible
 - continue operational alert evaluation when one signal source fails, so broken queue metrics or worker-health reads no longer suppress alerts from the other source in the same cycle
 - make API and worker Redis queue parsing reject malformed `REDIS_URL` database paths explicitly instead of silently coercing invalid BullMQ connection settings
+- tolerate worker deployment-network “already exists” races by rechecking Docker state instead of failing the whole deployment start path
 - clarify compose quick start requirements for `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `ENCRYPTION_KEY`, optional dashboard auth variables, and the separation from app-local `.env` files
 - align the production-readiness audit wording with the current compose/auth defaults so it no longer describes compose as enabling dev auth by default
 - recalibrate the top-level phase snapshot in `docs/progress.md` so the reported phase-left percentages reflect the work already landed during this hardening pass
