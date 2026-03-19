@@ -102,9 +102,14 @@ interface ApiDataResponse<T> {
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
 const demoUserId = process.env.NEXT_PUBLIC_DEMO_USER_ID;
 const apiAuthToken = process.env.API_AUTH_TOKEN;
+const DASHBOARD_API_TIMEOUT_MS = 10_000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function normalizeQueueHealthPayload(
@@ -187,9 +192,29 @@ function buildAuthHeaders(extra?: Record<string, string>): Record<string, string
   return headers;
 }
 
+async function requestApi(path: string, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, DASHBOARD_API_TIMEOUT_MS);
+
+  try {
+    return await fetch(`${apiBaseUrl}${path}`, {
+      cache: 'no-store',
+      ...init,
+      signal: controller.signal
+    });
+  } catch (error) {
+    throw controller.signal.aborted
+      ? new Error(`API request timed out after ${DASHBOARD_API_TIMEOUT_MS}ms`)
+      : new Error(getErrorMessage(error));
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    cache: 'no-store',
+  const response = await requestApi(path, {
     headers: buildAuthHeaders()
   });
 
@@ -201,13 +226,12 @@ async function fetchJson<T>(path: string): Promise<T> {
 }
 
 async function postJson<T>(path: string, payload: Record<string, unknown>): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await requestApi(path, {
     method: 'POST',
     headers: buildAuthHeaders({
       'content-type': 'application/json'
     }),
-    body: JSON.stringify(payload),
-    cache: 'no-store'
+    body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
@@ -218,13 +242,12 @@ async function postJson<T>(path: string, payload: Record<string, unknown>): Prom
 }
 
 async function putJson<T>(path: string, payload: Record<string, unknown>): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await requestApi(path, {
     method: 'PUT',
     headers: buildAuthHeaders({
       'content-type': 'application/json'
     }),
-    body: JSON.stringify(payload),
-    cache: 'no-store'
+    body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
@@ -235,9 +258,8 @@ async function putJson<T>(path: string, payload: Record<string, unknown>): Promi
 }
 
 async function deleteRequest(path: string): Promise<void> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await requestApi(path, {
     method: 'DELETE',
-    cache: 'no-store',
     headers: buildAuthHeaders()
   });
 
@@ -366,8 +388,7 @@ export async function fetchDeploymentLogs(
 
 export async function fetchQueueHealth(): Promise<ApiQueueHealth> {
   try {
-    const response = await fetch(`${apiBaseUrl}/health/queue`, {
-      cache: 'no-store',
+    const response = await requestApi('/health/queue', {
       headers: buildAuthHeaders()
     });
 
@@ -381,15 +402,14 @@ export async function fetchQueueHealth(): Promise<ApiQueueHealth> {
   } catch (error) {
     return {
       status: 'unavailable',
-      message: error instanceof Error ? error.message : String(error)
+      message: getErrorMessage(error)
     };
   }
 }
 
 export async function fetchWorkerHealth(): Promise<ApiWorkerHealth> {
   try {
-    const response = await fetch(`${apiBaseUrl}/health/worker`, {
-      cache: 'no-store',
+    const response = await requestApi('/health/worker', {
       headers: buildAuthHeaders()
     });
 
@@ -403,16 +423,14 @@ export async function fetchWorkerHealth(): Promise<ApiWorkerHealth> {
   } catch (error) {
     return {
       status: 'unavailable',
-      message: error instanceof Error ? error.message : String(error)
+      message: getErrorMessage(error)
     };
   }
 }
 
 export async function fetchApiHealth(): Promise<ApiServiceHealth> {
   try {
-    const response = await fetch(`${apiBaseUrl}/health`, {
-      cache: 'no-store'
-    });
+    const response = await requestApi('/health');
 
     if (!response.ok) {
       const fallback = await response.json().catch(() => ({}));
@@ -430,7 +448,7 @@ export async function fetchApiHealth(): Promise<ApiServiceHealth> {
   } catch (error) {
     return {
       status: 'unavailable',
-      message: error instanceof Error ? error.message : String(error)
+      message: getErrorMessage(error)
     };
   }
 }

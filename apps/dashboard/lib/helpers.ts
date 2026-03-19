@@ -94,6 +94,10 @@ export function createDashboardProxyUnavailableMessage(feature: string): string 
   return `Unable to reach the upstream API ${feature}. Check NEXT_PUBLIC_API_BASE_URL and API availability, then retry.`;
 }
 
+export function createDashboardProxyTimeoutMessage(feature: string): string {
+  return `Upstream API ${feature} timed out. Check NEXT_PUBLIC_API_BASE_URL and API availability, then retry.`;
+}
+
 export function createEnvironmentVariableActionErrorMessage(
   action: 'save' | 'delete',
   error: unknown

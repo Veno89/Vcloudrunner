@@ -78,6 +78,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - keep the status page honest under partial outages by showing live platform health while marking deployment-history metrics as unavailable instead of implying there is simply no deployment history
 - make dashboard platform-health loading resilient per endpoint and back the `API` badge with the real `/health` endpoint instead of inferring it from queue/worker responses
 - preserve worker `stale` health semantics in the dashboard client even though the API returns that operational warning via HTTP 503
+- bound dashboard server-side live-data and log-proxy fetches with explicit 10-second timeouts so hung upstream API calls degrade into explicit timeout/unavailable messages instead of hanging route rendering
 - clarify compose quick start requirements for `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `ENCRYPTION_KEY`, optional dashboard auth variables, and the separation from app-local `.env` files
 - align the production-readiness audit wording with the current compose/auth defaults so it no longer describes compose as enabling dev auth by default
 - recalibrate the top-level phase snapshot in `docs/progress.md` so the reported phase-left percentages reflect the work already landed during this hardening pass
@@ -123,4 +124,6 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - `npm --workspace @vcloudrunner/api test`
   - passed (`171/171`)
 - `npm run typecheck`
+  - passed
+- `npm run lint`
   - passed

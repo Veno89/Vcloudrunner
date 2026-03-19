@@ -1,8 +1,13 @@
 import { type NextRequest } from 'next/server';
-import { createDashboardProxyUnavailableMessage, describeDashboardProxyFailure } from '@/lib/helpers';
+import {
+  createDashboardProxyTimeoutMessage,
+  createDashboardProxyUnavailableMessage,
+  describeDashboardProxyFailure
+} from '@/lib/helpers';
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
 const apiAuthToken = process.env.API_AUTH_TOKEN;
+const DASHBOARD_PROXY_TIMEOUT_MS = 10_000;
 
 export async function GET(request: NextRequest) {
   if (!apiAuthToken) {
@@ -28,6 +33,11 @@ export async function GET(request: NextRequest) {
     query.set('after', after);
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, DASHBOARD_PROXY_TIMEOUT_MS);
+
   let upstream: Response;
   try {
     upstream = await fetch(
@@ -36,11 +46,19 @@ export async function GET(request: NextRequest) {
         headers: {
           authorization: `Bearer ${apiAuthToken}`
         },
-        cache: 'no-store'
+        cache: 'no-store',
+        signal: controller.signal
       }
     );
   } catch {
-    return new Response(createDashboardProxyUnavailableMessage('live log streaming'), { status: 503 });
+    return new Response(
+      controller.signal.aborted
+        ? createDashboardProxyTimeoutMessage('live log streaming')
+        : createDashboardProxyUnavailableMessage('live log streaming'),
+      { status: controller.signal.aborted ? 504 : 503 }
+    );
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   if (!upstream.ok) {
