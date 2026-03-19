@@ -93,6 +93,7 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
   const [levelFilter, setLevelFilter] = useState<'all' | 'error' | 'warn' | 'info' | 'debug'>('all');
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState(false);
+  const [streamVersion, setStreamVersion] = useState(0);
   const [isDocumentVisible, setIsDocumentVisible] = useState(
     () => typeof document === 'undefined' || document.visibilityState !== 'hidden'
   );
@@ -223,7 +224,7 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
     return () => {
       eventSource.close();
     };
-  }, [deploymentId, isDocumentVisible, projectId]);
+  }, [deploymentId, isDocumentVisible, projectId, streamVersion]);
 
   useEffect(() => {
     if (!autoFollowRef.current) {
@@ -256,6 +257,15 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
 
     const distanceFromBottom = list.scrollHeight - (list.scrollTop + list.clientHeight);
     autoFollowRef.current = distanceFromBottom < 24;
+  };
+
+  const reconnectStream = () => {
+    if (!isDocumentVisible) {
+      return;
+    }
+
+    setStatus('connecting');
+    setStreamVersion((current) => current + 1);
   };
 
 
@@ -294,6 +304,17 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
           <Button type="button" size="sm" variant="outline" onClick={scrollToBottom} className="h-7 px-2 text-[11px]">
             Scroll to bottom
           </Button>
+          {status === 'error' ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={reconnectStream}
+              className="h-7 px-2 text-[11px]"
+            >
+              Reconnect stream
+            </Button>
+          ) : null}
           <Button
             type="button"
             size="sm"
@@ -323,7 +344,7 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
         ) : null}
         {status === 'error' ? (
           <p className="text-[11px] text-destructive">
-            Live log streaming disconnected. Refresh the page, and if it persists check{' '}
+            Live log streaming disconnected. Try reconnecting here, and if it persists check{' '}
             <code>API_AUTH_TOKEN</code> or upstream API availability.
           </p>
         ) : null}

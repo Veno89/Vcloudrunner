@@ -82,6 +82,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - make the dashboard queue-trend widget single-flight so slow health snapshots do not stack overlapping client polls and stale in-flight requests are aborted on timeout/unmount
 - make deployment/log auto-refresh widgets pending-aware and visibility-aware so they skip redundant `router.refresh()` loops while a prior refresh is still settling or the tab is hidden
 - make the live log EventSource pause in hidden tabs and resume from a dedupe-safe replay cursor so background tabs stop holding open stale streams without dropping logs on return
+- add an in-panel live-log reconnect action so transient stream failures no longer force operators to refresh the whole page and lose their investigation context
 - clarify compose quick start requirements for `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `ENCRYPTION_KEY`, optional dashboard auth variables, and the separation from app-local `.env` files
 - align the production-readiness audit wording with the current compose/auth defaults so it no longer describes compose as enabling dev auth by default
 - recalibrate the top-level phase snapshot in `docs/progress.md` so the reported phase-left percentages reflect the work already landed during this hardening pass
