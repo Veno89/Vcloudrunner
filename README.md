@@ -65,6 +65,7 @@ No Kubernetes or multi-node orchestration is introduced in the MVP.
    cp apps/dashboard/.env.example apps/dashboard/.env
    ```
    The API, its `drizzle-kit` commands, and the worker resolve the repo root first, then load the root `.env` and their app-local `.env` files as an override for host-run development. That now works consistently whether you start commands from the repo root or from the individual app directory. `apps/api/.env.example` keeps `API_TOKENS_JSON` as a bootstrap/dev-only fallback and will emit a startup warning when used. `ENABLE_DEV_AUTH` remains an explicit opt-in bypass.
+   `REDIS_URL` still defaults to Redis database `0` when no path is present, but any explicit path must now be a single integer database index like `redis://localhost:6379/0`.
 
 6. For future schema changes, generate and commit SQL migration files:
    ```bash
