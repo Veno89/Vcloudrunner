@@ -46,3 +46,36 @@ test('parseEnv rejects invalid worker boolean strings', () => {
     /Expected boolean/
   );
 });
+
+test('parseEnv defaults blank worker numeric strings instead of coercing them to zero', () => {
+  const env = parseEnv({
+    ...REQUIRED_ENV,
+    DEPLOYMENT_LOG_ARCHIVE_UPLOAD_MAX_ATTEMPTS: '',
+    DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS: ' ',
+    DEPLOYMENT_LOG_MAX_ROWS_PER_DEPLOYMENT: ''
+  });
+
+  assert.equal(env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_MAX_ATTEMPTS, 3);
+  assert.equal(env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS, 30000);
+  assert.equal(env.DEPLOYMENT_LOG_MAX_ROWS_PER_DEPLOYMENT, 2000);
+});
+
+test('parseEnv preserves explicit zero-valued worker numeric strings where zero is valid', () => {
+  const env = parseEnv({
+    ...REQUIRED_ENV,
+    DB_POOL_STATEMENT_TIMEOUT_MS: '0'
+  });
+
+  assert.equal(env.DB_POOL_STATEMENT_TIMEOUT_MS, 0);
+});
+
+test('parseEnv rejects malformed worker numeric strings', () => {
+  assert.throws(
+    () =>
+      parseEnv({
+        ...REQUIRED_ENV,
+        DEPLOYMENT_EXECUTION_TIMEOUT_MS: '10m'
+      }),
+    /Expected number/
+  );
+});

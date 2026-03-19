@@ -51,6 +51,43 @@ test('parseEnv rejects invalid boolean strings', () => {
   );
 });
 
+test('parseEnv defaults blank numeric strings instead of coercing them to zero', () => {
+  const env = parseEnv({
+    ...REQUIRED_ENV,
+    PORT: '   ',
+    API_RATE_LIMIT_MAX: '',
+    ALERT_MONITOR_INTERVAL_MS: ' ',
+    DEPLOYMENT_DEFAULT_MEMORY_MB: ''
+  });
+
+  assert.equal(env.PORT, 4000);
+  assert.equal(env.API_RATE_LIMIT_MAX, 120);
+  assert.equal(env.ALERT_MONITOR_INTERVAL_MS, 30000);
+  assert.equal(env.DEPLOYMENT_DEFAULT_MEMORY_MB, 512);
+});
+
+test('parseEnv preserves explicit zero-valued numeric strings where zero is valid', () => {
+  const env = parseEnv({
+    ...REQUIRED_ENV,
+    PORT: '0',
+    DB_POOL_STATEMENT_TIMEOUT_MS: '0'
+  });
+
+  assert.equal(env.PORT, 0);
+  assert.equal(env.DB_POOL_STATEMENT_TIMEOUT_MS, 0);
+});
+
+test('parseEnv rejects malformed numeric strings', () => {
+  assert.throws(
+    () =>
+      parseEnv({
+        ...REQUIRED_ENV,
+        PORT: '4000ms'
+      }),
+    /Expected number/
+  );
+});
+
 test('assertSafeEnv throws when production enables dev auth', () => {
   const env = parseEnv({ ...REQUIRED_ENV, NODE_ENV: 'production', ENABLE_DEV_AUTH: 'true' });
 
