@@ -55,6 +55,12 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
         </DemoModeBanner>
       )}
 
+      {data.usingLiveData && data.liveDataErrorMessage && (
+        <DemoModeBanner title="Partial outage" detail={data.liveDataErrorMessage}>
+          Live project data is available, but some deployment history is temporarily unavailable.
+        </DemoModeBanner>
+      )}
+
       {data.usingLiveData && (
         <ProjectCreatePanel
           action={createProjectAction}

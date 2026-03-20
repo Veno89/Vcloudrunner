@@ -11,7 +11,11 @@ import {
   type ApiProject,
   type ApiDeployment,
 } from './api';
-import { deriveDomain, describeDashboardLiveDataFailure } from './helpers';
+import {
+  deriveDomain,
+  describeDashboardLiveDataFailure,
+  describePartialDashboardDeploymentFailure,
+} from './helpers';
 
 export interface MappedProject {
   id: string;
@@ -119,12 +123,27 @@ export async function loadDashboardData(): Promise<DashboardData> {
   try {
     const apiProjects = await fetchProjectsForDemoUser();
 
-    const deploymentGroups = await Promise.all(
+    const deploymentGroupsResult = await Promise.allSettled(
       apiProjects.map(async (project) => {
         const items = await fetchDeploymentsForProject(project.id);
         return items.map((deployment) => ({ deployment, project }));
       })
     );
+    const deploymentGroups = deploymentGroupsResult
+      .filter((result): result is PromiseFulfilledResult<SortedDeploymentItem[]> => result.status === 'fulfilled')
+      .map((result) => result.value);
+    const deploymentFailures = deploymentGroupsResult
+      .filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+    const liveDataErrorMessage =
+      deploymentFailures.length > 0
+        ? describePartialDashboardDeploymentFailure({
+            error: deploymentFailures[0]?.reason,
+            failedProjectCount: deploymentFailures.length,
+            totalProjectCount: apiProjects.length,
+            hasDemoUserId: true,
+            hasApiAuthToken: Boolean(apiAuthToken)
+          })
+        : null;
 
     const sortedDeployments = deploymentGroups
       .flat()
@@ -165,7 +184,7 @@ export async function loadDashboardData(): Promise<DashboardData> {
       deployments,
       health: nextHealth,
       usingLiveData: true,
-      liveDataErrorMessage: null,
+      liveDataErrorMessage,
     };
   } catch (error) {
     return {

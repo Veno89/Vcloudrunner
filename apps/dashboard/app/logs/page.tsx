@@ -15,7 +15,13 @@ import {
   fetchDeploymentsForProject,
   fetchDeploymentLogs,
 } from '@/lib/api';
-import { describeDashboardLiveDataFailure, formatRelativeTime, truncateUuid } from '@/lib/helpers';
+import {
+  describeDashboardLiveDataFailure,
+  describePartialDashboardDeploymentFailure,
+  formatRelativeTime,
+  truncateUuid
+} from '@/lib/helpers';
+import { DemoModeBanner } from '@/components/demo-mode-banner';
 
 interface LogsPageProps {
   searchParams?: {
@@ -49,12 +55,30 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
   if (demoUserId) {
     try {
       const apiProjects = await fetchProjectsForDemoUser();
-      const groups = await Promise.all(
+      const groupResults = await Promise.allSettled(
         apiProjects.map(async (project) => {
           const items = await fetchDeploymentsForProject(project.id);
           return items.map((d) => ({ deployment: d, project }));
         })
       );
+      const groups = groupResults
+        .filter((result): result is PromiseFulfilledResult<Array<{
+          deployment: Awaited<ReturnType<typeof fetchDeploymentsForProject>>[number];
+          project: Awaited<ReturnType<typeof fetchProjectsForDemoUser>>[number];
+        }>> => result.status === 'fulfilled')
+        .map((result) => result.value);
+      const groupFailures = groupResults
+        .filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+
+      if (groupFailures.length > 0) {
+        liveDataErrorMessage = describePartialDashboardDeploymentFailure({
+          error: groupFailures[0]?.reason,
+          failedProjectCount: groupFailures.length,
+          totalProjectCount: apiProjects.length,
+          hasDemoUserId: true,
+          hasApiAuthToken: Boolean(apiAuthToken)
+        });
+      }
 
       const sorted = groups
         .flat()
@@ -138,6 +162,12 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
 
       {hasLiveData ? (
         <>
+          {liveDataErrorMessage ? (
+            <DemoModeBanner title="Partial outage" detail={liveDataErrorMessage}>
+              Some deployment history is temporarily unavailable. The log selector below may be incomplete.
+            </DemoModeBanner>
+          ) : null}
+
           <LogsAutoRefresh enabled={logsAutoRefreshEnabled} />
           <LastRefreshedIndicator refreshedAt={refreshedAt} staleAfterSeconds={15} />
 

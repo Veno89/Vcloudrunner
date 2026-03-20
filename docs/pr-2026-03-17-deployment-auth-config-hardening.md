@@ -83,6 +83,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - make deployment/log auto-refresh widgets pending-aware and visibility-aware so they skip redundant `router.refresh()` loops while a prior refresh is still settling or the tab is hidden
 - make the live log EventSource pause in hidden tabs and resume from a dedupe-safe replay cursor so background tabs stop holding open stale streams without dropping logs on return
 - add an in-panel live-log reconnect action so transient stream failures no longer force operators to refresh the whole page and lose their investigation context
+- make top-level dashboard deployment/history loaders partial-outage-aware so one failing project deployment read no longer blanks the global projects, deployments, status, or logs views
 - let worker recovery/archive sweeps continue past per-item failures so one bad deployment or artifact no longer aborts the whole reconciliation/archive/upload pass
 - let worker archive upload and cleanup sweeps continue past unreadable or undeletable artifact entries so one corrupted local archive shape no longer blocks the rest of the pass
 - normalize bootstrap startup failures further so API telemetry-init errors still clean up/exit consistently and worker ready-handling can retry after a synchronous scheduler-start failure

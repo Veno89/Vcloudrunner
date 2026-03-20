@@ -64,6 +64,31 @@ export function describeDashboardLiveDataFailure(input: {
   return input.error instanceof Error ? input.error.message : 'Failed to fetch live API data.';
 }
 
+export function describePartialDashboardDeploymentFailure(input: {
+  error?: unknown;
+  failedProjectCount: number;
+  totalProjectCount: number;
+  hasDemoUserId: boolean;
+  hasApiAuthToken: boolean;
+}): string {
+  const baseMessage = describeDashboardLiveDataFailure({
+    error: input.error,
+    hasDemoUserId: input.hasDemoUserId,
+    hasApiAuthToken: input.hasApiAuthToken
+  });
+
+  if (input.totalProjectCount <= 0 || input.failedProjectCount <= 0) {
+    return baseMessage;
+  }
+
+  const scope =
+    input.failedProjectCount >= input.totalProjectCount
+      ? `all ${input.totalProjectCount}`
+      : `${input.failedProjectCount} of ${input.totalProjectCount}`;
+
+  return `Deployment history is temporarily unavailable for ${scope} projects. Live results below may be incomplete. ${baseMessage}`;
+}
+
 export function describeDashboardProxyFailure(input: {
   feature: string;
   hasApiAuthToken: boolean;

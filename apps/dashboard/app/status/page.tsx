@@ -22,7 +22,11 @@ export default async function StatusPage() {
   const completed = recent.filter((item) => item.deployment.status === 'running' || item.deployment.status === 'failed');
   const successful = completed.filter((item) => item.deployment.status === 'running').length;
   const successRate = completed.length > 0 ? Math.round((successful / completed.length) * 100) : null;
-  const deploymentHistoryUnavailable = !data.usingLiveData && Boolean(data.liveDataErrorMessage);
+  const deploymentHistoryUnavailable =
+    (!data.usingLiveData && Boolean(data.liveDataErrorMessage)) ||
+    (data.usingLiveData && recent.length === 0 && Boolean(data.liveDataErrorMessage));
+  const deploymentHistoryPartial =
+    data.usingLiveData && Boolean(data.liveDataErrorMessage) && !deploymentHistoryUnavailable;
 
   return (
     <PageLayout>
@@ -43,6 +47,12 @@ export default async function StatusPage() {
       {deploymentHistoryUnavailable ? (
         <DemoModeBanner detail={data.liveDataErrorMessage}>
           Platform health is live, but deployment history metrics are unavailable.
+        </DemoModeBanner>
+      ) : null}
+
+      {deploymentHistoryPartial ? (
+        <DemoModeBanner title="Partial outage" detail={data.liveDataErrorMessage}>
+          Platform health is live, but some deployment history metrics may be incomplete.
         </DemoModeBanner>
       ) : null}
 

@@ -40,6 +40,7 @@ This guide defines how shared dashboard UI primitives should be used so new scre
 - Use `DemoModeBanner` whenever mock/demo data is intentionally shown.
   - Include actionable detail when the fallback reason is known (for example missing `NEXT_PUBLIC_DEMO_USER_ID` or unauthorized `API_AUTH_TOKEN`).
   - Banner copy should say live data is unavailable rather than assuming the API itself is down; missing dashboard user context and auth failures also use this path.
+  - When live data is only partially available, reuse the same banner with `title="Partial outage"` so pages can keep rendering truthful partial results without pretending they are in demo mode.
 - Use `LiveDataUnavailableState` for route-level live-data failures on project-scoped or settings pages when rendering real content is not possible.
 - Keep platform-level health signals visible when possible even if project-scoped live data is unavailable; missing `NEXT_PUBLIC_DEMO_USER_ID` should not hide queue/worker health if those endpoints are still reachable.
 - Route-level/global error views should use `Card` + shared `Button` retry action.

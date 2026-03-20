@@ -64,6 +64,8 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
   const safePage = Math.min(currentPage, totalPages);
   const pageStart = (safePage - 1) * pageSize;
   const pagedDeployments = filteredDeployments.slice(pageStart, pageStart + pageSize);
+  const deploymentHistoryUnavailable =
+    data.usingLiveData && Boolean(data.liveDataErrorMessage) && normalizedDeployments.length === 0;
 
   const buildDeploymentsHref = (page: number) => {
     const params = new URLSearchParams();
@@ -86,6 +88,12 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
       {!data.usingLiveData && (
         <DemoModeBanner detail={data.liveDataErrorMessage}>
           Live deployment data unavailable, showing sample deployment data.
+        </DemoModeBanner>
+      )}
+
+      {data.usingLiveData && data.liveDataErrorMessage && (
+        <DemoModeBanner title="Partial outage" detail={data.liveDataErrorMessage}>
+          Some live deployment history is temporarily unavailable. Results below may be incomplete.
         </DemoModeBanner>
       )}
 
@@ -121,9 +129,17 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
 
       {pagedDeployments.length === 0 ? (
         <EmptyState
-          title={selectedStatus === 'all' ? 'No deployments yet' : 'No matching deployments'}
+          title={
+            deploymentHistoryUnavailable
+              ? 'Deployment history unavailable'
+              : selectedStatus === 'all'
+                ? 'No deployments yet'
+                : 'No matching deployments'
+          }
           description={
-            selectedStatus === 'all' && selectedProjectId === 'all' && selectedQuery.length === 0
+            deploymentHistoryUnavailable
+              ? 'Live project data loaded, but deployment history could not be loaded for one or more projects.'
+              : selectedStatus === 'all' && selectedProjectId === 'all' && selectedQuery.length === 0
               ? 'Trigger a deployment from the Projects page to see activity here.'
               : 'Try adjusting filters/search or open Projects to trigger a new deployment.'
           }

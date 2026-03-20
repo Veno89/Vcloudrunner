@@ -3,13 +3,14 @@ import type { ReactNode } from 'react';
 interface DemoModeBannerProps {
   children?: ReactNode;
   detail?: string | null;
+  title?: string;
 }
 
-export function DemoModeBanner({ children, detail }: DemoModeBannerProps) {
+export function DemoModeBanner({ children, detail, title = 'Demo mode' }: DemoModeBannerProps) {
   return (
     <div className="rounded-md border bg-muted/40 px-4 py-3 text-sm text-foreground" role="status" aria-live="polite">
       <p>
-        <span className="font-medium">Demo mode:</span>{' '}
+        <span className="font-medium">{title}:</span>{' '}
         {children ?? 'Live data unavailable, showing sample data.'}
       </p>
       {detail ? (
