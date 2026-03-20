@@ -5,6 +5,7 @@ import { DeploymentAutoRefresh } from '@/components/deployment-auto-refresh';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import { LastRefreshedIndicator } from '@/components/last-refreshed-indicator';
 import { ActionToast } from '@/components/action-toast';
+import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
 import { PageLayout } from '@/components/page-layout';
 import { loadDashboardData } from '@/lib/loaders';
 import { apiAuthToken, fetchDeploymentLogs } from '@/lib/api';
@@ -33,6 +34,19 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
   );
 
   if (!match) {
+    if (data.liveDataErrorMessage) {
+      return (
+        <PageLayout>
+          <LiveDataUnavailableState
+            title="Deployment details unavailable"
+            description={data.liveDataErrorMessage}
+            actionHref="/deployments"
+            actionLabel="Back to Deployments"
+          />
+        </PageLayout>
+      );
+    }
+
     return (
       <PageLayout>
         <div>
