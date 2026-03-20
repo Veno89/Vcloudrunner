@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { LogsAutoRefresh } from '@/components/logs-auto-refresh';
 import { LogsLiveStream } from '@/components/logs-live-stream';
 import { LastRefreshedIndicator } from '@/components/last-refreshed-indicator';
@@ -52,7 +54,19 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
       notFound();
     }
 
-    const deployments = await fetchDeploymentsForProject(project.id);
+    let deployments: Awaited<ReturnType<typeof fetchDeploymentsForProject>> = [];
+    let deploymentReadErrorMessage: string | null = null;
+
+    try {
+      deployments = await fetchDeploymentsForProject(project.id);
+    } catch (error) {
+      deploymentReadErrorMessage = describeDashboardLiveDataFailure({
+        error,
+        hasDemoUserId: true,
+        hasApiAuthToken: Boolean(apiAuthToken)
+      });
+    }
+
     const sortedDeployments = deployments
       .slice()
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
@@ -116,6 +130,12 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
         </div>
 
         <ProjectSubnav projectId={project.id} />
+
+        {deploymentReadErrorMessage ? (
+          <DemoModeBanner title="Partial outage" detail={deploymentReadErrorMessage}>
+            Deployment history is temporarily unavailable, so the project log selector cannot be loaded.
+          </DemoModeBanner>
+        ) : null}
 
         {selectedDeployment ? (
           <>
@@ -208,6 +228,15 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
                 : 'Auto-refresh is disabled. Click Apply to refresh or enable auto-refresh.'}
             </p>
           </>
+        ) : deploymentReadErrorMessage ? (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
+                <p className="font-medium text-destructive">Project logs unavailable</p>
+                <p className="mt-1 text-xs">{deploymentReadErrorMessage}</p>
+              </div>
+            </CardContent>
+          </Card>
         ) : (
           <EmptyState
             title="No deployments yet"

@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { ProjectSubnav } from '@/components/project-subnav';
 import { PageLayout } from '@/components/page-layout';
 import { EmptyState } from '@/components/empty-state';
@@ -58,7 +59,19 @@ export default async function ProjectDeploymentsPage({ params, searchParams }: P
       notFound();
     }
 
-    const deployments = await fetchDeploymentsForProject(project.id);
+    let deployments: Awaited<ReturnType<typeof fetchDeploymentsForProject>> = [];
+    let deploymentReadErrorMessage: string | null = null;
+
+    try {
+      deployments = await fetchDeploymentsForProject(project.id);
+    } catch (error) {
+      deploymentReadErrorMessage = describeDashboardLiveDataFailure({
+        error,
+        hasDemoUserId: true,
+        hasApiAuthToken: Boolean(apiAuthToken)
+      });
+    }
+
     const sortedDeployments = deployments
       .slice()
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
@@ -82,6 +95,12 @@ export default async function ProjectDeploymentsPage({ params, searchParams }: P
 
         <ProjectSubnav projectId={project.id} />
 
+        {deploymentReadErrorMessage ? (
+          <DemoModeBanner title="Partial outage" detail={deploymentReadErrorMessage}>
+            Deployment history is temporarily unavailable, but project actions are still available.
+          </DemoModeBanner>
+        ) : null}
+
         <ActionToast
           status={searchParams?.status}
           message={searchParams?.message}
@@ -102,7 +121,19 @@ export default async function ProjectDeploymentsPage({ params, searchParams }: P
           </form>
         </div>
 
-        {sortedDeployments.length === 0 ? (
+        {deploymentReadErrorMessage ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Recent Deployments</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
+                <p className="font-medium text-destructive">Project deployments unavailable</p>
+                <p className="mt-1 text-xs">{deploymentReadErrorMessage}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : sortedDeployments.length === 0 ? (
           <EmptyState
             title="No deployments yet"
             description="Trigger a deployment to create the first deployment record for this project."

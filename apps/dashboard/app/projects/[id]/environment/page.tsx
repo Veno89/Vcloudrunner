@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
@@ -55,7 +56,19 @@ export default async function ProjectEnvironmentPage({ params, searchParams }: P
       notFound();
     }
 
-    const envItems = await fetchEnvironmentVariables(project.id);
+    let envItems: Awaited<ReturnType<typeof fetchEnvironmentVariables>> = [];
+    let environmentReadErrorMessage: string | null = null;
+
+    try {
+      envItems = await fetchEnvironmentVariables(project.id);
+    } catch (error) {
+      environmentReadErrorMessage = describeDashboardLiveDataFailure({
+        error,
+        hasDemoUserId: true,
+        hasApiAuthToken: Boolean(apiAuthToken)
+      });
+    }
+
     const environmentVariables = envItems.map((item) => ({ key: item.key, value: item.value }));
 
     return (
@@ -76,6 +89,12 @@ export default async function ProjectEnvironmentPage({ params, searchParams }: P
         </div>
 
         <ProjectSubnav projectId={project.id} />
+
+        {environmentReadErrorMessage ? (
+          <DemoModeBanner title="Partial outage" detail={environmentReadErrorMessage}>
+            Environment values are temporarily unavailable, but you can still submit updates for this project.
+          </DemoModeBanner>
+        ) : null}
 
         <ActionToast
           status={searchParams?.status}
@@ -116,7 +135,19 @@ export default async function ProjectEnvironmentPage({ params, searchParams }: P
         </Card>
 
         <div className="space-y-2">
-          {environmentVariables.length === 0 ? (
+          {environmentReadErrorMessage ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Current Variables</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
+                  <p className="font-medium text-destructive">Project environment unavailable</p>
+                  <p className="mt-1 text-xs">{environmentReadErrorMessage}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : environmentVariables.length === 0 ? (
             <EmptyState
               title="No environment variables yet"
               description="Add your first variable above, then redeploy to apply it to the runtime."
