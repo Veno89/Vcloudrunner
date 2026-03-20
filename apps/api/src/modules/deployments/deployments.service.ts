@@ -117,21 +117,27 @@ export class DeploymentsService {
       throw new DeploymentAlreadyActiveError();
     }
 
-    const envVars = await this.environmentRepository.listByProject(project.id);
+    let payload: DeploymentJobPayload;
+    try {
+      const envVars = await this.environmentRepository.listByProject(project.id);
 
-    const payload: DeploymentJobPayload = {
-      deploymentId: deployment.id,
-      projectId: project.id,
-      projectSlug: project.slug,
-      correlationId: input.correlationId,
-      gitRepositoryUrl: project.gitRepositoryUrl,
-      branch: input.branch ?? project.defaultBranch,
-      commitSha: input.commitSha,
-      env: Object.fromEntries(
-        envVars.map((item) => [item.key, this.cryptoService.decrypt(item.encryptedValue)])
-      ),
-      runtime
-    };
+      payload = {
+        deploymentId: deployment.id,
+        projectId: project.id,
+        projectSlug: project.slug,
+        correlationId: input.correlationId,
+        gitRepositoryUrl: project.gitRepositoryUrl,
+        branch: input.branch ?? project.defaultBranch,
+        commitSha: input.commitSha,
+        env: Object.fromEntries(
+          envVars.map((item) => [item.key, this.cryptoService.decrypt(item.encryptedValue)])
+        ),
+        runtime
+      };
+    } catch (error) {
+      await this.markFailedBestEffort(deployment.id, 'DEPLOYMENT_ENV_RESOLUTION_FAILED', error);
+      throw error;
+    }
 
     try {
       const job = await this.deploymentQueue.enqueue(payload);
@@ -141,16 +147,7 @@ export class DeploymentsService {
         queueJobId: job.id
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-
-      try {
-        await this.deploymentsRepository.markFailed(
-          deployment.id,
-          `DEPLOYMENT_QUEUE_ENQUEUE_FAILED: ${message}`
-        );
-      } catch {
-        // best-effort state correction; queue outage should still return a stable API error
-      }
+      await this.markFailedBestEffort(deployment.id, 'DEPLOYMENT_QUEUE_ENQUEUE_FAILED', error);
 
       throw new DeploymentQueueUnavailableError();
     }
@@ -236,6 +233,19 @@ export class DeploymentsService {
       await this.deploymentsRepository.appendLog(input);
     } catch {
       // best-effort audit trail; the cancellation state change has already been persisted
+    }
+  }
+
+  private async markFailedBestEffort(deploymentId: string, prefix: string, error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    try {
+      await this.deploymentsRepository.markFailed(
+        deploymentId,
+        `${prefix}: ${message}`
+      );
+    } catch {
+      // best-effort state correction; preserve the stable API/domain error for the original failure
     }
   }
 }

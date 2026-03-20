@@ -30,6 +30,9 @@ function buildService(overrides?: {
   projectResult?: typeof project | null;
   createResult?: { id: string } | null;
   createError?: unknown;
+  envVarsResult?: Array<{ key: string; encryptedValue: string }>;
+  envVarsError?: Error;
+  decryptError?: Error;
   enqueueError?: Error;
   markFailedError?: Error;
   onMarkFailed?: (deploymentId: string, message: string) => void;
@@ -103,10 +106,22 @@ function buildService(overrides?: {
       }
     } as never,
     environmentRepository: {
-      listByProject: async () => []
+      listByProject: async () => {
+        if (overrides?.envVarsError) {
+          throw overrides.envVarsError;
+        }
+
+        return overrides?.envVarsResult ?? [];
+      }
     } as never,
     cryptoService: {
-      decrypt: (value: string) => value
+      decrypt: (value: string) => {
+        if (overrides?.decryptError) {
+          throw overrides.decryptError;
+        }
+
+        return value;
+      }
     } as never
   });
 }
@@ -297,6 +312,49 @@ test('createDeployment marks failed with diagnostics and throws DeploymentQueueU
   assert.equal(markFailedCalls.length, 1);
   assert.equal(markFailedCalls[0]?.deploymentId, createdDeployment.id);
   assert.match(markFailedCalls[0]?.message ?? '', /^DEPLOYMENT_QUEUE_ENQUEUE_FAILED:/);
+});
+
+test('createDeployment marks failed and rethrows the original error when env decryption fails after the deployment row is created', async () => {
+  const markFailedCalls: Array<{ deploymentId: string; message: string }> = [];
+  const decryptError = new Error('INVALID_CIPHERTEXT_FORMAT');
+
+  const service = buildService({
+    envVarsResult: [{ key: 'API_KEY', encryptedValue: 'bad-ciphertext' }],
+    decryptError,
+    onMarkFailed: (deploymentId, message) => {
+      markFailedCalls.push({ deploymentId, message });
+    }
+  });
+
+  await assert.rejects(
+    service.createDeployment({
+      projectId: project.id,
+      correlationId: 'corr-3b'
+    }),
+    decryptError
+  );
+
+  assert.equal(markFailedCalls.length, 1);
+  assert.equal(markFailedCalls[0]?.deploymentId, createdDeployment.id);
+  assert.match(markFailedCalls[0]?.message ?? '', /^DEPLOYMENT_ENV_RESOLUTION_FAILED:/);
+});
+
+test('createDeployment still rethrows the original env error when markFailed best-effort update fails', async () => {
+  const decryptError = new Error('INVALID_CIPHERTEXT_FORMAT');
+
+  const service = buildService({
+    envVarsResult: [{ key: 'API_KEY', encryptedValue: 'bad-ciphertext' }],
+    decryptError,
+    markFailedError: new Error('database unavailable')
+  });
+
+  await assert.rejects(
+    service.createDeployment({
+      projectId: project.id,
+      correlationId: 'corr-3c'
+    }),
+    decryptError
+  );
 });
 
 
