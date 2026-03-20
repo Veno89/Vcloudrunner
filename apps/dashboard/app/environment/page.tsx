@@ -6,6 +6,7 @@ import { Select } from '@/components/ui/select';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import { MaskedSecretValue } from '@/components/masked-secret-value';
 import { ActionToast } from '@/components/action-toast';
+import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { PageLayout } from '@/components/page-layout';
 import { EmptyState } from '@/components/empty-state';
 import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
@@ -34,6 +35,7 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
   let selectedProjectId = '';
   let selectedProjectName = '';
   let liveDataErrorMessage: string | null = null;
+  let environmentReadErrorMessage: string | null = null;
 
   if (demoUserId) {
     try {
@@ -46,8 +48,16 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
       if (selected) {
         selectedProjectId = selected.id;
         selectedProjectName = selected.name;
-        const envItems = await fetchEnvironmentVariables(selected.id);
-        environmentVariables = envItems.map((item) => ({ key: item.key, value: item.value }));
+        try {
+          const envItems = await fetchEnvironmentVariables(selected.id);
+          environmentVariables = envItems.map((item) => ({ key: item.key, value: item.value }));
+        } catch (error) {
+          environmentReadErrorMessage = describeDashboardLiveDataFailure({
+            error,
+            hasDemoUserId: true,
+            hasApiAuthToken: Boolean(apiAuthToken)
+          });
+        }
       }
     } catch (error) {
       liveDataErrorMessage = describeDashboardLiveDataFailure({
@@ -82,6 +92,12 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
 
       {hasLiveData ? (
         <>
+          {environmentReadErrorMessage ? (
+            <DemoModeBanner title="Partial outage" detail={environmentReadErrorMessage}>
+              Environment values are temporarily unavailable, but you can still select a project and submit updates.
+            </DemoModeBanner>
+          ) : null}
+
           <form className="grid gap-2 md:grid-cols-[1fr_auto]">
             <Label htmlFor="env-project-id" className="sr-only">Select project</Label>
             <Select
@@ -143,7 +159,19 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
           </Card>
 
           <div className="space-y-2">
-            {environmentVariables.length === 0 ? (
+            {environmentReadErrorMessage ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Current Variables</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
+                    <p className="font-medium text-destructive">Environment values unavailable</p>
+                    <p className="mt-1 text-xs">{environmentReadErrorMessage}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : environmentVariables.length === 0 ? (
               <EmptyState
                 title="No environment variables yet"
                 description="Add your first variable above, then redeploy to apply it to runtime containers."

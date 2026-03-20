@@ -86,6 +86,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - make top-level dashboard deployment/history loaders partial-outage-aware so one failing project deployment read no longer blanks the global projects, deployments, status, or logs views
 - keep the project detail page live when deployment-history or environment-variable reads fail by degrading the affected panels in place instead of failing the whole route
 - keep the project-scoped deployments, environment, and logs pages live when their secondary reads fail by degrading those sections in place instead of dropping the whole route
+- keep the global environment shortcut live when the selected project’s variable read fails by degrading the variable list in place instead of dropping the whole route
 - let worker recovery/archive sweeps continue past per-item failures so one bad deployment or artifact no longer aborts the whole reconciliation/archive/upload pass
 - let worker archive upload and cleanup sweeps continue past unreadable or undeletable artifact entries so one corrupted local archive shape no longer blocks the rest of the pass
 - normalize bootstrap startup failures further so API telemetry-init errors still clean up/exit consistently and worker ready-handling can retry after a synchronous scheduler-start failure
