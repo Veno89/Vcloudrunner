@@ -89,6 +89,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - keep the global environment shortcut live when the selected project’s variable read fails by degrading the variable list in place instead of dropping the whole route
 - keep deployment detail routing truthful under partial outages so missing matches caused by incomplete live history render an unavailable state instead of a false “not found”
 - keep token settings usable when token inventory reads fail by degrading only the list panel while leaving create-token flows available
+- show a partial-outage banner on deployment detail pages when the requested deployment is available but surrounding live deployment history is incomplete
 - let worker recovery/archive sweeps continue past per-item failures so one bad deployment or artifact no longer aborts the whole reconciliation/archive/upload pass
 - let worker archive upload and cleanup sweeps continue past unreadable or undeletable artifact entries so one corrupted local archive shape no longer blocks the rest of the pass
 - normalize bootstrap startup failures further so API telemetry-init errors still clean up/exit consistently and worker ready-handling can retry after a synchronous scheduler-start failure

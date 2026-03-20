@@ -1,6 +1,7 @@
 import type { DeploymentStatus } from '@vcloudrunner/shared-types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { DeploymentAutoRefresh } from '@/components/deployment-auto-refresh';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import { LastRefreshedIndicator } from '@/components/last-refreshed-indicator';
@@ -125,6 +126,12 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
 
       <DeploymentAutoRefresh status={deployment.status} />
       <LastRefreshedIndicator refreshedAt={refreshedAt} staleAfterSeconds={15} />
+
+      {data.liveDataErrorMessage ? (
+        <DemoModeBanner title="Partial outage" detail={data.liveDataErrorMessage}>
+          This deployment is available, but some surrounding deployment history is temporarily unavailable.
+        </DemoModeBanner>
+      ) : null}
 
       <ActionToast
         status={searchParams?.status}
