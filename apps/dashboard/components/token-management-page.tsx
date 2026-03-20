@@ -9,6 +9,7 @@ import { ActionToast } from '@/components/action-toast';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState } from '@/components/empty-state';
+import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
 import { SettingsSubnav } from '@/components/settings-subnav';
 import { PageLayout } from '@/components/page-layout';
@@ -68,6 +69,7 @@ export async function TokenManagementPage({ searchParams }: TokenManagementPageP
     expiresAt: string | null;
   }> = [];
   let liveDataErrorMessage: string | null = null;
+  let tokenListErrorMessage: string | null = null;
 
   if (demoUserId) {
     try {
@@ -82,7 +84,7 @@ export async function TokenManagementPage({ searchParams }: TokenManagementPageP
         expiresAt: token.expiresAt,
       }));
     } catch (error) {
-      liveDataErrorMessage = describeDashboardLiveDataFailure({
+      tokenListErrorMessage = describeDashboardLiveDataFailure({
         error,
         hasDemoUserId: true,
         hasApiAuthToken: Boolean(apiAuthToken),
@@ -123,6 +125,12 @@ export async function TokenManagementPage({ searchParams }: TokenManagementPageP
 
       {!liveDataErrorMessage ? (
         <>
+          {tokenListErrorMessage ? (
+            <DemoModeBanner title="Partial outage" detail={tokenListErrorMessage}>
+              Token inventory is temporarily unavailable, but you can still create new tokens.
+            </DemoModeBanner>
+          ) : null}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">Create Token</CardTitle>
@@ -192,7 +200,19 @@ export async function TokenManagementPage({ searchParams }: TokenManagementPageP
           </Card>
 
           <div className="space-y-2">
-            {apiTokens.length === 0 ? (
+            {tokenListErrorMessage ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Existing Tokens</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
+                    <p className="font-medium text-destructive">Token inventory unavailable</p>
+                    <p className="mt-1 text-xs">{tokenListErrorMessage}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : apiTokens.length === 0 ? (
               <EmptyState
                 title="No API tokens yet"
                 description="Create one above to begin programmatic access."
