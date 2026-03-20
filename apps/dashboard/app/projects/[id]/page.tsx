@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
 import { ProjectSubnav } from '@/components/project-subnav';
 import { FormSubmitButton } from '@/components/form-submit-button';
@@ -60,10 +61,36 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
       notFound();
     }
 
-    const [deployments, environmentVariables] = await Promise.all([
+    const [deploymentsResult, environmentVariablesResult] = await Promise.allSettled([
       fetchDeploymentsForProject(project.id),
       fetchEnvironmentVariables(project.id),
     ]);
+    const deployments =
+      deploymentsResult.status === 'fulfilled' ? deploymentsResult.value : [];
+    const environmentVariables =
+      environmentVariablesResult.status === 'fulfilled' ? environmentVariablesResult.value : [];
+    const deploymentReadErrorMessage =
+      deploymentsResult.status === 'rejected'
+        ? describeDashboardLiveDataFailure({
+            error: deploymentsResult.reason,
+            hasDemoUserId: true,
+            hasApiAuthToken: Boolean(apiAuthToken)
+          })
+        : null;
+    const environmentReadErrorMessage =
+      environmentVariablesResult.status === 'rejected'
+        ? describeDashboardLiveDataFailure({
+            error: environmentVariablesResult.reason,
+            hasDemoUserId: true,
+            hasApiAuthToken: Boolean(apiAuthToken)
+          })
+        : null;
+    const partialOutageDetail = [
+      deploymentReadErrorMessage ? `Deployment history unavailable. ${deploymentReadErrorMessage}` : null,
+      environmentReadErrorMessage ? `Environment variables unavailable. ${environmentReadErrorMessage}` : null
+    ]
+      .filter((message): message is string => Boolean(message))
+      .join(' ');
 
     const sortedDeployments = deployments
       .slice()
@@ -107,6 +134,12 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
         </div>
         <ProjectSubnav projectId={project.id} />
 
+        {partialOutageDetail ? (
+          <DemoModeBanner title="Partial outage" detail={partialOutageDetail}>
+            Some project detail panels are temporarily unavailable, but the project page is still live.
+          </DemoModeBanner>
+        ) : null}
+
         <ActionToast
           status={searchParams?.status}
           message={searchParams?.message}
@@ -118,20 +151,40 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
             <CardHeader>
               <CardTitle className="text-sm">Deployments</CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-semibold">{sortedDeployments.length}</CardContent>
+            <CardContent>
+              {deploymentReadErrorMessage ? (
+                <>
+                  <p className="text-2xl font-semibold">Unavailable</p>
+                  <p className="text-xs text-muted-foreground">Deployment history could not be loaded.</p>
+                </>
+              ) : (
+                <p className="text-2xl font-semibold">{sortedDeployments.length}</p>
+              )}
+            </CardContent>
           </Card>
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">Environment Variables</CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-semibold">{environmentVariables.length}</CardContent>
+            <CardContent>
+              {environmentReadErrorMessage ? (
+                <>
+                  <p className="text-2xl font-semibold">Unavailable</p>
+                  <p className="text-xs text-muted-foreground">Environment variables could not be loaded.</p>
+                </>
+              ) : (
+                <p className="text-2xl font-semibold">{environmentVariables.length}</p>
+              )}
+            </CardContent>
           </Card>
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">Latest Status</CardTitle>
             </CardHeader>
             <CardContent>
-              {latestDeployment ? (
+              {deploymentReadErrorMessage ? (
+                <p className="text-muted-foreground">Unavailable</p>
+              ) : latestDeployment ? (
                 <Badge variant={deploymentStatusVariant(latestDeployment.status)}>
                   {latestDeployment.status}
                 </Badge>
@@ -177,7 +230,12 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
             <CardTitle className="text-sm">Recent Deployments</CardTitle>
           </CardHeader>
           <CardContent>
-            {sortedDeployments.length === 0 ? (
+            {deploymentReadErrorMessage ? (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
+                <p className="font-medium text-destructive">Recent deployments unavailable</p>
+                <p className="mt-1 text-xs">{deploymentReadErrorMessage}</p>
+              </div>
+            ) : sortedDeployments.length === 0 ? (
               <p className="text-sm text-muted-foreground">No deployments yet for this project.</p>
             ) : (
               <div className="space-y-2">
@@ -210,7 +268,12 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
             <CardTitle className="text-sm">Latest Deployment Logs</CardTitle>
           </CardHeader>
           <CardContent>
-            {latestDeployment ? (
+            {deploymentReadErrorMessage ? (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
+                <p className="font-medium text-destructive">Latest logs unavailable</p>
+                <p className="mt-1 text-xs">{deploymentReadErrorMessage}</p>
+              </div>
+            ) : latestDeployment ? (
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span>Deployment {truncateUuid(latestDeployment.id)}</span>
