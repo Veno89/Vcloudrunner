@@ -40,6 +40,7 @@ function buildService(overrides?: {
   cancelQueuedResult?: boolean;
   cancelQueuedError?: Error;
   onMarkStopped?: (deploymentId: string) => void;
+  markStoppedError?: Error;
   onAppendLog?: (input: { deploymentId: string; level: string; message: string }) => void;
   appendLogError?: Error;
   onMarkCancellationRequested?: (input: { deploymentId: string; metadata: Record<string, unknown>; requestedByCorrelationId: string }) => void;
@@ -96,6 +97,10 @@ function buildService(overrides?: {
       },
       markStopped: async (deploymentId: string) => {
         overrides?.onMarkStopped?.(deploymentId);
+
+        if (overrides?.markStoppedError) {
+          throw overrides.markStoppedError;
+        }
       },
       appendLog: async (input: { deploymentId: string; level: string; message: string }) => {
         overrides?.onAppendLog?.(input);
@@ -456,6 +461,61 @@ test('cancelDeployment still returns completed when queued cancellation log writ
     cancellation: 'completed'
   });
   assert.deepEqual(markStoppedCalls, ['dep-queued-stop-log-fail']);
+});
+
+test('cancelDeployment marks failed and rethrows the original error when stop persistence fails after queue removal', async () => {
+  const markFailedCalls: Array<{ deploymentId: string; message: string }> = [];
+  const markStoppedError = new Error('database unavailable');
+
+  const service = buildService({
+    deploymentByIdResult: {
+      id: 'dep-queued-stop-persist-fail',
+      status: 'queued',
+      metadata: {}
+    },
+    cancelQueuedResult: true,
+    markStoppedError,
+    onMarkFailed: (deploymentId, message) => {
+      markFailedCalls.push({ deploymentId, message });
+    }
+  });
+
+  await assert.rejects(
+    service.cancelDeployment({
+      projectId: project.id,
+      deploymentId: 'dep-queued-stop-persist-fail',
+      correlationId: 'corr-cancel-3c'
+    }),
+    markStoppedError
+  );
+
+  assert.equal(markFailedCalls.length, 1);
+  assert.equal(markFailedCalls[0]?.deploymentId, 'dep-queued-stop-persist-fail');
+  assert.match(markFailedCalls[0]?.message ?? '', /^DEPLOYMENT_CANCEL_FINALIZATION_FAILED:/);
+});
+
+test('cancelDeployment still rethrows the original stop persistence error when failed-state fallback also fails', async () => {
+  const markStoppedError = new Error('database unavailable');
+
+  const service = buildService({
+    deploymentByIdResult: {
+      id: 'dep-queued-stop-persist-fail-markfailed-fail',
+      status: 'queued',
+      metadata: {}
+    },
+    cancelQueuedResult: true,
+    markStoppedError,
+    markFailedError: new Error('secondary write failed')
+  });
+
+  await assert.rejects(
+    service.cancelDeployment({
+      projectId: project.id,
+      deploymentId: 'dep-queued-stop-persist-fail-markfailed-fail',
+      correlationId: 'corr-cancel-3d'
+    }),
+    markStoppedError
+  );
 });
 
 test('cancelDeployment normalizes non-object metadata before marking cancellation requested', async () => {

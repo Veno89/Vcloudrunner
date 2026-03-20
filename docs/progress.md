@@ -33,6 +33,7 @@ Last updated: 2026-03-20 (Deployment/auth/config hardening follow-through)
   - hardened queued-deployment cancellation lookup so queue removal now falls back to the legacy/racey scan path when the direct BullMQ `getJob(deploymentId)` lookup itself fails
   - hardened queued-deployment cancellation cleanup so successful direct `jobId` removal still scans for removable legacy duplicates, while post-success scan failures remain best-effort
   - hardened deployment creation follow-through so project env read/decrypt failures after the deployment row is created now mark that deployment `failed` before the original error is returned, preventing stranded active records that would block later deploys
+  - hardened queued cancellation follow-through so successful queue removal now still best-effort marks the deployment `failed` if the final `stopped` persistence write fails, preventing stranded `queued` records that would otherwise block later deploys until stale recovery runs
   - made cancellation audit-log writes best-effort after cancellation state is already persisted, so transient log insertion failures do not turn a successful cancel into an API error
   - fixed Fastify plugin scoping for auth-context and error-handler registration so sibling `/v1` route plugins inherit token auth resolution and domain-error mapping consistently
   - added API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth bypass boundaries, and `requireAuthContext` fallback behavior outside `/v1`

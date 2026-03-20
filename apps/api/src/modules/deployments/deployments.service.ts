@@ -188,7 +188,13 @@ export class DeploymentsService {
       }
 
       if (removed) {
-        await this.deploymentsRepository.markStopped(deployment.id);
+        try {
+          await this.deploymentsRepository.markStopped(deployment.id);
+        } catch (error) {
+          await this.markFailedBestEffort(deployment.id, 'DEPLOYMENT_CANCEL_FINALIZATION_FAILED', error);
+          throw error;
+        }
+
         await this.appendLogBestEffort({
           deploymentId: deployment.id,
           level: 'warn',

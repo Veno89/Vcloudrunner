@@ -10,6 +10,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - continue fallback queued-job scanning when individual remove calls race, returning `completed` if any compatible queued entry is still removable
 - keep queued cancellation cleanup scanning after direct `jobId` removal succeeds so legacy duplicate entries are removed when possible without downgrading a successful immediate cancel
 - mark just-created deployments `failed` when project env reads or decrypts blow up before queue enqueue, preventing stranded active records while preserving the original API error contract
+- mark queue-removed deployments `failed` if the follow-up `stopped` state write fails during cancellation, preventing stranded `queued` records while preserving the original persistence error contract
 - keep cancellation responses stable when the state change succeeds but the follow-up deployment log insert fails
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
@@ -140,13 +141,14 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - normalize malformed GCS token success responses so invalid JSON bodies fail with a stable message and bad `expires_in` values fall back to the default cache TTL instead of poisoning the worker token cache
 - normalize GCS token-fetch timeout failures so archive token exchange now reports a stable `request timed out after ...ms` message instead of raw fetch abort strings
 - document the pre-queue env-resolution failure path so deployment-flow and progress notes match the new failed-state correction behavior during deployment creation
+- document the queued-cancel finalization fallback so deployment-flow and progress notes match the new state-correction behavior after successful queue removal
 
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
   - passed (`66/66`)
 - `npm --workspace @vcloudrunner/api test`
-  - passed (`181/181`)
+  - passed (`183/183`)
 - `npm run typecheck`
   - passed
 - `npm run lint`
