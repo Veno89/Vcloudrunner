@@ -1,11 +1,13 @@
-import { env } from '../../config/env.js';
 import { DockerRuntimeInspector } from './docker-runtime-inspector.js';
 import type { RuntimeInspector } from './runtime-inspector.js';
+import { resolveRuntimeFamily } from './runtime-family-resolver.js';
 
 export function createRuntimeInspector(): RuntimeInspector {
-  if (env.DEPLOYMENT_RUNTIME_EXECUTOR === 'docker') {
+  const runtimeFamily = resolveRuntimeFamily();
+
+  if (runtimeFamily === 'docker') {
     return new DockerRuntimeInspector();
   }
 
-  throw new Error(`Unsupported DEPLOYMENT_RUNTIME_EXECUTOR: ${env.DEPLOYMENT_RUNTIME_EXECUTOR}`);
+  throw new Error(`Unsupported DEPLOYMENT_RUNTIME_EXECUTOR: ${runtimeFamily}`);
 }
