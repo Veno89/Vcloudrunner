@@ -214,6 +214,7 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
             <LogsLiveStream
               projectId={project.id}
               deploymentId={selectedDeployment.id}
+              deploymentStatus={selectedDeployment.status}
               initialLogs={deploymentLogs}
             />
 

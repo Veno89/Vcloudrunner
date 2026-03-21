@@ -1,5 +1,7 @@
 'use client';
 
+import type { DeploymentStatus } from '@vcloudrunner/shared-types';
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -16,6 +18,7 @@ interface LogItem {
 interface LogsLiveStreamProps {
   projectId: string;
   deploymentId: string;
+  deploymentStatus: DeploymentStatus;
   initialLogs: LogItem[];
 }
 
@@ -87,9 +90,16 @@ const areLogsEqual = (left: LogItem[], right: LogItem[]) => {
   return left.every((log, index) => logSignature(log) === logSignature(right[index]));
 };
 
-export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiveStreamProps) {
+export function LogsLiveStream({
+  projectId,
+  deploymentId,
+  deploymentStatus,
+  initialLogs
+}: LogsLiveStreamProps) {
   const [logs, setLogs] = useState<LogItem[]>(() => normalizeLogWindow(initialLogs));
-  const [status, setStatus] = useState<'connecting' | 'live' | 'paused' | 'error'>('connecting');
+  const [status, setStatus] = useState<'connecting' | 'live' | 'paused' | 'error' | 'inactive'>(
+    deploymentStatus === 'failed' || deploymentStatus === 'stopped' ? 'inactive' : 'connecting'
+  );
   const [levelFilter, setLevelFilter] = useState<'all' | 'error' | 'warn' | 'info' | 'debug'>('all');
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState(false);
@@ -156,12 +166,12 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
   }, []);
 
   useEffect(() => {
-    setStatus('connecting');
+    setStatus(deploymentStatus === 'failed' || deploymentStatus === 'stopped' ? 'inactive' : 'connecting');
     setLevelFilter('all');
     setQuery('');
     setExpanded(false);
     autoFollowRef.current = true;
-  }, [projectId, deploymentId]);
+  }, [deploymentStatus, projectId, deploymentId]);
 
   useEffect(() => {
     const latestSeenTimestamp = latestTimestamp(logs);
@@ -181,6 +191,11 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
   }, [logs]);
 
   useEffect(() => {
+    if (deploymentStatus === 'failed' || deploymentStatus === 'stopped') {
+      setStatus('inactive');
+      return;
+    }
+
     if (!isDocumentVisible) {
       setStatus('paused');
       return;
@@ -224,7 +239,7 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
     return () => {
       eventSource.close();
     };
-  }, [deploymentId, isDocumentVisible, projectId, streamVersion]);
+  }, [deploymentId, deploymentStatus, isDocumentVisible, projectId, streamVersion]);
 
   useEffect(() => {
     if (!autoFollowRef.current) {
@@ -260,7 +275,7 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
   };
 
   const reconnectStream = () => {
-    if (!isDocumentVisible) {
+    if (!isDocumentVisible || deploymentStatus === 'failed' || deploymentStatus === 'stopped') {
       return;
     }
 
@@ -270,7 +285,13 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
 
 
   const streamStatusVariant =
-    status === 'live' ? 'success' : status === 'error' ? 'destructive' : 'warning';
+    status === 'live'
+      ? 'success'
+      : status === 'error'
+        ? 'destructive'
+        : status === 'inactive'
+          ? 'secondary'
+          : 'warning';
   const streamStatusLabel = status === 'paused' ? 'paused' : status;
 
   return (
@@ -337,6 +358,11 @@ export function LogsLiveStream({ projectId, deploymentId, initialLogs }: LogsLiv
             className="h-8 text-xs"
           />
         </div>
+        {status === 'inactive' ? (
+          <p className="text-[11px]">
+            This deployment is in a terminal state, so no new live log entries are expected. You are viewing captured log history only.
+          </p>
+        ) : null}
         {status === 'paused' ? (
           <p className="text-[11px]">
             Live log streaming pauses while this tab is hidden and resumes automatically when you return.

@@ -1,3 +1,5 @@
+import type { DeploymentStatus } from '@vcloudrunner/shared-types';
+
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -44,6 +46,7 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
   let deploymentLogs: Array<{ level: string; message: string; timestamp: string }> = [];
   let selectedProjectId = '';
   let selectedDeploymentId = '';
+  let selectedDeploymentStatus: DeploymentStatus | null = null;
   let selectedLabel = '';
   let totalLogPages = 1;
   let liveDataErrorMessage: string | null = null;
@@ -109,6 +112,7 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
       if (selected) {
         selectedProjectId = selected.project.id;
         selectedDeploymentId = selected.deployment.id;
+        selectedDeploymentStatus = selected.deployment.status;
         selectedLabel = [
           selected.project.name,
           truncateUuid(selected.deployment.id),
@@ -252,10 +256,11 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
             )}
           </div>
 
-          {selectedProjectId && selectedDeploymentId && (
+          {selectedProjectId && selectedDeploymentId && selectedDeploymentStatus && (
             <LogsLiveStream
               projectId={selectedProjectId}
               deploymentId={selectedDeploymentId}
+              deploymentStatus={selectedDeploymentStatus}
               initialLogs={deploymentLogs}
             />
           )}
