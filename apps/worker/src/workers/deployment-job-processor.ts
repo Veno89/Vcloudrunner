@@ -2,15 +2,11 @@ import { UnrecoverableError } from 'bullmq';
 import type { DeploymentJobPayload } from '@vcloudrunner/shared-types';
 
 import { env } from '../config/env.js';
-import { logger } from '../logger/logger.js';
-import { createDeploymentEventSink } from '../services/deployment-event-sink.factory.js';
 import type { DeploymentEventSink } from '../services/deployment-event-sink.js';
 import type { DeploymentEvent } from '../services/deployment-events.js';
-import { createDeploymentStateService } from '../services/deployment-state.service.factory.js';
-import { createIngressManager } from '../services/ingress/ingress-manager.factory.js';
 import type { IngressManager } from '../services/ingress/ingress-manager.js';
-import { createRuntimeExecutor } from '../services/runtime/runtime-executor.factory.js';
 import type { RuntimeExecutionResult, RuntimeExecutor } from '../services/runtime/runtime-executor.js';
+import { createDeploymentJobProcessorDependencies } from './deployment-job-processor-dependencies.factory.js';
 import { DeploymentFailure, classifyDeploymentFailure } from './deployment-errors.js';
 import { remainingAttempts } from './deployment-worker.utils.js';
 
@@ -23,7 +19,7 @@ export interface DeploymentJobLike {
   };
 }
 
-interface StateServiceLike {
+export interface StateServiceLike {
   isCancellationRequested(deploymentId: string): Promise<boolean>;
   markStopped(deploymentId: string, message: string): Promise<void>;
   markBuilding(deploymentId: string): Promise<void>;
@@ -41,27 +37,19 @@ interface StateServiceLike {
   markFailed(deploymentId: string, message: string): Promise<void>;
 }
 
-interface LoggerLike {
+export interface LoggerLike {
   info(message: string, metadata?: Record<string, unknown>): void;
   warn(message: string, metadata?: Record<string, unknown>): void;
   error(message: string, metadata?: Record<string, unknown>): void;
 }
 
-interface DeploymentJobProcessorDependencies {
+export interface DeploymentJobProcessorDependencies {
   runtimeExecutor?: RuntimeExecutor;
   stateService?: StateServiceLike;
   ingressManager?: IngressManager;
   logger?: LoggerLike;
   eventSink?: DeploymentEventSink;
 }
-
-const defaultDependencies: Required<DeploymentJobProcessorDependencies> = {
-  runtimeExecutor: createRuntimeExecutor(),
-  stateService: createDeploymentStateService(),
-  ingressManager: createIngressManager(),
-  logger,
-  eventSink: createDeploymentEventSink()
-};
 
 class CancellationFinalizationError extends Error {
   constructor(public readonly originalError: unknown) {
@@ -237,7 +225,7 @@ export function createDeploymentJobProcessor(
   overrides: DeploymentJobProcessorDependencies = {}
 ) {
   const dependencies: Required<DeploymentJobProcessorDependencies> = {
-    ...defaultDependencies,
+    ...createDeploymentJobProcessorDependencies(),
     ...overrides
   };
 
