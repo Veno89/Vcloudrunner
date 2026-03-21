@@ -81,6 +81,7 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
   const failureSummary = deployment.status === 'failed' ? deriveFailureSummary(logs) : null;
   const timelineSteps = buildDeploymentSteps({
     status: deployment.status,
+    runtimeUrl: deployment.runtimeUrl,
     logs,
     startedAt: deployment.startedAt ?? undefined,
     finishedAt: deployment.finishedAt ?? undefined,
@@ -97,7 +98,9 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
 
   const statusGuidance =
     deployment.status === 'running'
-      ? 'Deployment is healthy and serving traffic.'
+      ? deployment.runtimeUrl
+        ? 'Deployment is healthy and serving traffic.'
+        : 'Deployment is running, but no public runtime URL is currently available. Review recent logs for route configuration details.'
       : deployment.status === 'building'
         ? 'Build is in progress. Logs will update as steps complete.'
         : deployment.status === 'queued'
@@ -111,7 +114,7 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
     deployment.status === 'running'
       ? deployment.runtimeUrl
         ? null
-        : 'pending'
+        : 'not currently available'
       : deployment.status === 'failed'
         ? 'inactive after failure'
         : deployment.status === 'stopped'
@@ -292,7 +295,7 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
   );
 }
 
-type DeploymentStepState = 'complete' | 'current' | 'upcoming' | 'failed';
+type DeploymentStepState = 'complete' | 'current' | 'upcoming' | 'failed' | 'warning';
 
 interface DeploymentStep {
   id: 'queued' | 'build' | 'start' | 'route';
@@ -305,29 +308,42 @@ interface DeploymentStep {
 function stepStateVariant(state: DeploymentStepState) {
   if (state === 'complete') return 'success' as const;
   if (state === 'current') return 'warning' as const;
+  if (state === 'warning') return 'warning' as const;
   if (state === 'failed') return 'destructive' as const;
   return 'secondary' as const;
 }
 
 function buildDeploymentSteps({
   status,
+  runtimeUrl,
   logs,
   startedAt,
   finishedAt,
 }: {
   status: DeploymentStatus;
+  runtimeUrl?: string | null;
   logs: Array<{ level: string; message: string; timestamp: string }>;
   startedAt?: string;
   finishedAt?: string;
 }): DeploymentStep[] {
   const failedStep = detectFailedStep(logs);
+  const routeSkipped = logs.some((entry) => entry.message.toLowerCase().includes('route configuration skipped'));
 
   if (status === 'running') {
     return [
       { id: 'queued', label: 'Queued', state: 'complete', detail: 'Worker capacity was allocated.' },
       { id: 'build', label: 'Build', state: 'complete', detail: 'Source fetched and image built.' },
       { id: 'start', label: 'Start', state: 'complete', detail: 'Runtime container started successfully.' },
-      { id: 'route', label: 'Route', state: 'complete', detail: 'Public routing is active.' },
+      {
+        id: 'route',
+        label: 'Route',
+        state: runtimeUrl ? 'complete' : 'warning',
+        detail: runtimeUrl
+          ? 'Public routing is active.'
+          : routeSkipped
+            ? 'Public route configuration was skipped. Review recent logs for Caddy or ingress details.'
+            : 'No public route is currently available for this deployment.'
+      },
     ];
   }
 

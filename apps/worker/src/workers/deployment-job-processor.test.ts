@@ -265,11 +265,58 @@ test('processor keeps successful deployments successful when route warning log a
   await processJob(createJob());
 
   assert.equal(markRunningCalls.length, 1);
+  assert.equal(markRunningCalls[0]?.runtimeUrl, null);
   assert.deepEqual(stateFailures, []);
   assert.equal(warnings.length, 2);
   assert.equal(warnings[0]?.message, 'failed to configure caddy route; continuing deployment');
   assert.equal(warnings[1]?.message, 'deployment post-run log append failed; continuing deployment');
   assert.equal(warnings[1]?.metadata?.stage, 'route-config-skipped');
+});
+
+test('processor persists runtimeUrl only when public route configuration succeeds', async () => {
+  const markRunningCalls: Array<Record<string, unknown>> = [];
+
+  const processJob = createDeploymentJobProcessor({
+    runtimeExecutor: {
+      run: async () => ({
+        containerId: 'container-123',
+        containerName: 'container-name',
+        imageTag: 'image-tag',
+        hostPort: 3100,
+        runtimeUrl: 'http://demo-project.example.test',
+        internalPort: 3000,
+        projectPath: 'repo'
+      }),
+      cleanupCancelledRun: async () => undefined
+    },
+    stateService: {
+      isCancellationRequested: async () => false,
+      markStopped: async () => undefined,
+      markBuilding: async () => undefined,
+      appendLog: async () => undefined,
+      markRunning: async (input) => {
+        markRunningCalls.push(input as unknown as Record<string, unknown>);
+      },
+      markFailed: async () => undefined
+    },
+    caddyService: createCaddyServiceStub({
+      upsertRoute: async () => {
+        throw new Error('caddy unavailable');
+      }
+    }),
+    logger: {
+      info: () => undefined,
+      warn: () => undefined,
+      error: () => undefined
+    },
+    emitDeploymentEvent: () => undefined
+  });
+
+  await processJob(createJob());
+
+  assert.equal(markRunningCalls.length, 1);
+  assert.equal(markRunningCalls[0]?.runtimeUrl, null);
+  assert.equal(markRunningCalls[0]?.hostPort, 3100);
 });
 
 test('processor still rethrows the original retryable error when retry logging fails', async () => {

@@ -389,7 +389,7 @@ export function createDeploymentJobProcessor(
         imageTag: result.imageTag,
         hostPort: result.hostPort,
         internalPort: result.internalPort,
-        runtimeUrl: result.runtimeUrl
+        runtimeUrl: configuredRouteHost ? result.runtimeUrl : null
       });
 
       await appendLogBestEffort(dependencies, {
