@@ -1,13 +1,9 @@
 import type { BuildSystemDetectionResult, BuildSystemDetector } from './build-system-detector.js';
-import { DockerfileBuildDetector } from './dockerfile-detector.js';
+import { createBuildSystemDetectors } from './build-system-detector.factory.js';
 import type { BuildSystemResolver } from './build-system-resolver.js';
 
-const defaultDetectors: BuildSystemDetector[] = [
-  new DockerfileBuildDetector(),
-];
-
 export class ConfiguredBuildSystemResolver implements BuildSystemResolver {
-  constructor(private readonly detectors: BuildSystemDetector[] = defaultDetectors) {}
+  constructor(private readonly detectors: BuildSystemDetector[] = createBuildSystemDetectors()) {}
 
   async detect(repoDir: string): Promise<BuildSystemDetectionResult | null> {
     for (const detector of this.detectors) {
