@@ -1,6 +1,3 @@
-import Docker from 'dockerode';
-
-import { env } from '../../config/env.js';
 import type {
   ContainerRuntimeManager,
   RuntimeContainerSummary,
@@ -8,6 +5,7 @@ import type {
   StartContainerInput,
   StartedContainerResult
 } from './container-runtime-manager.js';
+import { createDockerClient } from './docker-client.factory.js';
 
 interface DockerContainerLike {
   start(): Promise<void>;
@@ -55,7 +53,7 @@ interface DockerClientLike {
 
 export class DockerContainerRuntimeManager implements ContainerRuntimeManager {
   constructor(
-    private readonly docker: DockerClientLike = new Docker({ socketPath: env.DOCKER_SOCKET_PATH })
+    private readonly docker: DockerClientLike = createDockerClient() as DockerClientLike
   ) {}
 
   async listNetworksByName(name: string): Promise<RuntimeNetworkSummary[]> {

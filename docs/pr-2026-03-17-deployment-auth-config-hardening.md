@@ -62,6 +62,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - extract deployment-runner construction behind a dedicated factory seam too, so Docker runtime execution no longer names `DeploymentRunner` directly and future runtime backends have a cleaner composition point
 - extract deployment-job-processor default dependency wiring behind a dedicated factory seam too, so the processor module no longer names runtime/state/ingress/event/logger defaults inline and future worker composition has a cleaner extension point
 - extract deployment-state-service default dependency wiring behind a dedicated factory seam too, so the service constructor no longer names repository, ingress, or archive collaborators inline and future worker composition has a cleaner extension point
+- extract Docker client construction behind a shared factory seam too, so Docker-backed runtime adapters no longer name `new Docker(...)` directly and future runtime composition has a cleaner extension point
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another
@@ -211,7 +212,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
-  - passed (`153/153`)
+  - passed (`154/154`)
 - `npm --workspace @vcloudrunner/api test`
   - passed (`183/183`)
 - `npm run typecheck`
