@@ -59,6 +59,7 @@ This guide defines how shared dashboard UI primitives should be used so new scre
 - When live log streaming drops but the page data is still present, keep the investigation in context with an in-panel reconnect action rather than forcing a full page refresh.
 - Long-lived live-log/EventSource views should pause in hidden tabs and resume from a dedupe-safe replay cursor when the tab becomes visible again.
 - Do not keep opening live SSE log streams for terminal deployments; stopped/failed deployments should keep the historical log viewer in place but switch the stream affordance to an explicit inactive/no-new-logs state.
+- Apply the same rule to route auto-refresh on log pages: terminal deployments should disable the polling affordance and explain that no new live log entries are expected.
 - When deployment/project metadata loads but log history reads fail, keep the route usable and show inline live-data guidance instead of failing the whole page.
 - Keep dashboard server-side live-data and log-proxy fetches timeout-bounded so hung upstream API calls degrade into explicit timeout/unavailable guidance instead of hanging route rendering indefinitely.
 - Client-side operational polling widgets should also stay single-flight: skip overlapping ticks and abort stale in-flight requests on timeout or unmount.

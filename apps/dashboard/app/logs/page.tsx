@@ -160,6 +160,11 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
   }
 
   const hasLiveData = Boolean(selectedDeploymentId);
+  const selectedDeploymentSupportsLiveRefresh =
+    selectedDeploymentStatus === 'queued'
+    || selectedDeploymentStatus === 'building'
+    || selectedDeploymentStatus === 'running';
+  const logsAutoRefreshActive = logsAutoRefreshEnabled && selectedDeploymentSupportsLiveRefresh;
 
   const buildLogsHref = (page: number) => {
     const params = new URLSearchParams();
@@ -190,7 +195,7 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
             </DemoModeBanner>
           ) : null}
 
-          <LogsAutoRefresh enabled={logsAutoRefreshEnabled} />
+          <LogsAutoRefresh enabled={logsAutoRefreshActive} />
           <LastRefreshedIndicator refreshedAt={refreshedAt} staleAfterSeconds={15} />
 
           <form className="grid gap-2 md:grid-cols-[1fr_auto_auto]">
@@ -212,6 +217,7 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
                 name="logsAutoRefresh"
                 value="1"
                 defaultChecked={logsAutoRefreshEnabled}
+                disabled={!selectedDeploymentSupportsLiveRefresh}
               />
               Auto-refresh (5s)
             </label>
@@ -295,7 +301,9 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
           ) : null}
 
           <p className="text-xs text-muted-foreground">
-            {logsAutoRefreshEnabled
+            {!selectedDeploymentSupportsLiveRefresh
+              ? 'Auto-refresh is unavailable for terminal deployments because no new live log entries are expected.'
+              : logsAutoRefreshEnabled
               ? 'Auto-refresh is enabled. Log entries refresh every 5 seconds.'
               : 'Auto-refresh is disabled. Click Apply to refresh or enable auto-refresh.'}
           </p>

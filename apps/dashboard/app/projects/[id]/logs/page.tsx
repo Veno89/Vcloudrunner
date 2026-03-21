@@ -104,6 +104,11 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
     const deploymentLogs = allDeploymentLogs.slice(pageStart, pageStart + logsPageSize);
 
     const logsAutoRefreshEnabled = searchParams?.logsAutoRefresh === '1';
+    const selectedDeploymentSupportsLiveRefresh =
+      selectedDeployment?.status === 'queued'
+      || selectedDeployment?.status === 'building'
+      || selectedDeployment?.status === 'running';
+    const logsAutoRefreshActive = logsAutoRefreshEnabled && selectedDeploymentSupportsLiveRefresh;
     const refreshedAt = new Date().toISOString();
 
     const buildProjectLogsHref = (page: number) => {
@@ -145,7 +150,7 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
 
         {selectedDeployment ? (
           <>
-            <LogsAutoRefresh enabled={logsAutoRefreshEnabled} />
+            <LogsAutoRefresh enabled={logsAutoRefreshActive} />
             <LastRefreshedIndicator refreshedAt={refreshedAt} staleAfterSeconds={15} />
 
             <form className="grid gap-2 md:grid-cols-[1fr_auto_auto]">
@@ -174,6 +179,7 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
                   name="logsAutoRefresh"
                   value="1"
                   defaultChecked={logsAutoRefreshEnabled}
+                  disabled={!selectedDeploymentSupportsLiveRefresh}
                 />
                 Auto-refresh (5s)
               </label>
@@ -246,7 +252,9 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
             )}
 
             <p className="text-xs text-muted-foreground">
-              {logsAutoRefreshEnabled
+              {!selectedDeploymentSupportsLiveRefresh
+                ? 'Auto-refresh is unavailable for terminal deployments because no new live log entries are expected.'
+                : logsAutoRefreshEnabled
                 ? 'Auto-refresh is enabled. Log entries refresh every 5 seconds.'
                 : 'Auto-refresh is disabled. Click Apply to refresh or enable auto-refresh.'}
             </p>
