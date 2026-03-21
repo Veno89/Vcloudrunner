@@ -414,10 +414,15 @@ test('cleanupWorkspaceBestEffort warns and continues when deployment-error works
   assert.equal(warnings[0]?.metadata?.reason, 'deployment-error');
 });
 
-test('run uses the injected build system resolver result for image build orchestration', async () => {
-  const buildCalls: Array<{ dockerfilePath: string; imageTag: string; repoDir: string }> = [];
+test('run uses the injected image builder for repository clone and image build orchestration', async () => {
+  const buildCalls: Array<{
+    deploymentId: string;
+    gitRepositoryUrl: string;
+    branch: string;
+    repoDir: string;
+    imageTag: string;
+  }> = [];
   const cleanupCalls: string[] = [];
-  const resolverCalls: string[] = [];
 
   const runner = new DeploymentRunner(
     {
@@ -433,11 +438,11 @@ test('run uses the injected build system resolver result for image build orchest
       }
     },
     {
-      async cloneRepository() {
-        return undefined;
-      },
-      async buildImage(input) {
+      async buildRuntimeImage(input) {
         buildCalls.push(input);
+        return {
+          buildFilePath: 'services/api/Dockerfile'
+        };
       },
       async removeImage() {
         throw new Error('removeImage should not be called on successful runs');
@@ -465,15 +470,6 @@ test('run uses the injected build system resolver result for image build orchest
           hostPort: 8080
         };
       }
-    },
-    {
-      async detect(repoDir: string) {
-        resolverCalls.push(repoDir);
-        return {
-          type: 'dockerfile',
-          buildFilePath: 'services/api/Dockerfile'
-        };
-      }
     }
   );
 
@@ -491,10 +487,11 @@ test('run uses the injected build system resolver result for image build orchest
     }
   });
 
-  assert.deepEqual(resolverCalls, ['repo-dir']);
   assert.deepEqual(buildCalls, [
     {
-      dockerfilePath: 'services/api/Dockerfile',
+      deploymentId: 'dep-123',
+      gitRepositoryUrl: 'https://github.com/example/repo.git',
+      branch: 'main',
       imageTag: 'vcloudrunner/demo-project:dep-123',
       repoDir: 'repo-dir'
     }

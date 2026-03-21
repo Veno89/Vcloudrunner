@@ -2,25 +2,21 @@ import type { DeploymentJobPayload } from '@vcloudrunner/shared-types';
 
 import { env } from '../config/env.js';
 import { logger } from '../logger/logger.js';
-import { createBuildSystemResolver } from './build-detection/build-system-resolver.factory.js';
-import type { BuildSystemResolver } from './build-detection/build-system-resolver.js';
 import { createContainerRuntimeManager } from './runtime/container-runtime-manager.factory.js';
 import type { ContainerRuntimeManager } from './runtime/container-runtime-manager.js';
-import { createDeploymentCommandRunner } from './runtime/deployment-command-runner.factory.js';
-import type { DeploymentCommandRunner } from './runtime/deployment-command-runner.js';
+import { createDeploymentImageBuilder } from './runtime/deployment-image-builder.factory.js';
+import type { DeploymentImageBuilder } from './runtime/deployment-image-builder.js';
 import { createDeploymentWorkspaceManager } from './runtime/deployment-workspace-manager.factory.js';
 import type {
   DeploymentWorkspaceManager,
   PreparedDeploymentWorkspace
 } from './runtime/deployment-workspace-manager.js';
-import { DeploymentFailure } from '../workers/deployment-errors.js';
 
 export class DeploymentRunner {
   constructor(
     private readonly workspaceManager: DeploymentWorkspaceManager = createDeploymentWorkspaceManager(),
-    private readonly commandRunner: DeploymentCommandRunner = createDeploymentCommandRunner(),
-    private readonly runtimeManager: ContainerRuntimeManager = createContainerRuntimeManager(),
-    private readonly buildSystemResolver: BuildSystemResolver = createBuildSystemResolver()
+    private readonly imageBuilder: DeploymentImageBuilder = createDeploymentImageBuilder(),
+    private readonly runtimeManager: ContainerRuntimeManager = createContainerRuntimeManager()
   ) {}
 
   private networkEnsured = false;
@@ -60,7 +56,7 @@ export class DeploymentRunner {
   }
 
   private async removeImageForce(imageTag: string) {
-    await this.commandRunner.removeImage(imageTag);
+    await this.imageBuilder.removeImage(imageTag);
   }
 
   private async prepareWorkspace(deploymentId: string): Promise<PreparedDeploymentWorkspace> {
@@ -130,28 +126,12 @@ export class DeploymentRunner {
     try {
       await this.removeContainerByName(containerName);
 
-      logger.info('cloning repository', { deploymentId: job.deploymentId });
-      await this.commandRunner.cloneRepository({
+      await this.imageBuilder.buildRuntimeImage({
+        deploymentId: job.deploymentId,
         gitRepositoryUrl: job.gitRepositoryUrl,
         branch: job.branch,
-        repoDir: workspace.repoDir
-      });
-
-      const buildResult = await this.buildSystemResolver.detect(workspace.repoDir);
-      if (!buildResult) {
-        throw new DeploymentFailure(
-          'DEPLOYMENT_DOCKERFILE_NOT_FOUND',
-          'DEPLOYMENT_DOCKERFILE_NOT_FOUND: no Dockerfile found in repository root or common subpaths',
-          false
-        );
-      }
-      const dockerfilePath = buildResult.buildFilePath;
-
-      logger.info('building docker image', { imageTag, dockerfilePath });
-      await this.commandRunner.buildImage({
-        dockerfilePath,
+        repoDir: workspace.repoDir,
         imageTag,
-        repoDir: workspace.repoDir
       });
       imageBuilt = true;
 
