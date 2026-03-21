@@ -19,6 +19,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - make worker pre-run and retry-scheduled informational logging best-effort too, so startup/retry audit-log failures no longer override the true deployment outcome
 - make worker deployment-event emission best-effort too, so lifecycle event sink failures no longer override real build/running/failed outcomes after authoritative state changes
 - make worker cancellation finalization fall back to `failed` when runtime cleanup succeeds but the final `stopped` persistence write still fails, so cancelled deployments do not remain stranded in active-looking states
+- emit `deployment.cancelled` consistently for late worker cancellation completions too, so lifecycle webhooks/events stay truthful whether cancellation lands before execution, during runtime cleanup, or after an execution error
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another
@@ -156,11 +157,12 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - document the broader best-effort worker audit-log model so progress notes match the new pre-run / retry / post-run informational logging behavior
 - document the broader best-effort worker side-effect model so progress notes match the new non-authoritative event-emission follow-through
 - document the worker cancellation-finalization fallback so progress notes match the new state-correction behavior after stop-persistence failures in cancellation paths
+- document the now-consistent worker cancellation event emission behavior so progress notes match the later cancellation-complete paths too
 
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
-  - passed (`82/82`)
+  - passed (`84/84`)
 - `npm --workspace @vcloudrunner/api test`
   - passed (`183/183`)
 - `npm run typecheck`

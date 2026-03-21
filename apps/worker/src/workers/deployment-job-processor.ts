@@ -122,7 +122,13 @@ function emitDeploymentEventBestEffort(
     deploymentId: string;
     correlationId: string;
     event: Parameters<typeof emitDeploymentEvent>[0];
-    stage: 'cancelled-before-execution' | 'building' | 'running' | 'failed';
+    stage:
+      | 'cancelled-before-execution'
+      | 'cancelled-during-execution'
+      | 'cancelled-after-error'
+      | 'building'
+      | 'running'
+      | 'failed';
   }
 ) {
   try {
@@ -309,6 +315,20 @@ export function createDeploymentJobProcessor(
           correlationId,
           attempt: job.attemptsMade + 1
         });
+        emitDeploymentEventBestEffort(dependencies, {
+          deploymentId: job.data.deploymentId,
+          correlationId,
+          stage: 'cancelled-during-execution',
+          event: {
+            type: 'deployment.cancelled',
+            deploymentId: job.data.deploymentId,
+            projectId: job.data.projectId,
+            projectSlug: job.data.projectSlug,
+            correlationId,
+            timestamp: new Date().toISOString(),
+            details: { containerId: result.containerId }
+          }
+        });
         return;
       }
 
@@ -394,6 +414,19 @@ export function createDeploymentJobProcessor(
           deploymentId: job.data.deploymentId,
           correlationId,
           attempt: job.attemptsMade + 1
+        });
+        emitDeploymentEventBestEffort(dependencies, {
+          deploymentId: job.data.deploymentId,
+          correlationId,
+          stage: 'cancelled-after-error',
+          event: {
+            type: 'deployment.cancelled',
+            deploymentId: job.data.deploymentId,
+            projectId: job.data.projectId,
+            projectSlug: job.data.projectSlug,
+            correlationId,
+            timestamp: new Date().toISOString()
+          }
         });
         return;
       }

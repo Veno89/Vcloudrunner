@@ -519,6 +519,60 @@ test('processor marks cancelled-during-execution deployments failed when stop pe
   assert.equal(failureMessages[0], 'DEPLOYMENT_CANCEL_FINALIZATION_FAILED: database unavailable');
 });
 
+test('processor emits a cancelled event when cancellation completes during execution', async () => {
+  const cleanupCalls: Array<Record<string, unknown>> = [];
+  const emittedEvents: Array<Record<string, unknown>> = [];
+  let cancellationChecks = 0;
+
+  const processJob = createDeploymentJobProcessor({
+    runtimeExecutor: {
+      run: async () => ({
+        containerId: 'container-123',
+        containerName: 'container-name',
+        imageTag: 'image-tag',
+        hostPort: null,
+        runtimeUrl: 'http://demo-project.example.test',
+        internalPort: 3000,
+        projectPath: 'repo'
+      }),
+      cleanupCancelledRun: async (input) => {
+        cleanupCalls.push(input as unknown as Record<string, unknown>);
+      }
+    },
+    stateService: {
+      isCancellationRequested: async () => {
+        cancellationChecks += 1;
+        return cancellationChecks >= 2;
+      },
+      markStopped: async () => undefined,
+      markBuilding: async () => undefined,
+      appendLog: async () => undefined,
+      markRunning: async () => undefined,
+      markFailed: async () => undefined
+    },
+    caddyService: {
+      upsertRoute: async () => undefined
+    },
+    logger: {
+      info: () => undefined,
+      warn: () => undefined,
+      error: () => undefined
+    },
+    emitDeploymentEvent: (event) => {
+      emittedEvents.push(event as unknown as Record<string, unknown>);
+    }
+  });
+
+  await processJob(createJob());
+
+  assert.equal(cleanupCalls.length, 1);
+  assert.equal(emittedEvents.length, 2);
+  assert.equal(emittedEvents[0]?.type, 'deployment.building');
+  assert.equal(emittedEvents[1]?.type, 'deployment.cancelled');
+  assert.equal(emittedEvents[1]?.deploymentId, 'dep-123');
+  assert.equal((emittedEvents[1]?.details as Record<string, unknown>)?.containerId, 'container-123');
+});
+
 test('processor cleans up started runtime before failing an exhausted post-run persistence error', async () => {
   const cleanupCalls: Array<Record<string, unknown>> = [];
   const failureMessages: string[] = [];
@@ -681,4 +735,59 @@ test('processor marks cancellation finalization failed when stop persistence fai
   assert.equal(cleanupCalls[0]?.deploymentId, 'dep-123');
   assert.equal(failureMessages.length, 1);
   assert.equal(failureMessages[0], 'DEPLOYMENT_CANCEL_FINALIZATION_FAILED: stop persistence unavailable');
+});
+
+test('processor emits a cancelled event when cancellation finalizes after an execution error', async () => {
+  const cleanupCalls: Array<Record<string, unknown>> = [];
+  const emittedEvents: Array<Record<string, unknown>> = [];
+  let cancellationChecks = 0;
+
+  const processJob = createDeploymentJobProcessor({
+    runtimeExecutor: {
+      run: async () => ({
+        containerId: 'container-123',
+        containerName: 'container-name',
+        imageTag: 'image-tag',
+        hostPort: 3100,
+        runtimeUrl: 'http://demo-project.example.test',
+        internalPort: 3000,
+        projectPath: 'repo'
+      }),
+      cleanupCancelledRun: async (input) => {
+        cleanupCalls.push(input as unknown as Record<string, unknown>);
+      }
+    },
+    stateService: {
+      isCancellationRequested: async () => {
+        cancellationChecks += 1;
+        return cancellationChecks >= 3;
+      },
+      markStopped: async () => undefined,
+      markBuilding: async () => undefined,
+      appendLog: async () => undefined,
+      markRunning: async () => {
+        throw new Error('database unavailable');
+      },
+      markFailed: async () => undefined
+    },
+    caddyService: {
+      upsertRoute: async () => undefined
+    },
+    logger: {
+      info: () => undefined,
+      warn: () => undefined,
+      error: () => undefined
+    },
+    emitDeploymentEvent: (event) => {
+      emittedEvents.push(event as unknown as Record<string, unknown>);
+    }
+  });
+
+  await processJob(createJob());
+
+  assert.equal(cleanupCalls.length, 1);
+  assert.equal(emittedEvents.length, 2);
+  assert.equal(emittedEvents[0]?.type, 'deployment.building');
+  assert.equal(emittedEvents[1]?.type, 'deployment.cancelled');
+  assert.equal(emittedEvents[1]?.deploymentId, 'dep-123');
 });
