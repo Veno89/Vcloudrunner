@@ -1,20 +1,22 @@
-import { execFile } from 'node:child_process';
 import { mkdir, rm } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import { promisify } from 'node:util';
 
 import type { DeploymentJobPayload } from '@vcloudrunner/shared-types';
 import Docker from 'dockerode';
 
 import { env } from '../config/env.js';
 import { logger } from '../logger/logger.js';
+import { createDeploymentCommandRunner } from './runtime/deployment-command-runner.factory.js';
+import type { DeploymentCommandRunner } from './runtime/deployment-command-runner.js';
 import { DeploymentFailure } from '../workers/deployment-errors.js';
 import { detectBuildSystem } from './build-detection/index.js';
 
-const execFileAsync = promisify(execFile);
-
 export class DeploymentRunner {
-  private readonly docker = new Docker({ socketPath: env.DOCKER_SOCKET_PATH });
+  constructor(
+    private readonly commandRunner: DeploymentCommandRunner = createDeploymentCommandRunner(),
+    private readonly docker = new Docker({ socketPath: env.DOCKER_SOCKET_PATH })
+  ) {}
+
   private networkEnsured = false;
 
   private getErrorMessage(error: unknown) {
@@ -52,7 +54,7 @@ export class DeploymentRunner {
   }
 
   private async removeImageForce(imageTag: string) {
-    await execFileAsync('docker', ['image', 'rm', '-f', imageTag]);
+    await this.commandRunner.removeImage(imageTag);
   }
 
   private async removeWorkspace(workspaceDir: string) {
@@ -132,7 +134,11 @@ export class DeploymentRunner {
       await this.removeContainerByName(containerName);
 
       logger.info('cloning repository', { deploymentId: job.deploymentId });
-      await execFileAsync('git', ['clone', '--depth', '1', '--branch', job.branch, job.gitRepositoryUrl, repoDir]);
+      await this.commandRunner.cloneRepository({
+        gitRepositoryUrl: job.gitRepositoryUrl,
+        branch: job.branch,
+        repoDir
+      });
 
       const buildResult = await detectBuildSystem(repoDir);
       if (!buildResult) {
@@ -145,7 +151,11 @@ export class DeploymentRunner {
       const dockerfilePath = buildResult.buildFilePath;
 
       logger.info('building docker image', { imageTag, dockerfilePath });
-      await execFileAsync('docker', ['build', '-f', dockerfilePath, '-t', imageTag, '.'], { cwd: repoDir });
+      await this.commandRunner.buildImage({
+        dockerfilePath,
+        imageTag,
+        repoDir
+      });
       imageBuilt = true;
 
       logger.info('starting container', { containerName, containerPort, memoryMb, cpuMillicores });
