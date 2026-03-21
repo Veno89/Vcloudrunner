@@ -107,6 +107,16 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
           : deployment.status === 'failed'
             ? 'Deployment failed. Review logs to identify the failure point.'
             : 'Deployment state is unknown. Check recent logs for details.';
+  const runtimeUrlLabel =
+    deployment.status === 'running'
+      ? deployment.runtimeUrl
+        ? null
+        : 'pending'
+      : deployment.status === 'failed'
+        ? 'inactive after failure'
+        : deployment.status === 'stopped'
+          ? 'inactive'
+          : 'pending';
 
   return (
     <PageLayout>
@@ -197,7 +207,7 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
             <DetailRow label="Commit" value={deployment.commitSha ?? 'unknown'} mono />
             <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Runtime URL</p>
-              {deployment.runtimeUrl ? (
+              {deployment.status === 'running' && deployment.runtimeUrl ? (
                 <a
                   href={deployment.runtimeUrl}
                   target="_blank"
@@ -207,7 +217,7 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
                   {deployment.runtimeUrl}
                 </a>
               ) : (
-                <p className="text-muted-foreground">pending</p>
+                <p className="text-muted-foreground">{runtimeUrlLabel}</p>
               )}
             </div>
           </CardContent>
