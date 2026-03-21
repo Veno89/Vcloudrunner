@@ -23,6 +23,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - remove configured Caddy routes best-effort when runtime startup succeeded but a later persistence/finalization step failed, so post-run cleanup no longer leaves stale reverse-proxy routes pointing at torn-down runtimes
 - stop finalizing worker cancellations as `stopped` when runtime cleanup itself still fails, so broken cleanup now surfaces as a failed deployment instead of falsely claiming the runtime was fully torn down
 - make runtime cancellation teardown propagate real container/image cleanup failures while still tolerating already-gone Docker resources as benign races, so the stricter cancellation finalization guard is based on actual cleanup outcomes instead of swallowed warnings
+- make startup-failure runner teardown propagate real container/image cleanup failures too, while preserving the original deployment error in the surfaced message so failure classification stays stable when cleanup itself also breaks
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another
@@ -164,11 +165,12 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - document the new best-effort Caddy route cleanup path so progress notes match the stale-route prevention behavior after post-run failures
 - document the stricter cancellation cleanup requirement so progress notes match the new failed-state correction behavior when teardown itself cannot complete
 - document the stricter runtime-cleanup signaling so progress notes match the new distinction between real teardown failures and benign already-removed Docker races
+- document the matching startup-failure cleanup behavior so progress notes reflect that runner teardown now surfaces real cleanup failures without dropping the original deployment error context
 
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
-  - passed (`93/93`)
+  - passed (`95/95`)
 - `npm --workspace @vcloudrunner/api test`
   - passed (`183/183`)
 - `npm run typecheck`

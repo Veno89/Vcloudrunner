@@ -168,7 +168,8 @@ export class DeploymentRunner {
         containerId: createdContainerId,
         imageTag: imageBuilt ? imageTag : null,
         workspaceDir,
-        deploymentId: job.deploymentId
+        deploymentId: job.deploymentId,
+        originalError: error
       });
       throw error;
     } finally {
@@ -266,28 +267,37 @@ export class DeploymentRunner {
     containerId: string | null;
     imageTag: string | null;
     workspaceDir: string;
+    originalError: unknown;
   }) {
+    const failures: string[] = [];
+
     if (input.containerId) {
       try {
-        await this.docker.getContainer(input.containerId).remove({ force: true });
+        await this.removeContainerForce(input.containerId);
       } catch (error) {
-        logger.warn('failed removing container after deployment error', {
-          deploymentId: input.deploymentId,
-          containerId: input.containerId,
-          message: error instanceof Error ? error.message : String(error)
-        });
+        if (!this.isCleanupResourceMissingError(error, 'container')) {
+          logger.warn('failed removing container after deployment error', {
+            deploymentId: input.deploymentId,
+            containerId: input.containerId,
+            message: this.getErrorMessage(error)
+          });
+          failures.push(`container remove failed: ${this.getErrorMessage(error)}`);
+        }
       }
     }
 
     if (input.imageTag) {
       try {
-        await execFileAsync('docker', ['image', 'rm', '-f', input.imageTag]);
+        await this.removeImageForce(input.imageTag);
       } catch (error) {
-        logger.warn('failed removing image after deployment error', {
-          deploymentId: input.deploymentId,
-          imageTag: input.imageTag,
-          message: error instanceof Error ? error.message : String(error)
-        });
+        if (!this.isCleanupResourceMissingError(error, 'image')) {
+          logger.warn('failed removing image after deployment error', {
+            deploymentId: input.deploymentId,
+            imageTag: input.imageTag,
+            message: this.getErrorMessage(error)
+          });
+          failures.push(`image remove failed: ${this.getErrorMessage(error)}`);
+        }
       }
     }
 
@@ -297,8 +307,14 @@ export class DeploymentRunner {
       logger.warn('failed removing deployment workspace after error', {
         deploymentId: input.deploymentId,
         workspaceDir: input.workspaceDir,
-        message: error instanceof Error ? error.message : String(error)
+        message: this.getErrorMessage(error)
       });
+    }
+
+    if (failures.length > 0) {
+      throw new Error(
+        `${this.getErrorMessage(input.originalError)} (deployment failure cleanup incomplete: ${failures.join('; ')})`
+      );
     }
   }
 }
