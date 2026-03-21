@@ -108,6 +108,31 @@ async function appendPostRunLogBestEffort(
   }
 }
 
+async function cleanupStartedRuntimeBestEffort(
+  dependencies: Required<DeploymentJobProcessorDependencies>,
+  input: {
+    deploymentId: string;
+    correlationId: string;
+    result: RuntimeExecutionResult;
+    reason: 'post-run-failure' | 'cancellation-after-post-run-failure';
+  }
+) {
+  try {
+    await dependencies.runtimeExecutor.cleanupCancelledRun({
+      deploymentId: input.deploymentId,
+      containerId: input.result.containerId,
+      imageTag: input.result.imageTag
+    });
+  } catch (error) {
+    dependencies.logger.warn('deployment runtime cleanup failed after post-run error', {
+      deploymentId: input.deploymentId,
+      correlationId: input.correlationId,
+      reason: input.reason,
+      message: getErrorMessage(error)
+    });
+  }
+}
+
 export function createDeploymentJobProcessor(
   overrides: DeploymentJobProcessorDependencies = {}
 ) {
@@ -118,6 +143,7 @@ export function createDeploymentJobProcessor(
 
   return async (job: DeploymentJobLike) => {
     const correlationId = job.data.correlationId ?? `queue-job:${job.id ?? 'unknown'}`;
+    let runtimeResult: RuntimeExecutionResult | null = null;
 
     if (await dependencies.stateService.isCancellationRequested(job.data.deploymentId)) {
       await dependencies.stateService.markStopped(
@@ -170,6 +196,7 @@ export function createDeploymentJobProcessor(
         dependencies.runtimeExecutor.run(job.data),
         env.DEPLOYMENT_EXECUTION_TIMEOUT_MS
       );
+      runtimeResult = result;
 
       if (await dependencies.stateService.isCancellationRequested(job.data.deploymentId)) {
         await dependencies.runtimeExecutor.cleanupCancelledRun({
@@ -230,7 +257,18 @@ export function createDeploymentJobProcessor(
         attempt: job.attemptsMade + 1
       });
     } catch (error) {
-      if (await dependencies.stateService.isCancellationRequested(job.data.deploymentId)) {
+      const cancellationRequested = await dependencies.stateService.isCancellationRequested(job.data.deploymentId);
+
+      if (runtimeResult) {
+        await cleanupStartedRuntimeBestEffort(dependencies, {
+          deploymentId: job.data.deploymentId,
+          correlationId,
+          result: runtimeResult,
+          reason: cancellationRequested ? 'cancellation-after-post-run-failure' : 'post-run-failure'
+        });
+      }
+
+      if (cancellationRequested) {
         await dependencies.stateService.markStopped(
           job.data.deploymentId,
           `Deployment cancellation confirmed after execution error (correlation ${correlationId}).`

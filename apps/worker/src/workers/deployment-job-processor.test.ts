@@ -155,3 +155,111 @@ test('processor keeps successful deployments successful when route warning log a
   assert.equal(warnings[1]?.message, 'deployment post-run log append failed; continuing deployment');
   assert.equal(warnings[1]?.metadata?.stage, 'route-config-skipped');
 });
+
+test('processor cleans up started runtime before failing an exhausted post-run persistence error', async () => {
+  const cleanupCalls: Array<Record<string, unknown>> = [];
+  const failureMessages: string[] = [];
+
+  const processJob = createDeploymentJobProcessor({
+    runtimeExecutor: {
+      run: async () => ({
+        containerId: 'container-123',
+        containerName: 'container-name',
+        imageTag: 'image-tag',
+        hostPort: 3100,
+        runtimeUrl: 'http://demo-project.example.test',
+        internalPort: 3000,
+        projectPath: 'repo'
+      }),
+      cleanupCancelledRun: async (input) => {
+        cleanupCalls.push(input as unknown as Record<string, unknown>);
+      }
+    },
+    stateService: {
+      isCancellationRequested: async () => false,
+      markStopped: async () => undefined,
+      markBuilding: async () => undefined,
+      appendLog: async () => undefined,
+      markRunning: async () => {
+        throw new Error('database unavailable');
+      },
+      markFailed: async (_deploymentId, message) => {
+        failureMessages.push(message);
+      }
+    },
+    caddyService: {
+      upsertRoute: async () => undefined
+    },
+    logger: {
+      info: () => undefined,
+      warn: () => undefined,
+      error: () => undefined
+    },
+    emitDeploymentEvent: () => undefined
+  });
+
+  await assert.rejects(processJob(createJob()), /database unavailable/);
+
+  assert.equal(cleanupCalls.length, 1);
+  assert.equal(cleanupCalls[0]?.deploymentId, 'dep-123');
+  assert.equal(cleanupCalls[0]?.containerId, 'container-123');
+  assert.equal(cleanupCalls[0]?.imageTag, 'image-tag');
+  assert.equal(failureMessages.length, 1);
+  assert.match(failureMessages[0] ?? '', /^\[DEPLOYMENT_TRANSIENT_FAILURE\] database unavailable$/);
+});
+
+test('processor cleans up started runtime before finalizing cancellation after a post-run error', async () => {
+  const cleanupCalls: Array<Record<string, unknown>> = [];
+  const stopMessages: string[] = [];
+  let cancellationChecks = 0;
+
+  const processJob = createDeploymentJobProcessor({
+    runtimeExecutor: {
+      run: async () => ({
+        containerId: 'container-123',
+        containerName: 'container-name',
+        imageTag: 'image-tag',
+        hostPort: 3100,
+        runtimeUrl: 'http://demo-project.example.test',
+        internalPort: 3000,
+        projectPath: 'repo'
+      }),
+      cleanupCancelledRun: async (input) => {
+        cleanupCalls.push(input as unknown as Record<string, unknown>);
+      }
+    },
+    stateService: {
+      isCancellationRequested: async () => {
+        cancellationChecks += 1;
+        return cancellationChecks >= 3;
+      },
+      markStopped: async (_deploymentId, message) => {
+        stopMessages.push(message);
+      },
+      markBuilding: async () => undefined,
+      appendLog: async () => undefined,
+      markRunning: async () => {
+        throw new Error('database unavailable');
+      },
+      markFailed: async () => {
+        throw new Error('markFailed should not be called for cancellation finalization');
+      }
+    },
+    caddyService: {
+      upsertRoute: async () => undefined
+    },
+    logger: {
+      info: () => undefined,
+      warn: () => undefined,
+      error: () => undefined
+    },
+    emitDeploymentEvent: () => undefined
+  });
+
+  await processJob(createJob());
+
+  assert.equal(cleanupCalls.length, 1);
+  assert.equal(cleanupCalls[0]?.deploymentId, 'dep-123');
+  assert.equal(stopMessages.length, 1);
+  assert.match(stopMessages[0] ?? '', /cancellation confirmed after execution error/i);
+});

@@ -15,6 +15,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - make deployment-log retention enforcement best-effort after worker status/log writes so secondary trimming failures do not turn successful `appendLog`/`markStopped`/`markFailed` calls into job failures
 - make worker `markFailed`/`markStopped` keep the status transition authoritative when the follow-up transition log insert fails, warning instead of surfacing a secondary audit-write failure as the primary outcome
 - make post-run worker audit logging best-effort after runtime success so route-configured / route-skipped / deployment-running log insert failures no longer turn a successful live deployment into a retry or false failure
+- make post-run worker cleanup best-effort and explicit when persistence/finalization fails after runtime success, so started containers/images are torn down before retry/failure/cancellation finalization instead of being left running out of band
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another
@@ -148,11 +149,12 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - document the best-effort worker log-retention follow-through so progress notes match the new partial-failure behavior after state/log writes
 - document the best-effort worker transition-log follow-through so progress notes match the new partial-failure behavior after failure/stop state writes
 - document the best-effort post-run worker audit-log follow-through so progress notes match the new partial-failure behavior after runtime success
+- document the best-effort post-run worker cleanup path so progress notes match the new runtime-teardown behavior after post-run persistence failures
 
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
-  - passed (`72/72`)
+  - passed (`74/74`)
 - `npm --workspace @vcloudrunner/api test`
   - passed (`183/183`)
 - `npm run typecheck`
