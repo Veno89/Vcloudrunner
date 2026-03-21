@@ -1,23 +1,5 @@
-import type { BuildSystemDetector, BuildSystemDetectionResult } from './build-system-detector.js';
-import { DockerfileBuildDetector } from './dockerfile-detector.js';
-
-export type { BuildSystemDetector, BuildSystemDetectionResult };
-
-const defaultDetectors: BuildSystemDetector[] = [
-  new DockerfileBuildDetector(),
-];
-
-/**
- * Run all registered detectors in priority order, returning the first match.
- * Add new detectors (e.g. Nixpacks, Buildpacks) by appending to the array.
- */
-export async function detectBuildSystem(
-  repoDir: string,
-  detectors: BuildSystemDetector[] = defaultDetectors
-): Promise<BuildSystemDetectionResult | null> {
-  for (const detector of detectors) {
-    const result = await detector.detect(repoDir);
-    if (result) return result;
-  }
-  return null;
-}
+export type { BuildSystemDetectionResult, BuildSystemDetector } from './build-system-detector.js';
+export type { BuildSystemResolver } from './build-system-resolver.js';
+export { createBuildSystemResolver } from './build-system-resolver.factory.js';
+export { ConfiguredBuildSystemResolver } from './configured-build-system-resolver.js';
+export { DockerfileBuildDetector } from './dockerfile-detector.js';

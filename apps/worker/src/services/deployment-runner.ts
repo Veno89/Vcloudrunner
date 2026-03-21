@@ -2,6 +2,8 @@ import type { DeploymentJobPayload } from '@vcloudrunner/shared-types';
 
 import { env } from '../config/env.js';
 import { logger } from '../logger/logger.js';
+import { createBuildSystemResolver } from './build-detection/build-system-resolver.factory.js';
+import type { BuildSystemResolver } from './build-detection/build-system-resolver.js';
 import { createContainerRuntimeManager } from './runtime/container-runtime-manager.factory.js';
 import type { ContainerRuntimeManager } from './runtime/container-runtime-manager.js';
 import { createDeploymentCommandRunner } from './runtime/deployment-command-runner.factory.js';
@@ -12,13 +14,13 @@ import type {
   PreparedDeploymentWorkspace
 } from './runtime/deployment-workspace-manager.js';
 import { DeploymentFailure } from '../workers/deployment-errors.js';
-import { detectBuildSystem } from './build-detection/index.js';
 
 export class DeploymentRunner {
   constructor(
     private readonly workspaceManager: DeploymentWorkspaceManager = createDeploymentWorkspaceManager(),
     private readonly commandRunner: DeploymentCommandRunner = createDeploymentCommandRunner(),
-    private readonly runtimeManager: ContainerRuntimeManager = createContainerRuntimeManager()
+    private readonly runtimeManager: ContainerRuntimeManager = createContainerRuntimeManager(),
+    private readonly buildSystemResolver: BuildSystemResolver = createBuildSystemResolver()
   ) {}
 
   private networkEnsured = false;
@@ -135,7 +137,7 @@ export class DeploymentRunner {
         repoDir: workspace.repoDir
       });
 
-      const buildResult = await detectBuildSystem(workspace.repoDir);
+      const buildResult = await this.buildSystemResolver.detect(workspace.repoDir);
       if (!buildResult) {
         throw new DeploymentFailure(
           'DEPLOYMENT_DOCKERFILE_NOT_FOUND',

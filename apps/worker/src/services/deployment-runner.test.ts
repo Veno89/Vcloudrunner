@@ -413,3 +413,93 @@ test('cleanupWorkspaceBestEffort warns and continues when deployment-error works
   assert.equal(warnings[0]?.message, 'failed removing deployment workspace after error');
   assert.equal(warnings[0]?.metadata?.reason, 'deployment-error');
 });
+
+test('run uses the injected build system resolver result for image build orchestration', async () => {
+  const buildCalls: Array<{ dockerfilePath: string; imageTag: string; repoDir: string }> = [];
+  const cleanupCalls: string[] = [];
+  const resolverCalls: string[] = [];
+
+  const runner = new DeploymentRunner(
+    {
+      async prepareWorkspace() {
+        return {
+          workspaceDir: 'workspace-dir',
+          repoDir: 'repo-dir',
+          projectPath: 'project-path'
+        };
+      },
+      async cleanupWorkspace(workspaceDir: string) {
+        cleanupCalls.push(workspaceDir);
+      }
+    },
+    {
+      async cloneRepository() {
+        return undefined;
+      },
+      async buildImage(input) {
+        buildCalls.push(input);
+      },
+      async removeImage() {
+        throw new Error('removeImage should not be called on successful runs');
+      }
+    },
+    {
+      async listNetworksByName() {
+        return [{ name: 'vcloudrunner-deployments' }];
+      },
+      async createNetwork() {
+        throw new Error('createNetwork should not run when the deployment network already exists');
+      },
+      async listContainersByName() {
+        return [];
+      },
+      async stopContainer() {
+        return undefined;
+      },
+      async removeContainer() {
+        throw new Error('removeContainer should not be called on successful runs');
+      },
+      async startContainer() {
+        return {
+          containerId: 'container-123',
+          hostPort: 8080
+        };
+      }
+    },
+    {
+      async detect(repoDir: string) {
+        resolverCalls.push(repoDir);
+        return {
+          type: 'dockerfile',
+          buildFilePath: 'services/api/Dockerfile'
+        };
+      }
+    }
+  );
+
+  const result = await runner.run({
+    deploymentId: 'dep-123',
+    projectId: 'project-123',
+    projectSlug: 'demo-project',
+    gitRepositoryUrl: 'https://github.com/example/repo.git',
+    branch: 'main',
+    env: { NODE_ENV: 'production' },
+    runtime: {
+      containerPort: 3000,
+      memoryMb: 512,
+      cpuMillicores: 500
+    }
+  });
+
+  assert.deepEqual(resolverCalls, ['repo-dir']);
+  assert.deepEqual(buildCalls, [
+    {
+      dockerfilePath: 'services/api/Dockerfile',
+      imageTag: 'vcloudrunner/demo-project:dep-123',
+      repoDir: 'repo-dir'
+    }
+  ]);
+  assert.deepEqual(cleanupCalls, ['workspace-dir']);
+  assert.equal(result.containerId, 'container-123');
+  assert.equal(result.projectPath, 'project-path');
+});
