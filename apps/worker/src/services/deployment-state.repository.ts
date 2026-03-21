@@ -1,6 +1,5 @@
-import { Pool } from 'pg';
-
 import { env } from '../config/env.js';
+import { createDeploymentStateQueryable } from './deployment-state-queryable.factory.js';
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
@@ -58,13 +57,7 @@ export class DeploymentStateRepository {
   private readonly pool: Queryable;
 
   constructor(pool?: Queryable) {
-    this.pool = pool ?? new Pool({
-      connectionString: env.DATABASE_URL,
-      max: env.DB_POOL_MAX,
-      idleTimeoutMillis: env.DB_POOL_IDLE_TIMEOUT_MS,
-      connectionTimeoutMillis: env.DB_POOL_CONNECTION_TIMEOUT_MS,
-      statement_timeout: env.DB_POOL_STATEMENT_TIMEOUT_MS
-    });
+    this.pool = pool ?? createDeploymentStateQueryable();
   }
 
   async markBuilding(deploymentId: string) {
