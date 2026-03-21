@@ -1,3 +1,5 @@
+import type { DeploymentStatus } from '@vcloudrunner/shared-types';
+
 import type { ApiProject } from './api';
 
 export function deriveDomain(project: ApiProject): string {
@@ -16,6 +18,17 @@ export function hasRequestedCancellation(metadata: unknown): boolean {
 
   const requestedAt = (cancellation as Record<string, unknown>).requestedAt;
   return typeof requestedAt === 'string' && requestedAt.trim().length > 0;
+}
+
+export function formatDeploymentStatusText(
+  status: DeploymentStatus,
+  cancellationRequested: boolean
+): string {
+  if (cancellationRequested && (status === 'queued' || status === 'building')) {
+    return `${status} / cancelling`;
+  }
+
+  return status;
 }
 
 export function slugifyProjectName(name: string): string {

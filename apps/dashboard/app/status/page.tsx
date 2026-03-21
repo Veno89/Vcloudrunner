@@ -1,20 +1,12 @@
-import type { DeploymentStatus } from '@vcloudrunner/shared-types';
 import { DemoModeBanner } from '@/components/demo-mode-banner';
+import { DeploymentStatusBadges } from '@/components/deployment-status-badges';
 import { PageLayout } from '@/components/page-layout';
 import { PageHeader } from '@/components/page-header';
 import { PlatformStatusStrip } from '@/components/platform-status-strip';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { loadDashboardData } from '@/lib/loaders';
-import { truncateUuid } from '@/lib/helpers';
+import { hasRequestedCancellation, truncateUuid } from '@/lib/helpers';
 import { StatusQueueTrend } from '@/components/status-queue-trend';
-
-function deploymentStatusVariant(status: DeploymentStatus) {
-  if (status === 'running') return 'success' as const;
-  if (status === 'building' || status === 'queued') return 'warning' as const;
-  if (status === 'failed') return 'destructive' as const;
-  return 'secondary' as const;
-}
 
 export default async function StatusPage() {
   const data = await loadDashboardData();
@@ -129,7 +121,10 @@ export default async function StatusPage() {
                   <p className="font-medium">{project.name}</p>
                   <p className="font-mono text-xs text-muted-foreground">{truncateUuid(deployment.id)}</p>
                 </div>
-                <Badge variant={deploymentStatusVariant(deployment.status)}>{deployment.status}</Badge>
+                <DeploymentStatusBadges
+                  status={deployment.status}
+                  cancellationRequested={hasRequestedCancellation(deployment.metadata)}
+                />
               </div>
             ))
           )}

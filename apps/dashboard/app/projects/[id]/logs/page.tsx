@@ -19,7 +19,13 @@ import {
   fetchDeploymentsForProject,
   fetchDeploymentLogs,
 } from '@/lib/api';
-import { describeDashboardLiveDataFailure, formatRelativeTime, truncateUuid } from '@/lib/helpers';
+import {
+  describeDashboardLiveDataFailure,
+  formatDeploymentStatusText,
+  formatRelativeTime,
+  hasRequestedCancellation,
+  truncateUuid
+} from '@/lib/helpers';
 
 interface ProjectLogsPageProps {
   params: {
@@ -151,7 +157,14 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
               >
                 {sortedDeployments.map((deployment) => (
                   <option key={deployment.id} value={deployment.id}>
-                    {truncateUuid(deployment.id)} • {formatRelativeTime(deployment.createdAt)} • {deployment.status}
+                    {[
+                      truncateUuid(deployment.id),
+                      formatRelativeTime(deployment.createdAt),
+                      formatDeploymentStatusText(
+                        deployment.status,
+                        hasRequestedCancellation(deployment.metadata)
+                      )
+                    ].join(' / ')}
                   </option>
                 ))}
               </Select>
@@ -170,7 +183,16 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
 
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs text-muted-foreground">
-                Showing logs for deployment: <span className="font-medium text-foreground">{truncateUuid(selectedDeployment.id)}</span>
+                Showing logs for deployment:{' '}
+                <span className="font-medium text-foreground">
+                  {[
+                    truncateUuid(selectedDeployment.id),
+                    formatDeploymentStatusText(
+                      selectedDeployment.status,
+                      hasRequestedCancellation(selectedDeployment.metadata)
+                    )
+                  ].join(' / ')}
+                </span>
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button asChild variant="ghost" size="sm">

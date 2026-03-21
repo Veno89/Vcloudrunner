@@ -32,6 +32,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - render deployment runtime URLs as live links only for actively `running` dashboard detail pages, so stale historical URLs from failed/stopped records do not keep looking live on the read side
 - persist `runtime_url` only when public route configuration actually succeeds, and make deployment detail pages describe `running` deployments without a public route explicitly instead of implying those URLs are still pending
 - surface cancellation-requested deployment metadata in dashboard list/detail views so queued/building deployments show an explicit `cancelling` cue and updated guidance instead of looking like normal in-progress work
+- carry the same cancellation-requested cue into operational summaries and logs deployment selectors so compact dashboard surfaces stay truthful too
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another

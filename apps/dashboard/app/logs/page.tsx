@@ -18,7 +18,9 @@ import {
 import {
   describeDashboardLiveDataFailure,
   describePartialDashboardDeploymentFailure,
+  formatDeploymentStatusText,
   formatRelativeTime,
+  hasRequestedCancellation,
   truncateUuid
 } from '@/lib/helpers';
 import { DemoModeBanner } from '@/components/demo-mode-banner';
@@ -89,7 +91,15 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
         projectId: project.id,
         projectName: project.name,
         status: deployment.status,
-        label: `${project.name} • ${truncateUuid(deployment.id)} • ${formatRelativeTime(deployment.createdAt)} • ${deployment.status}`,
+        label: [
+          project.name,
+          truncateUuid(deployment.id),
+          formatRelativeTime(deployment.createdAt),
+          formatDeploymentStatusText(
+            deployment.status,
+            hasRequestedCancellation(deployment.metadata)
+          )
+        ].join(' / '),
       }));
 
       const selected =
@@ -99,7 +109,15 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
       if (selected) {
         selectedProjectId = selected.project.id;
         selectedDeploymentId = selected.deployment.id;
-        selectedLabel = `${selected.project.name} / ${truncateUuid(selected.deployment.id)}`;
+        selectedLabel = [
+          selected.project.name,
+          truncateUuid(selected.deployment.id),
+          formatDeploymentStatusText(
+            selected.deployment.status,
+            hasRequestedCancellation(selected.deployment.metadata)
+          )
+        ].join(' / ');
+
         try {
           const logs = await fetchDeploymentLogs(
             selected.project.id,

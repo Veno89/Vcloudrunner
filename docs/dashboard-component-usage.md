@@ -67,6 +67,7 @@ This guide defines how shared dashboard UI primitives should be used so new scre
 - Preserve upstream operational status semantics even on non-200 health responses; for example, worker `stale` should remain `stale`, not be flattened into generic `unavailable`.
 - Only render deployment runtime URLs as live links for actively `running` deployments; failed/stopped records should prefer truthful inactive copy over stale historical URLs, and `running` records without a public route should use explicit unavailable/not-publicly-exposed copy rather than `pending`.
 - When a deployment remains `queued` or `building` but its metadata shows cancellation has been requested, keep the canonical status badge and add an explicit secondary `cancelling` cue plus updated guidance; do not keep describing it like a normal in-progress deploy.
+- Apply the same cancellation-requested cue in compact text surfaces too, such as deployment selectors or operational summary rows; do not collapse those back to plain `queued`/`building`.
 - Use `<time>` semantics for timestamps where practical.
 
 ## Project Scope and Navigation
