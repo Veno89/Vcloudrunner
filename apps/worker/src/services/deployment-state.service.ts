@@ -5,6 +5,7 @@ import { gzipSync } from 'node:zlib';
 
 import { env } from '../config/env.js';
 import { logger } from '../logger/logger.js';
+import { CaddyService } from './caddy.service.js';
 import { DeploymentStateRepository, type Queryable, type SuccessInput } from './deployment-state.repository.js';
 
 interface ArchiveUploadRequest {
@@ -38,10 +39,12 @@ function getErrorMessage(error: unknown) {
 
 export class DeploymentStateService {
   private readonly repository: DeploymentStateRepository;
+  private readonly caddyService: Pick<CaddyService, 'deleteRoute'>;
   private gcsAccessTokenCache: { token: string; expiresAt: number } | null = null;
 
-  constructor(pool?: Queryable) {
+  constructor(pool?: Queryable, caddyService: Pick<CaddyService, 'deleteRoute'> = new CaddyService()) {
     this.repository = new DeploymentStateRepository(pool);
+    this.caddyService = caddyService;
   }
 
   async markBuilding(deploymentId: string) {
@@ -125,6 +128,19 @@ export class DeploymentStateService {
             row.deployment_id,
             'STATE_RECONCILIATION: container not found or not running on worker startup'
           );
+          if (row.runtime_url) {
+            const host = `${row.project_slug}.${env.PLATFORM_DOMAIN}`;
+            try {
+              await this.caddyService.deleteRoute({ host });
+            } catch (error) {
+              logger.warn('running deployment route cleanup failed during reconciliation', {
+                deploymentId: row.deployment_id,
+                containerId: row.container_id,
+                host,
+                message: getErrorMessage(error)
+              });
+            }
+          }
           reconciledCount += 1;
         }
       } catch (error) {

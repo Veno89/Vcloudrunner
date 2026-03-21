@@ -38,6 +38,8 @@ interface StuckDeploymentRow {
 interface RunningContainerRow {
   deployment_id: string;
   container_id: string;
+  project_slug: string;
+  runtime_url: string | null;
 }
 
 interface ArchiveCandidateRow {
@@ -221,9 +223,10 @@ export class DeploymentStateRepository {
 
   async listRunningDeploymentContainers() {
     const result = await this.pool.query(
-      `select d.id as deployment_id, c.container_id
+      `select d.id as deployment_id, c.container_id, p.slug as project_slug, d.runtime_url
        from deployments d
        join containers c on c.deployment_id = d.id
+       join projects p on p.id = d.project_id
        where d.status = 'running'
        order by d.updated_at asc`,
       []

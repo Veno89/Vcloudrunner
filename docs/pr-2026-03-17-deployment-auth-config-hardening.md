@@ -28,6 +28,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - dedupe worker workspace cleanup on startup failures so the runner no longer attempts the same temp-directory delete twice or emits duplicate warnings for one locked workspace
 - preserve the original `markRunning` write error when the worker repository rollback also fails, so transaction cleanup no longer hides the real runtime-state persistence problem behind a secondary rollback exception
 - clear stale `runtime_url` values when the worker marks a deployment `failed`, so dead or reconciled deployments no longer advertise a live endpoint after failure-state persistence
+- clean up public Caddy routes when startup reconciliation finds a missing running container, and treat already-missing routes as idempotent success so dead deployments stop keeping stale ingress alive without adding noisy false warnings
 - render deployment runtime URLs as live links only for actively `running` dashboard detail pages, so stale historical URLs from failed/stopped records do not keep looking live on the read side
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
@@ -178,7 +179,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
-  - passed (`101/101`)
+  - passed (`104/104`)
 - `npm --workspace @vcloudrunner/api test`
   - passed (`183/183`)
 - `npm run typecheck`

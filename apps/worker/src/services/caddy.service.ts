@@ -83,6 +83,10 @@ export class CaddyService {
       clearTimeout(timeoutId);
     }
 
+    if (response.status === 404) {
+      return;
+    }
+
     if (!response.ok) {
       const body = await response.text();
       throw new Error(`CADDY_ROUTE_DELETE_FAILED: ${response.status} ${body}`);

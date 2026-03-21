@@ -154,6 +154,20 @@ test('deleteRoute sends the expected Caddy delete request with a timeout signal'
   assert.ok(calls[0]?.init?.signal instanceof AbortSignal);
 });
 
+test('deleteRoute treats missing routes as an idempotent success', async (t) => {
+  withCaddyEnv(t, 'http://caddy.internal:2019');
+
+  const service = new CaddyService();
+
+  t.mock.method(globalThis, 'fetch', async () => (
+    new Response('route not found', { status: 404 })
+  ));
+
+  await service.deleteRoute({
+    host: 'app.example.test'
+  });
+});
+
 test('deleteRoute wraps Caddy network failures with a stable error prefix', async (t) => {
   withCaddyEnv(t, 'http://caddy.internal:2019');
 

@@ -242,9 +242,21 @@ test('recoverStuckDeployments continues after one deployment recovery fails', as
 });
 
 test('reconcileRunningDeployments continues after one container check fails', async () => {
-  const service = new DeploymentStateService(new MockPool()) as unknown as {
+  const service = new DeploymentStateService(
+    new MockPool(),
+    {
+      async deleteRoute() {
+        return undefined;
+      }
+    }
+  ) as unknown as {
     repository: {
-      listRunningDeploymentContainers: () => Promise<Array<{ deployment_id: string; container_id: string }>>;
+      listRunningDeploymentContainers: () => Promise<Array<{
+        deployment_id: string;
+        container_id: string;
+        project_slug: string;
+        runtime_url: string | null;
+      }>>;
     };
     markFailed: (deploymentId: string, message: string) => Promise<void>;
     reconcileRunningDeployments: (
@@ -256,8 +268,18 @@ test('reconcileRunningDeployments continues after one container check fails', as
 
   service.repository = {
     listRunningDeploymentContainers: async () => [
-      { deployment_id: 'dep-skip', container_id: 'container-skip' },
-      { deployment_id: 'dep-reconcile', container_id: 'container-reconcile' }
+      {
+        deployment_id: 'dep-skip',
+        container_id: 'container-skip',
+        project_slug: 'project-skip',
+        runtime_url: 'http://project-skip.example.test'
+      },
+      {
+        deployment_id: 'dep-reconcile',
+        container_id: 'container-reconcile',
+        project_slug: 'project-reconcile',
+        runtime_url: 'http://project-reconcile.example.test'
+      }
     ]
   };
   service.markFailed = async (deploymentId) => {
@@ -276,6 +298,105 @@ test('reconcileRunningDeployments continues after one container check fails', as
   assert.equal(reconciledCount, 1);
   assert.deepEqual(checkedContainers, ['container-skip', 'container-reconcile']);
   assert.deepEqual(failedDeployments, ['dep-reconcile']);
+});
+
+test('reconcileRunningDeployments removes the public route after marking a missing runtime failed', async () => {
+  const deletedHosts: string[] = [];
+  const service = new DeploymentStateService(
+    new MockPool(),
+    {
+      async deleteRoute(input) {
+        deletedHosts.push(input.host);
+      }
+    }
+  ) as unknown as {
+    repository: {
+      listRunningDeploymentContainers: () => Promise<Array<{
+        deployment_id: string;
+        container_id: string;
+        project_slug: string;
+        runtime_url: string | null;
+      }>>;
+    };
+    markFailed: (deploymentId: string, message: string) => Promise<void>;
+    reconcileRunningDeployments: (
+      isContainerRunning: (containerId: string) => Promise<boolean>
+    ) => Promise<number>;
+  };
+  const failedDeployments: string[] = [];
+
+  service.repository = {
+    listRunningDeploymentContainers: async () => [
+      {
+        deployment_id: 'dep-reconcile',
+        container_id: 'container-reconcile',
+        project_slug: 'project-reconcile',
+        runtime_url: 'http://project-reconcile.example.test'
+      }
+    ]
+  };
+  service.markFailed = async (deploymentId) => {
+    failedDeployments.push(deploymentId);
+  };
+
+  const reconciledCount = await service.reconcileRunningDeployments(async () => false);
+
+  assert.equal(reconciledCount, 1);
+  assert.deepEqual(failedDeployments, ['dep-reconcile']);
+  assert.deepEqual(deletedHosts, [`project-reconcile.${env.PLATFORM_DOMAIN}`]);
+});
+
+test('reconcileRunningDeployments still counts a deployment reconciled when route cleanup fails', async () => {
+  const warnings: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
+  const originalWarn = logger.warn;
+  const service = new DeploymentStateService(
+    new MockPool(),
+    {
+      async deleteRoute() {
+        throw new Error('caddy unavailable');
+      }
+    }
+  ) as unknown as {
+    repository: {
+      listRunningDeploymentContainers: () => Promise<Array<{
+        deployment_id: string;
+        container_id: string;
+        project_slug: string;
+        runtime_url: string | null;
+      }>>;
+    };
+    markFailed: (deploymentId: string, message: string) => Promise<void>;
+    reconcileRunningDeployments: (
+      isContainerRunning: (containerId: string) => Promise<boolean>
+    ) => Promise<number>;
+  };
+
+  service.repository = {
+    listRunningDeploymentContainers: async () => [
+      {
+        deployment_id: 'dep-reconcile',
+        container_id: 'container-reconcile',
+        project_slug: 'project-reconcile',
+        runtime_url: 'http://project-reconcile.example.test'
+      }
+    ]
+  };
+  service.markFailed = async () => undefined;
+  logger.warn = (message, metadata) => {
+    warnings.push({ message, metadata });
+  };
+
+  try {
+    const reconciledCount = await service.reconcileRunningDeployments(async () => false);
+    assert.equal(reconciledCount, 1);
+  } finally {
+    logger.warn = originalWarn;
+  }
+
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0]?.message, 'running deployment route cleanup failed during reconciliation');
+  assert.equal(warnings[0]?.metadata?.deploymentId, 'dep-reconcile');
+  assert.equal(warnings[0]?.metadata?.host, `project-reconcile.${env.PLATFORM_DOMAIN}`);
 });
 
 test('archiveEligibleDeploymentLogs continues after one archive build fails', async () => {
