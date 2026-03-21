@@ -53,6 +53,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - extract local archive file handling behind a deployment-log-archive-store seam too, so deployment state management no longer owns direct archive-dir listing, marker persistence, archive reads, or cleanup deletion flows and future storage/runtime adapters have a cleaner hook point
 - extract build-system resolution behind a configured resolver seam too, so deployment orchestration no longer calls a static detector registry directly and future detector stacks have a cleaner injection point
 - extract repository clone plus image-build orchestration behind a deployment-image-builder seam too, so runtime orchestration no longer owns direct clone/build/remove-image flows or missing-build-file policy inline inside `DeploymentRunner`
+- extract archive upload transport/retry behavior behind a deployment-log-archive-uploader seam too, so deployment state management no longer owns direct fetch/timeout/retry archive push logic inline and future storage adapters have a cleaner hook point
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another
@@ -202,7 +203,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
-  - passed (`105/105`)
+  - passed (`144/144`)
 - `npm --workspace @vcloudrunner/api test`
   - passed (`183/183`)
 - `npm run typecheck`
