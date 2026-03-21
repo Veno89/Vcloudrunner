@@ -13,6 +13,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - mark queue-removed deployments `failed` if the follow-up `stopped` state write fails during cancellation, preventing stranded `queued` records while preserving the original persistence error contract
 - keep cancellation responses stable when the state change succeeds but the follow-up deployment log insert fails
 - make deployment-log retention enforcement best-effort after worker status/log writes so secondary trimming failures do not turn successful `appendLog`/`markStopped`/`markFailed` calls into job failures
+- make worker `markFailed`/`markStopped` keep the status transition authoritative when the follow-up transition log insert fails, warning instead of surfacing a secondary audit-write failure as the primary outcome
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another
@@ -144,11 +145,12 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - document the pre-queue env-resolution failure path so deployment-flow and progress notes match the new failed-state correction behavior during deployment creation
 - document the queued-cancel finalization fallback so deployment-flow and progress notes match the new state-correction behavior after successful queue removal
 - document the best-effort worker log-retention follow-through so progress notes match the new partial-failure behavior after state/log writes
+- document the best-effort worker transition-log follow-through so progress notes match the new partial-failure behavior after failure/stop state writes
 
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
-  - passed (`68/68`)
+  - passed (`70/70`)
 - `npm --workspace @vcloudrunner/api test`
   - passed (`183/183`)
 - `npm run typecheck`

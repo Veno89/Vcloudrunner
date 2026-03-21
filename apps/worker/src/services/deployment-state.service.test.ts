@@ -70,6 +70,35 @@ test('markFailed writes failed status, error log, and applies retention cap', as
   assert.deepEqual(pool.queries[2].params, ['dep-456', env.DEPLOYMENT_LOG_MAX_ROWS_PER_DEPLOYMENT]);
 });
 
+test('markFailed still succeeds when the failure log insert fails after the status update', async () => {
+  const warnings: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
+  const originalWarn = logger.warn;
+  const pool = new MockPool(async (text) => {
+    if (/insert into deployment_logs/i.test(text)) {
+      throw new Error('log insert failed');
+    }
+  });
+  const service = new DeploymentStateService(pool);
+
+  logger.warn = (message, metadata) => {
+    warnings.push({ message, metadata });
+  };
+
+  try {
+    await service.markFailed('dep-log-fail-failed', 'fatal failure');
+  } finally {
+    logger.warn = originalWarn;
+  }
+
+  assert.equal(pool.queries.length, 3);
+  assert.match(pool.queries[0].text, /update deployments/i);
+  assert.match(pool.queries[1].text, /insert into deployment_logs/i);
+  assert.match(pool.queries[2].text, /delete from deployment_logs/i);
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0]?.message, 'deployment failed log insert failed after status update');
+  assert.equal(warnings[0]?.metadata?.deploymentId, 'dep-log-fail-failed');
+});
+
 test('appendLog still succeeds when retention enforcement fails after the log write', async () => {
   const warnings: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
   const originalWarn = logger.warn;
@@ -125,6 +154,35 @@ test('markStopped still succeeds when retention enforcement fails after the stop
   assert.equal(warnings.length, 1);
   assert.equal(warnings[0]?.message, 'deployment log retention enforcement failed after write');
   assert.equal(warnings[0]?.metadata?.deploymentId, 'dep-retention-stop');
+});
+
+test('markStopped still succeeds when the stop log insert fails after the status update', async () => {
+  const warnings: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
+  const originalWarn = logger.warn;
+  const pool = new MockPool(async (text) => {
+    if (/insert into deployment_logs/i.test(text)) {
+      throw new Error('log insert failed');
+    }
+  });
+  const service = new DeploymentStateService(pool);
+
+  logger.warn = (message, metadata) => {
+    warnings.push({ message, metadata });
+  };
+
+  try {
+    await service.markStopped('dep-log-fail-stopped', 'cancelled');
+  } finally {
+    logger.warn = originalWarn;
+  }
+
+  assert.equal(pool.queries.length, 3);
+  assert.match(pool.queries[0].text, /update deployments/i);
+  assert.match(pool.queries[1].text, /insert into deployment_logs/i);
+  assert.match(pool.queries[2].text, /delete from deployment_logs/i);
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0]?.message, 'deployment stopped log insert failed after status update');
+  assert.equal(warnings[0]?.metadata?.deploymentId, 'dep-log-fail-stopped');
 });
 
 test('pruneLogsByRetentionWindow deletes old log rows using configured day window', async () => {

@@ -54,13 +54,23 @@ export class DeploymentStateService {
 
   async markFailed(deploymentId: string, message: string) {
     await this.repository.markStatusFailed(deploymentId);
-    await this.repository.insertLog({ deploymentId, level: 'error', message });
+    await this.appendTransitionLogBestEffort({
+      deploymentId,
+      level: 'error',
+      message,
+      action: 'failed'
+    });
     await this.enforceRetentionBestEffort(deploymentId);
   }
 
   async markStopped(deploymentId: string, message: string) {
     await this.repository.markStatusStopped(deploymentId);
-    await this.repository.insertLog({ deploymentId, level: 'warn', message });
+    await this.appendTransitionLogBestEffort({
+      deploymentId,
+      level: 'warn',
+      message,
+      action: 'stopped'
+    });
     await this.enforceRetentionBestEffort(deploymentId);
   }
 
@@ -640,6 +650,26 @@ export class DeploymentStateService {
     } catch (error) {
       logger.warn('deployment log retention enforcement failed after write', {
         deploymentId,
+        message: getErrorMessage(error)
+      });
+    }
+  }
+
+  private async appendTransitionLogBestEffort(input: {
+    deploymentId: string;
+    level: string;
+    message: string;
+    action: 'failed' | 'stopped';
+  }) {
+    try {
+      await this.repository.insertLog({
+        deploymentId: input.deploymentId,
+        level: input.level,
+        message: input.message
+      });
+    } catch (error) {
+      logger.warn(`deployment ${input.action} log insert failed after status update`, {
+        deploymentId: input.deploymentId,
         message: getErrorMessage(error)
       });
     }
