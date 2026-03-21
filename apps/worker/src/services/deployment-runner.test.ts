@@ -176,3 +176,82 @@ test('removeContainerByName avoids success logging when every stale removal fail
   assert.equal(warnings[0]?.message, 'failed removing stale container before retry');
   assert.equal(infos.length, 0);
 });
+
+test('cleanupCancelledRun rethrows real teardown failures after attempting both cleanup steps', async (t) => {
+  const warnings: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
+  const containerCleanupCalls: string[] = [];
+  const imageCleanupCalls: string[] = [];
+
+  t.mock.method(logger, 'warn', (message: string, metadata?: Record<string, unknown>) => {
+    warnings.push({ message, metadata });
+  });
+
+  const runner = new DeploymentRunner() as unknown as {
+    removeContainerForce: (containerId: string) => Promise<void>;
+    removeImageForce: (imageTag: string) => Promise<void>;
+    cleanupCancelledRun: (input: {
+      deploymentId: string;
+      containerId: string;
+      imageTag: string;
+    }) => Promise<void>;
+  };
+
+  runner.removeContainerForce = async (containerId) => {
+    containerCleanupCalls.push(containerId);
+    throw new Error('permission denied');
+  };
+  runner.removeImageForce = async (imageTag) => {
+    imageCleanupCalls.push(imageTag);
+    throw new Error('image busy');
+  };
+
+  await assert.rejects(
+    runner.cleanupCancelledRun({
+      deploymentId: 'dep-123',
+      containerId: 'container-123',
+      imageTag: 'image-tag'
+    }),
+    /deployment runtime cleanup incomplete: container remove failed: permission denied; image remove failed: image busy/
+  );
+
+  assert.deepEqual(containerCleanupCalls, ['container-123']);
+  assert.deepEqual(imageCleanupCalls, ['image-tag']);
+  assert.equal(warnings.length, 2);
+  assert.equal(warnings[0]?.message, 'failed removing container after cancellation');
+  assert.equal(warnings[1]?.message, 'failed removing image after cancellation');
+});
+
+test('cleanupCancelledRun ignores already-gone runtime resources', async (t) => {
+  const warnings: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
+
+  t.mock.method(logger, 'warn', (message: string, metadata?: Record<string, unknown>) => {
+    warnings.push({ message, metadata });
+  });
+
+  const runner = new DeploymentRunner() as unknown as {
+    removeContainerForce: (containerId: string) => Promise<void>;
+    removeImageForce: (imageTag: string) => Promise<void>;
+    cleanupCancelledRun: (input: {
+      deploymentId: string;
+      containerId: string;
+      imageTag: string;
+    }) => Promise<void>;
+  };
+
+  runner.removeContainerForce = async () => {
+    const error = new Error('No such container: container-123') as Error & { statusCode?: number };
+    error.statusCode = 404;
+    throw error;
+  };
+  runner.removeImageForce = async () => {
+    throw new Error('Error response from daemon: No such image: image-tag');
+  };
+
+  await runner.cleanupCancelledRun({
+    deploymentId: 'dep-123',
+    containerId: 'container-123',
+    imageTag: 'image-tag'
+  });
+
+  assert.equal(warnings.length, 0);
+});

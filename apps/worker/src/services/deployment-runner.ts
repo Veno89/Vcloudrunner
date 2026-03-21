@@ -17,6 +17,10 @@ export class DeploymentRunner {
   private readonly docker = new Docker({ socketPath: env.DOCKER_SOCKET_PATH });
   private networkEnsured = false;
 
+  private getErrorMessage(error: unknown) {
+    return error instanceof Error ? error.message : String(error);
+  }
+
   private isNetworkAlreadyExistsError(error: unknown): boolean {
     if (!(error instanceof Error)) {
       return false;
@@ -28,6 +32,27 @@ export class DeploymentRunner {
       (typeof statusCode === 'number' && statusCode === 409) ||
       /already exists/i.test(error.message)
     );
+  }
+
+  private isCleanupResourceMissingError(error: unknown, resource: 'container' | 'image'): boolean {
+    const statusCode = (error as unknown as { statusCode?: unknown }).statusCode;
+    const message = this.getErrorMessage(error);
+
+    if (typeof statusCode === 'number' && statusCode === 404) {
+      return true;
+    }
+
+    return resource === 'container'
+      ? /no such container/i.test(message)
+      : /no such image/i.test(message);
+  }
+
+  private async removeContainerForce(containerId: string) {
+    await this.docker.getContainer(containerId).remove({ force: true });
+  }
+
+  private async removeImageForce(imageTag: string) {
+    await execFileAsync('docker', ['image', 'rm', '-f', imageTag]);
   }
 
   private async ensureDeploymentNetwork(): Promise<string> {
@@ -156,24 +181,36 @@ export class DeploymentRunner {
     containerId: string;
     imageTag: string;
   }) {
+    const failures: string[] = [];
+
     try {
-      await this.docker.getContainer(input.containerId).remove({ force: true });
+      await this.removeContainerForce(input.containerId);
     } catch (error) {
-      logger.warn('failed removing container after cancellation', {
-        deploymentId: input.deploymentId,
-        containerId: input.containerId,
-        message: error instanceof Error ? error.message : String(error)
-      });
+      if (!this.isCleanupResourceMissingError(error, 'container')) {
+        logger.warn('failed removing container after cancellation', {
+          deploymentId: input.deploymentId,
+          containerId: input.containerId,
+          message: this.getErrorMessage(error)
+        });
+        failures.push(`container remove failed: ${this.getErrorMessage(error)}`);
+      }
     }
 
     try {
-      await execFileAsync('docker', ['image', 'rm', '-f', input.imageTag]);
+      await this.removeImageForce(input.imageTag);
     } catch (error) {
-      logger.warn('failed removing image after cancellation', {
-        deploymentId: input.deploymentId,
-        imageTag: input.imageTag,
-        message: error instanceof Error ? error.message : String(error)
-      });
+      if (!this.isCleanupResourceMissingError(error, 'image')) {
+        logger.warn('failed removing image after cancellation', {
+          deploymentId: input.deploymentId,
+          imageTag: input.imageTag,
+          message: this.getErrorMessage(error)
+        });
+        failures.push(`image remove failed: ${this.getErrorMessage(error)}`);
+      }
+    }
+
+    if (failures.length > 0) {
+      throw new Error(`deployment runtime cleanup incomplete: ${failures.join('; ')}`);
     }
   }
 
