@@ -1,10 +1,19 @@
-import { DeploymentRunner } from '../deployment-runner.js';
+import { createDeploymentRunner } from '../deployment-runner.factory.js';
 import type { RuntimeExecutor } from './runtime-executor.js';
 
+interface DeploymentRunnerLike {
+  run: RuntimeExecutor['run'];
+  cleanupCancelledRun: RuntimeExecutor['cleanupCancelledRun'];
+}
+
 export class DockerRuntimeExecutor implements RuntimeExecutor {
-  private readonly runner = new DeploymentRunner();
+  constructor(private readonly runner: DeploymentRunnerLike = createDeploymentRunner()) {}
 
-  run = this.runner.run.bind(this.runner);
+  run: RuntimeExecutor['run'] = (job) => {
+    return this.runner.run(job);
+  };
 
-  cleanupCancelledRun = this.runner.cleanupCancelledRun.bind(this.runner);
+  cleanupCancelledRun: RuntimeExecutor['cleanupCancelledRun'] = (input) => {
+    return this.runner.cleanupCancelledRun(input);
+  };
 }
