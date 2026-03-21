@@ -14,7 +14,7 @@ import { deployments as mockDeployments } from '@/lib/mock-data';
 import { hasRequestedCancellation, truncateUuid } from '@/lib/helpers';
 import Link from 'next/link';
 
-type DeploymentFilterStatus = 'all' | DeploymentStatus | 'cancelled';
+type DeploymentFilterStatus = 'all' | DeploymentStatus | 'cancelled' | 'cancelling';
 
 interface DeploymentsPageProps {
   searchParams?: {
@@ -36,7 +36,7 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
       'cancellationRequested' in deployment ? Boolean(deployment.cancellationRequested) : false
   }));
 
-  const selectedStatus: 'all' | DeploymentStatus =
+  const selectedStatus: 'all' | DeploymentStatus | 'cancelling' =
     searchParams?.status === 'cancelled'
       ? 'stopped'
       : searchParams?.status ?? 'all';
@@ -51,7 +51,13 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
   ).map(([id, name]) => ({ id: String(id), name: String(name) }));
 
   const filteredDeployments = normalizedDeployments.filter((deployment) => {
-    const statusMatch = selectedStatus === 'all' || deployment.status === selectedStatus;
+    const statusMatch =
+      selectedStatus === 'all'
+      || (
+        selectedStatus === 'cancelling'
+          ? deployment.cancellationRequested && (deployment.status === 'queued' || deployment.status === 'building')
+          : deployment.status === selectedStatus
+      );
     const projectMatch = selectedProjectId === 'all' || deployment.projectId === selectedProjectId;
     const queryMatch =
       normalizedQuery.length === 0 ||
@@ -104,6 +110,7 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
         <Label htmlFor="deployment-status-filter" className="sr-only">Filter deployments by status</Label>
         <Select id="deployment-status-filter" name="status" defaultValue={selectedStatus}>
           <option value="all">All statuses</option>
+          <option value="cancelling">cancelling</option>
           <option value="queued">queued</option>
           <option value="building">building</option>
           <option value="running">running</option>
@@ -137,13 +144,17 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
               ? 'Deployment history unavailable'
               : selectedStatus === 'all'
                 ? 'No deployments yet'
+                : selectedStatus === 'cancelling'
+                  ? 'No cancelling deployments'
                 : 'No matching deployments'
           }
           description={
             deploymentHistoryUnavailable
               ? 'Live project data loaded, but deployment history could not be loaded for one or more projects.'
               : selectedStatus === 'all' && selectedProjectId === 'all' && selectedQuery.length === 0
-              ? 'Trigger a deployment from the Projects page to see activity here.'
+                ? 'Trigger a deployment from the Projects page to see activity here.'
+                : selectedStatus === 'cancelling'
+                  ? 'No queued or building deployments currently have cancellation pending. Try another filter or open Projects to inspect active work.'
               : 'Try adjusting filters/search or open Projects to trigger a new deployment.'
           }
           actions={

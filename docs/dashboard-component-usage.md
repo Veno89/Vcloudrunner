@@ -68,6 +68,7 @@ This guide defines how shared dashboard UI primitives should be used so new scre
 - Only render deployment runtime URLs as live links for actively `running` deployments; failed/stopped records should prefer truthful inactive copy over stale historical URLs, and `running` records without a public route should use explicit unavailable/not-publicly-exposed copy rather than `pending`.
 - When a deployment remains `queued` or `building` but its metadata shows cancellation has been requested, keep the canonical status badge and add an explicit secondary `cancelling` cue plus updated guidance; do not keep describing it like a normal in-progress deploy.
 - Apply the same cancellation-requested cue in compact text surfaces too, such as deployment selectors or operational summary rows; do not collapse those back to plain `queued`/`building`.
+- When a dashboard filter exposes cancellation-requested deployments, model that as a derived `cancelling` view over queued/building records rather than overloading `stopped` or pretending cancellation is a first-class backend status.
 - On operational summary metrics, treat `stopped` deployments as terminal non-success outcomes rather than dropping them from success-rate calculations.
 - Use `<time>` semantics for timestamps where practical.
 
