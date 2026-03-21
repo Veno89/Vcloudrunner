@@ -2,6 +2,10 @@ import { Pool } from 'pg';
 
 import { env } from '../config/env.js';
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export interface QueryResult<T = Record<string, unknown>> {
   rows: T[];
 }
@@ -106,7 +110,11 @@ export class DeploymentStateRepository {
 
       await this.pool.query('commit');
     } catch (error) {
-      await this.pool.query('rollback');
+      try {
+        await this.pool.query('rollback');
+      } catch (rollbackError) {
+        throw new Error(`${getErrorMessage(error)} (rollback failed: ${getErrorMessage(rollbackError)})`);
+      }
       throw error;
     }
   }

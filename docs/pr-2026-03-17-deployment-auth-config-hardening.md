@@ -26,6 +26,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - make startup-failure runner teardown propagate real container/image cleanup failures too, while preserving the original deployment error in the surfaced message so failure classification stays stable when cleanup itself also breaks
 - make worker workspace cleanup best-effort after both successful runs and startup failures, so temp-directory delete problems can no longer override the real deployment result
 - dedupe worker workspace cleanup on startup failures so the runner no longer attempts the same temp-directory delete twice or emits duplicate warnings for one locked workspace
+- preserve the original `markRunning` write error when the worker repository rollback also fails, so transaction cleanup no longer hides the real runtime-state persistence problem behind a secondary rollback exception
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another
@@ -170,11 +171,12 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - document the matching startup-failure cleanup behavior so progress notes reflect that runner teardown now surfaces real cleanup failures without dropping the original deployment error context
 - document the new best-effort workspace-cleanup behavior so progress notes reflect that temp-directory delete failures are now warnings instead of outcome-changing errors
 - document the deduped startup-failure workspace cleanup path so progress notes match the single final cleanup attempt and warning behavior
+- document the worker transaction rollback hardening so progress notes reflect that rollback failures now keep the original `markRunning` write error context intact
 
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
-  - passed (`98/98`)
+  - passed (`100/100`)
 - `npm --workspace @vcloudrunner/api test`
   - passed (`183/183`)
 - `npm run typecheck`
