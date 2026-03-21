@@ -3,6 +3,7 @@ import test from 'node:test';
 
 await import('../test/worker-test-env.js');
 
+const { env } = await import('../config/env.js');
 const { createDeploymentJobProcessor } = await import('./deployment-job-processor.js');
 const { DeploymentFailure } = await import('./deployment-errors.js');
 
@@ -21,6 +22,7 @@ const jobData = {
     cpuMillicores: 500
   }
 };
+const expectedRouteHost = `${jobData.projectSlug}.${env.PLATFORM_DOMAIN}`;
 
 function createJob(overrides?: Partial<typeof jobData>) {
   return {
@@ -31,6 +33,16 @@ function createJob(overrides?: Partial<typeof jobData>) {
       ...jobData,
       ...overrides
     }
+  };
+}
+
+function createCaddyServiceStub(overrides: {
+  upsertRoute?: (input: { host: string; upstreamPort: number }) => Promise<void>;
+  deleteRoute?: (input: { host: string }) => Promise<void>;
+} = {}) {
+  return {
+    upsertRoute: overrides.upsertRoute ?? (async () => undefined),
+    deleteRoute: overrides.deleteRoute ?? (async () => undefined)
   };
 }
 
@@ -71,9 +83,7 @@ test('processor keeps successful deployments successful when the final running l
         stateFailures.push(deploymentId);
       }
     },
-    caddyService: {
-      upsertRoute: async () => undefined
-    },
+    caddyService: createCaddyServiceStub(),
     logger: {
       info: (message) => {
         infoLogs.push(message);
@@ -129,9 +139,7 @@ test('processor continues into runtime execution when pre-run informational log 
       },
       markFailed: async () => undefined
     },
-    caddyService: {
-      upsertRoute: async () => undefined
-    },
+    caddyService: createCaddyServiceStub(),
     logger: {
       info: () => undefined,
       warn: (message, metadata) => {
@@ -179,9 +187,7 @@ test('processor continues into runtime execution when the building event emissio
       },
       markFailed: async () => undefined
     },
-    caddyService: {
-      upsertRoute: async () => undefined
-    },
+    caddyService: createCaddyServiceStub(),
     logger: {
       info: () => undefined,
       warn: (message, metadata) => {
@@ -241,11 +247,11 @@ test('processor keeps successful deployments successful when route warning log a
         stateFailures.push(deploymentId);
       }
     },
-    caddyService: {
+    caddyService: createCaddyServiceStub({
       upsertRoute: async () => {
         throw new Error('caddy unavailable');
       }
-    },
+    }),
     logger: {
       info: () => undefined,
       warn: (message, metadata) => {
@@ -290,9 +296,7 @@ test('processor still rethrows the original retryable error when retry logging f
       markRunning: async () => undefined,
       markFailed: async () => undefined
     },
-    caddyService: {
-      upsertRoute: async () => undefined
-    },
+    caddyService: createCaddyServiceStub(),
     logger: {
       info: () => undefined,
       warn: (message, metadata) => {
@@ -348,9 +352,7 @@ test('processor keeps successful deployments successful when the running event e
         stateFailures.push(deploymentId);
       }
     },
-    caddyService: {
-      upsertRoute: async () => undefined
-    },
+    caddyService: createCaddyServiceStub(),
     logger: {
       info: (message) => {
         infoLogs.push(message);
@@ -399,9 +401,7 @@ test('processor still fails non-retryable deployments when failed event emission
         failureMessages.push(message);
       }
     },
-    caddyService: {
-      upsertRoute: async () => undefined
-    },
+    caddyService: createCaddyServiceStub(),
     logger: {
       info: () => undefined,
       warn: (message, metadata) => {
@@ -448,9 +448,7 @@ test('processor marks cancelled-before-execution deployments failed when stop pe
         failureMessages.push(message);
       }
     },
-    caddyService: {
-      upsertRoute: async () => undefined
-    },
+    caddyService: createCaddyServiceStub(),
     logger: {
       info: () => undefined,
       warn: () => undefined,
@@ -500,9 +498,7 @@ test('processor marks cancelled-during-execution deployments failed when stop pe
         failureMessages.push(message);
       }
     },
-    caddyService: {
-      upsertRoute: async () => undefined
-    },
+    caddyService: createCaddyServiceStub(),
     logger: {
       info: () => undefined,
       warn: () => undefined,
@@ -550,9 +546,7 @@ test('processor emits a cancelled event when cancellation completes during execu
       markRunning: async () => undefined,
       markFailed: async () => undefined
     },
-    caddyService: {
-      upsertRoute: async () => undefined
-    },
+    caddyService: createCaddyServiceStub(),
     logger: {
       info: () => undefined,
       warn: () => undefined,
@@ -575,6 +569,7 @@ test('processor emits a cancelled event when cancellation completes during execu
 
 test('processor cleans up started runtime before failing an exhausted post-run persistence error', async () => {
   const cleanupCalls: Array<Record<string, unknown>> = [];
+  const deleteRouteCalls: Array<Record<string, unknown>> = [];
   const failureMessages: string[] = [];
 
   const processJob = createDeploymentJobProcessor({
@@ -604,9 +599,11 @@ test('processor cleans up started runtime before failing an exhausted post-run p
         failureMessages.push(message);
       }
     },
-    caddyService: {
-      upsertRoute: async () => undefined
-    },
+    caddyService: createCaddyServiceStub({
+      deleteRoute: async (input) => {
+        deleteRouteCalls.push(input as unknown as Record<string, unknown>);
+      }
+    }),
     logger: {
       info: () => undefined,
       warn: () => undefined,
@@ -621,12 +618,15 @@ test('processor cleans up started runtime before failing an exhausted post-run p
   assert.equal(cleanupCalls[0]?.deploymentId, 'dep-123');
   assert.equal(cleanupCalls[0]?.containerId, 'container-123');
   assert.equal(cleanupCalls[0]?.imageTag, 'image-tag');
+  assert.equal(deleteRouteCalls.length, 1);
+  assert.equal(deleteRouteCalls[0]?.host, expectedRouteHost);
   assert.equal(failureMessages.length, 1);
   assert.match(failureMessages[0] ?? '', /^\[DEPLOYMENT_TRANSIENT_FAILURE\] database unavailable$/);
 });
 
 test('processor cleans up started runtime before finalizing cancellation after a post-run error', async () => {
   const cleanupCalls: Array<Record<string, unknown>> = [];
+  const deleteRouteCalls: Array<Record<string, unknown>> = [];
   const stopMessages: string[] = [];
   let cancellationChecks = 0;
 
@@ -662,9 +662,11 @@ test('processor cleans up started runtime before finalizing cancellation after a
         throw new Error('markFailed should not be called for cancellation finalization');
       }
     },
-    caddyService: {
-      upsertRoute: async () => undefined
-    },
+    caddyService: createCaddyServiceStub({
+      deleteRoute: async (input) => {
+        deleteRouteCalls.push(input as unknown as Record<string, unknown>);
+      }
+    }),
     logger: {
       info: () => undefined,
       warn: () => undefined,
@@ -677,8 +679,66 @@ test('processor cleans up started runtime before finalizing cancellation after a
 
   assert.equal(cleanupCalls.length, 1);
   assert.equal(cleanupCalls[0]?.deploymentId, 'dep-123');
+  assert.equal(deleteRouteCalls.length, 1);
+  assert.equal(deleteRouteCalls[0]?.host, expectedRouteHost);
   assert.equal(stopMessages.length, 1);
   assert.match(stopMessages[0] ?? '', /cancellation confirmed after execution error/i);
+});
+
+test('processor warns and continues when route cleanup fails after a post-run error', async () => {
+  const cleanupCalls: Array<Record<string, unknown>> = [];
+  const warnings: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
+  const failureMessages: string[] = [];
+
+  const processJob = createDeploymentJobProcessor({
+    runtimeExecutor: {
+      run: async () => ({
+        containerId: 'container-123',
+        containerName: 'container-name',
+        imageTag: 'image-tag',
+        hostPort: 3100,
+        runtimeUrl: 'http://demo-project.example.test',
+        internalPort: 3000,
+        projectPath: 'repo'
+      }),
+      cleanupCancelledRun: async (input) => {
+        cleanupCalls.push(input as unknown as Record<string, unknown>);
+      }
+    },
+    stateService: {
+      isCancellationRequested: async () => false,
+      markStopped: async () => undefined,
+      markBuilding: async () => undefined,
+      appendLog: async () => undefined,
+      markRunning: async () => {
+        throw new Error('database unavailable');
+      },
+      markFailed: async (_deploymentId, message) => {
+        failureMessages.push(message);
+      }
+    },
+    caddyService: createCaddyServiceStub({
+      deleteRoute: async () => {
+        throw new Error('caddy delete unavailable');
+      }
+    }),
+    logger: {
+      info: () => undefined,
+      warn: (message, metadata) => {
+        warnings.push({ message, metadata });
+      },
+      error: () => undefined
+    },
+    emitDeploymentEvent: () => undefined
+  });
+
+  await assert.rejects(processJob(createJob()), /database unavailable/);
+
+  assert.equal(cleanupCalls.length, 1);
+  assert.equal(failureMessages.length, 1);
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0]?.message, 'deployment route cleanup failed after post-run error');
+  assert.equal(warnings[0]?.metadata?.host, expectedRouteHost);
 });
 
 test('processor marks cancellation finalization failed when stop persistence fails after an execution error', async () => {
@@ -718,9 +778,7 @@ test('processor marks cancellation finalization failed when stop persistence fai
         failureMessages.push(message);
       }
     },
-    caddyService: {
-      upsertRoute: async () => undefined
-    },
+    caddyService: createCaddyServiceStub(),
     logger: {
       info: () => undefined,
       warn: () => undefined,
@@ -770,9 +828,7 @@ test('processor emits a cancelled event when cancellation finalizes after an exe
       },
       markFailed: async () => undefined
     },
-    caddyService: {
-      upsertRoute: async () => undefined
-    },
+    caddyService: createCaddyServiceStub(),
     logger: {
       info: () => undefined,
       warn: () => undefined,

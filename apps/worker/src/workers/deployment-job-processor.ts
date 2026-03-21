@@ -40,6 +40,7 @@ interface StateServiceLike {
 
 interface CaddyServiceLike {
   upsertRoute(input: { host: string; upstreamPort: number }): Promise<void>;
+  deleteRoute(input: { host: string }): Promise<void>;
 }
 
 interface LoggerLike {
@@ -169,6 +170,28 @@ async function cleanupStartedRuntimeBestEffort(
   }
 }
 
+async function cleanupRouteBestEffort(
+  dependencies: Required<DeploymentJobProcessorDependencies>,
+  input: {
+    deploymentId: string;
+    correlationId: string;
+    host: string;
+    reason: 'post-run-failure' | 'cancellation-after-post-run-failure';
+  }
+) {
+  try {
+    await dependencies.caddyService.deleteRoute({ host: input.host });
+  } catch (error) {
+    dependencies.logger.warn('deployment route cleanup failed after post-run error', {
+      deploymentId: input.deploymentId,
+      correlationId: input.correlationId,
+      host: input.host,
+      reason: input.reason,
+      message: getErrorMessage(error)
+    });
+  }
+}
+
 async function markFailedBestEffort(
   dependencies: Required<DeploymentJobProcessorDependencies>,
   input: {
@@ -208,6 +231,7 @@ export function createDeploymentJobProcessor(
   return async (job: DeploymentJobLike) => {
     const correlationId = job.data.correlationId ?? `queue-job:${job.id ?? 'unknown'}`;
     let runtimeResult: RuntimeExecutionResult | null = null;
+    let configuredRouteHost: string | null = null;
 
     if (await dependencies.stateService.isCancellationRequested(job.data.deploymentId)) {
       try {
@@ -332,7 +356,7 @@ export function createDeploymentJobProcessor(
         return;
       }
 
-      await configureRouteIfNeeded(dependencies, {
+      configuredRouteHost = await configureRouteIfNeeded(dependencies, {
         job,
         result,
         correlationId
@@ -392,6 +416,15 @@ export function createDeploymentJobProcessor(
           result: runtimeResult,
           reason: cancellationRequested ? 'cancellation-after-post-run-failure' : 'post-run-failure'
         });
+
+        if (configuredRouteHost) {
+          await cleanupRouteBestEffort(dependencies, {
+            deploymentId: job.data.deploymentId,
+            correlationId,
+            host: configuredRouteHost,
+            reason: cancellationRequested ? 'cancellation-after-post-run-failure' : 'post-run-failure'
+          });
+        }
       }
 
       if (cancellationRequested) {
@@ -517,7 +550,7 @@ async function configureRouteIfNeeded(
   }
 ) {
   if (input.result.hostPort === null) {
-    return;
+    return null;
   }
 
   const host = `${input.job.data.projectSlug}.${env.PLATFORM_DOMAIN}`;
@@ -530,6 +563,7 @@ async function configureRouteIfNeeded(
       stage: 'route-configured',
       warningMessage: 'deployment post-run log append failed; continuing deployment'
     });
+    return host;
   } catch (error) {
     const message = getErrorMessage(error);
     dependencies.logger.warn('failed to configure caddy route; continuing deployment', {
@@ -547,5 +581,6 @@ async function configureRouteIfNeeded(
       stage: 'route-config-skipped',
       warningMessage: 'deployment post-run log append failed; continuing deployment'
     });
+    return null;
   }
 }

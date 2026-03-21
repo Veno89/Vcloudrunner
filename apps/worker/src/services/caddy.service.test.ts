@@ -128,3 +128,93 @@ test('upsertRoute preserves non-OK Caddy responses in the failure message', asyn
     /CADDY_ROUTE_UPDATE_FAILED: 502 route rejected/
   );
 });
+
+test('deleteRoute sends the expected Caddy delete request with a timeout signal', async (t) => {
+  withCaddyEnv(t, 'http://caddy.internal:2019');
+
+  const service = new CaddyService();
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+
+  t.mock.method(
+    globalThis,
+    'fetch',
+    async (url: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      calls.push({ url: String(url), init });
+      return new Response(null, { status: 200 });
+    }
+  );
+
+  await service.deleteRoute({
+    host: 'app.example.test'
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]?.url, 'http://caddy.internal:2019/id/vcloudrunner/routes/app.example.test');
+  assert.equal(calls[0]?.init?.method, 'DELETE');
+  assert.ok(calls[0]?.init?.signal instanceof AbortSignal);
+});
+
+test('deleteRoute wraps Caddy network failures with a stable error prefix', async (t) => {
+  withCaddyEnv(t, 'http://caddy.internal:2019');
+
+  const service = new CaddyService();
+
+  t.mock.method(globalThis, 'fetch', async () => {
+    throw new Error('connect ETIMEDOUT');
+  });
+
+  await assert.rejects(
+    service.deleteRoute({
+      host: 'app.example.test'
+    }),
+    /CADDY_ROUTE_DELETE_FAILED: connect ETIMEDOUT/
+  );
+});
+
+test('deleteRoute normalizes timeout failures with a stable error prefix', async (t) => {
+  withCaddyEnv(t, 'http://caddy.internal:2019');
+
+  const service = new CaddyService();
+  const timeoutHandle = { timeout: true } as unknown as ReturnType<typeof setTimeout>;
+
+  t.mock.method(globalThis, 'setTimeout', (((handler: () => void) => {
+    handler();
+    return timeoutHandle;
+  }) as unknown) as typeof setTimeout);
+  t.mock.method(globalThis, 'clearTimeout', (() => undefined) as typeof clearTimeout);
+  t.mock.method(
+    globalThis,
+    'fetch',
+    async (_url: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      if ((init?.signal as AbortSignal | undefined)?.aborted) {
+        throw new Error('aborted by signal');
+      }
+
+      throw new Error('expected timeout abort');
+    }
+  );
+
+  await assert.rejects(
+    service.deleteRoute({
+      host: 'app.example.test'
+    }),
+    /CADDY_ROUTE_DELETE_FAILED: request timed out after 10000ms/
+  );
+});
+
+test('deleteRoute preserves non-OK Caddy responses in the failure message', async (t) => {
+  withCaddyEnv(t, 'http://caddy.internal:2019');
+
+  const service = new CaddyService();
+
+  t.mock.method(globalThis, 'fetch', async () => (
+    new Response('route delete rejected', { status: 502 })
+  ));
+
+  await assert.rejects(
+    service.deleteRoute({
+      host: 'app.example.test'
+    }),
+    /CADDY_ROUTE_DELETE_FAILED: 502 route delete rejected/
+  );
+});
