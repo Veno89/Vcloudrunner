@@ -2,13 +2,10 @@ import { gzipSync } from 'node:zlib';
 
 import { env } from '../config/env.js';
 import { logger } from '../logger/logger.js';
-import { createDeploymentLogArchiveStore } from './archive-store/deployment-log-archive-store.factory.js';
-import { createDeploymentLogArchiveUploader } from './archive-upload/deployment-log-archive-uploader.factory.js';
 import type { ArchiveUploadRequest } from './archive-upload/archive-upload-provider.js';
 import type { DeploymentLogArchiveUploader } from './archive-upload/deployment-log-archive-uploader.js';
 import type { DeploymentLogArchiveStore } from './archive-store/deployment-log-archive-store.js';
-import { createDeploymentStateRepository } from './deployment-state.repository.factory.js';
-import { createIngressManager } from './ingress/ingress-manager.factory.js';
+import { createDeploymentStateServiceDependencies } from './deployment-state-service-dependencies.factory.js';
 import type { IngressManager } from './ingress/ingress-manager.js';
 import type { DeploymentStateRepository, Queryable, SuccessInput } from './deployment-state.repository.js';
 
@@ -24,14 +21,21 @@ export class DeploymentStateService {
 
   constructor(
     pool?: Queryable,
-    ingressManager: Pick<IngressManager, 'deleteRoute'> = createIngressManager(),
-    archiveUploader: DeploymentLogArchiveUploader = createDeploymentLogArchiveUploader(),
-    archiveStore: DeploymentLogArchiveStore = createDeploymentLogArchiveStore()
+    ingressManager?: Pick<IngressManager, 'deleteRoute'>,
+    archiveUploader?: DeploymentLogArchiveUploader,
+    archiveStore?: DeploymentLogArchiveStore
   ) {
-    this.repository = createDeploymentStateRepository(pool);
-    this.ingressManager = ingressManager;
-    this.archiveUploader = archiveUploader;
-    this.archiveStore = archiveStore;
+    const dependencies = createDeploymentStateServiceDependencies({
+      pool,
+      ingressManager,
+      archiveUploader,
+      archiveStore
+    });
+
+    this.repository = dependencies.repository;
+    this.ingressManager = dependencies.ingressManager;
+    this.archiveUploader = dependencies.archiveUploader;
+    this.archiveStore = dependencies.archiveStore;
   }
 
   async markBuilding(deploymentId: string) {
