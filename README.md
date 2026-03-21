@@ -1,6 +1,132 @@
 # Vcloudrunner
 
-Railway-style single-node PaaS MVP monorepo.
+Single-node self-hosted PaaS MVP monorepo. Think "a small Railway/Vercel-style platform that runs on one machine".
+
+## Start Here (Noob-Friendly)
+
+Vcloudrunner takes a Git repository, builds it in Docker, runs it on the same machine, and gives you a dashboard to manage projects, deployments, environment variables, logs, health, and API tokens.
+
+What you can do with it today:
+
+- create projects that point at Git repos
+- store per-project environment variables
+- trigger deployments and watch logs
+- see queue / worker / API health from the dashboard
+- manage API tokens for dashboard and API access
+
+Important current limitations:
+
+- this is still an MVP aimed at local/self-hosted development, not a polished hosted SaaS
+- there is no sign-up / login UI yet
+- if `NEXT_PUBLIC_DEMO_USER_ID` and `API_AUTH_TOKEN` are not configured, the dashboard still loads, but user-scoped pages intentionally show explicit live-data unavailable guidance
+- local deployed-app URLs under `*.apps.platform.example.com` need matching DNS or tunnel setup; the dashboard and API hostnames are the easiest things to test first
+
+## Fastest Way To Try It
+
+1. Create a root `.env` file in the repo with at least:
+   ```dotenv
+   ENCRYPTION_KEY=replace-with-32-char-minimum-secret
+   POSTGRES_PASSWORD=replace-with-strong-postgres-password
+   REDIS_PASSWORD=replace-with-strong-redis-password
+   CLOUDFLARED_TOKEN=
+   NEXT_PUBLIC_DEMO_USER_ID=
+   API_AUTH_TOKEN=
+   ```
+   `NEXT_PUBLIC_DEMO_USER_ID` and `API_AUTH_TOKEN` are optional. Leave them blank if you just want to bring the stack up and inspect the dashboard shell plus platform health first.
+2. Install dependencies and start the compose stack:
+   ```bash
+   npm install
+   docker compose up -d --build
+   ```
+3. Apply the committed database migrations from the host workspace:
+   ```bash
+   npm --workspace @vcloudrunner/api run db:migrate
+   ```
+   If the API or worker booted before the schema existed, rerun:
+   ```bash
+   docker compose restart api worker dashboard
+   ```
+4. Add these local hostnames to your hosts file:
+   ```text
+   127.0.0.1 platform.example.com
+   127.0.0.1 api.platform.example.com
+   ```
+5. Open the platform:
+   - dashboard: `http://platform.example.com`
+   - API health: `http://api.platform.example.com/health`
+   - note: `http://localhost` only returns the Caddy placeholder response, not the dashboard UI
+6. Optional: start the Cloudflare tunnel profile if you want external ingress:
+   ```bash
+   docker compose --profile tunnel up -d cloudflared
+   ```
+
+## How To Use It Once It Is Running
+
+If you have configured a live user/token or the local-only dev bootstrap, this is the normal flow:
+
+1. Open the dashboard.
+2. Check the status page first so you know the API, queue, and worker are healthy.
+3. Create a project with a Git repository URL and branch.
+4. Add environment variables if your app needs them.
+5. Trigger a deployment and watch the logs.
+6. Open the runtime URL after the deployment is running and local DNS / tunnel routing exists for that app hostname.
+7. Use the token settings page, or the `/v1/users/:userId/api-tokens` endpoints, to move from bootstrap/local shortcuts to DB-backed tokens.
+
+## Local Development (Run The Apps On Your Machine)
+
+If you want to run Next.js / Fastify / the worker directly on your machine instead of inside containers:
+
+- on plain Windows, the full compose path is usually the easiest option; the host-run worker defaults are most comfortable on Linux, macOS, or WSL2 because they assume a Unix Docker socket path
+- copy the app-local env examples first
+
+PowerShell:
+
+```powershell
+Copy-Item apps/api/.env.example apps/api/.env
+Copy-Item apps/worker/.env.example apps/worker/.env
+Copy-Item apps/dashboard/.env.example apps/dashboard/.env
+```
+
+Bash / zsh:
+
+```bash
+cp apps/api/.env.example apps/api/.env
+cp apps/worker/.env.example apps/worker/.env
+cp apps/dashboard/.env.example apps/dashboard/.env
+```
+
+- if you are reusing this repo's compose Postgres from the host, change `DATABASE_URL` in both `apps/api/.env` and `apps/worker/.env` to `postgres://postgres:postgres@localhost:55432/vcloudrunner`
+- the shipped app-local examples use `localhost:5432`, which assumes a separate host Postgres instance instead of the compose-exposed one
+- for the simplest local-only admin bootstrap, set `ENABLE_DEV_AUTH=true` in `apps/api/.env`, set `NEXT_PUBLIC_DEMO_USER_ID=00000000-0000-0000-0000-000000000001` in `apps/dashboard/.env`, leave `API_AUTH_TOKEN` empty, and create the matching dev user row:
+
+```bash
+docker compose exec postgres psql -U postgres -d vcloudrunner -c "INSERT INTO users (id, email, name) VALUES ('00000000-0000-0000-0000-000000000001', 'dev@example.com', 'Local Dev Admin') ON CONFLICT (email) DO NOTHING;"
+```
+
+- then start the apps in separate terminals:
+
+```bash
+npm run dev:api
+npm run dev:worker
+npm run dev:dashboard
+```
+
+- open `http://localhost:3001`
+- for production-like local runs, keep `ENABLE_DEV_AUTH=false` and use a real DB-backed token in `API_AUTH_TOKEN`
+
+## Database / Env Notes
+
+- apply committed schema changes with:
+  ```bash
+  npm --workspace @vcloudrunner/api run db:migrate
+  ```
+- generate new migration files with:
+  ```bash
+  npm --workspace @vcloudrunner/api run db:generate
+  ```
+- the API runtime and `drizzle-kit` commands load env files in this order: repo root `.env` first, then `apps/api/.env` as an override
+- the worker follows the same pattern with repo root `.env` first, then `apps/worker/.env`
+- `REDIS_URL` defaults to Redis database `0` when no path is present, but any explicit path must be a single integer database index like `redis://localhost:6379/0`
 
 ## MVP Infrastructure Model
 
@@ -15,13 +141,12 @@ No Kubernetes or multi-node orchestration is introduced in the MVP.
 ## Implemented so far
 
 ### Control + Execution Plane
-- Fastify API for projects, deployments, env vars, and logs
+- Fastify API for projects, deployments, env vars, logs, tokens, health, and metrics
 - BullMQ/Redis deployment queue
 - Worker service for `clone -> build -> run`
 - Caddy route upsert integration from worker
-- Dashboard project list/create integration + deploy action from dashboard
-- Environment variable editor vertical slice in dashboard (project selector + CRUD)
-- Deployment logs viewer with live SSE stream (deployment selector + server-proxied EventSource)
+- Dashboard for status, projects, deployments, logs, environment variables, and token management
+- Deployment logs viewer with live SSE stream, export, reconnect handling, and terminal-state-aware fallbacks
 
 ### Data + Runtime
 - Drizzle PostgreSQL schema for platform entities
@@ -31,52 +156,6 @@ No Kubernetes or multi-node orchestration is introduced in the MVP.
 ### Local Infrastructure
 - `docker-compose` stack for: `dashboard`, `api`, `worker`, `postgres`, `redis`, `caddy` (+ optional `cloudflared` profile)
 - Cloudflared tunnel scaffolding for public ingress without router port-forwarding
-
-## Quick Start
-
-1. Provide the required `docker compose` environment variables in your shell or a root `.env` file:
-   ```bash
-   export ENCRYPTION_KEY='replace-with-32-char-minimum-secret'  # required
-   export POSTGRES_PASSWORD='replace-with-strong-postgres-password'  # required
-   export REDIS_PASSWORD='replace-with-strong-redis-password'  # required
-   export CLOUDFLARED_TOKEN='replace-with-cloudflare-tunnel-token'
-   export NEXT_PUBLIC_DEMO_USER_ID='replace-with-existing-user-uuid'  # optional; leave unset until you have a real user ID for live dashboard user-scoped pages
-   export API_AUTH_TOKEN='replace-with-db-backed-api-token'  # optional; needed for live dashboard API calls
-   ```
-   The production-like compose path now pins `ENABLE_DEV_AUTH=false` regardless of local host-run `.env` settings, and keeps `API_TOKENS_JSON` empty. If `NEXT_PUBLIC_DEMO_USER_ID` is unset, the dashboard now stays up and shows explicit live-data unavailable guidance instead of pretending a placeholder user exists.
-2. Build and start the core platform stack:
-   ```bash
-   docker compose up -d --build
-   ```
-3. Apply committed migrations from the host workspace:
-   ```bash
-   npm install
-   npm --workspace @vcloudrunner/api run db:migrate
-   ```
-   The API runtime and `drizzle-kit` commands now use the same env-file loading order: root `.env` first, then `apps/api/.env` as an override. `db:migrate` now fails fast if `DATABASE_URL` is missing instead of silently falling back to a local default database.
-4. (Optional) Start the Cloudflare tunnel profile:
-   ```bash
-   docker compose --profile tunnel up -d cloudflared
-   ```
-5. For direct host-run development instead of compose, copy the app-local examples:
-   ```bash
-   cp apps/api/.env.example apps/api/.env
-   cp apps/worker/.env.example apps/worker/.env
-   cp apps/dashboard/.env.example apps/dashboard/.env
-   ```
-   The API, its `drizzle-kit` commands, and the worker resolve the repo root first, then load the root `.env` and their app-local `.env` files as an override for host-run development. That now works consistently whether you start commands from the repo root or from the individual app directory. `apps/api/.env.example` keeps `API_TOKENS_JSON` as a bootstrap/dev-only fallback and will emit a startup warning when used. `ENABLE_DEV_AUTH` remains an explicit opt-in bypass.
-   `REDIS_URL` still defaults to Redis database `0` when no path is present, but any explicit path must now be a single integer database index like `redis://localhost:6379/0`.
-
-6. For future schema changes, generate and commit SQL migration files:
-   ```bash
-   npm --workspace @vcloudrunner/api run db:generate
-   ```
-
-7. Run dashboard locally:
-   ```bash
-   npm run dev:dashboard
-   ```
-
 
 ## Deployment Runtime Defaults
 
