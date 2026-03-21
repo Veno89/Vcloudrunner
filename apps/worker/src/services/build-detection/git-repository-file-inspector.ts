@@ -1,26 +1,8 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-
+import { execFileRunner, type ExecFileRunner } from '../process-exec-file-runner.js';
 import type { RepositoryFileInspector } from './repository-file-inspector.js';
 
-interface ExecFileResult {
-  stdout: string;
-}
-
-type ExecFileRunner = (file: string, args: string[]) => Promise<ExecFileResult>;
-
-const execFileAsync = promisify(execFile);
-
-const defaultExecFileRunner: ExecFileRunner = async (file, args) => {
-  const result = await execFileAsync(file, args);
-
-  return {
-    stdout: result.stdout
-  };
-};
-
 export class GitRepositoryFileInspector implements RepositoryFileInspector {
-  constructor(private readonly execRunner: ExecFileRunner = defaultExecFileRunner) {}
+  constructor(private readonly execRunner: ExecFileRunner = execFileRunner) {}
 
   async pathExists(repoDir: string, filePath: string): Promise<boolean> {
     try {

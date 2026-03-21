@@ -65,6 +65,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - extract Docker client construction behind a shared factory seam too, so Docker-backed runtime adapters no longer name `new Docker(...)` directly and future runtime composition has a cleaner extension point
 - extract duplicated worker runtime-family selection behind a shared resolver seam too, so runtime executor, runtime inspector, and container-runtime-manager factories now share one future-friendly executor-type decision point instead of repeating the same branching inline
 - extract the default build-detector list behind a dedicated factory seam too, so configured build-system resolution no longer names `DockerfileBuildDetector` directly and future detector stacks have a cleaner extension point
+- extract shared process-launch behavior behind an exec-file runner seam too, so Git repository inspection and shell deployment command execution no longer each name raw `execFile` directly and future process-backed adapters have a cleaner hook point
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another
@@ -214,7 +215,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
-  - passed (`158/158`)
+  - passed (`161/161`)
 - `npm --workspace @vcloudrunner/api test`
   - passed (`183/183`)
 - `npm run typecheck`

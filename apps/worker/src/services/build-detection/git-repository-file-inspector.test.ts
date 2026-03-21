@@ -9,7 +9,7 @@ test('GitRepositoryFileInspector pathExists returns true when git cat-file succe
   const calls: Array<{ file: string; args: string[] }> = [];
   const inspector = new GitRepositoryFileInspector(async (file, args) => {
     calls.push({ file, args });
-    return { stdout: '' };
+    return { stdout: '', stderr: '' };
   });
 
   assert.equal(await inspector.pathExists('repo-dir', 'Dockerfile'), true);
@@ -31,7 +31,8 @@ test('GitRepositoryFileInspector pathExists returns false when git cat-file fail
 
 test('GitRepositoryFileInspector listPaths parses trimmed non-empty repository paths', async () => {
   const inspector = new GitRepositoryFileInspector(async () => ({
-    stdout: 'Dockerfile\n services/api/dockerfile \n\nREADME.md\n'
+    stdout: 'Dockerfile\n services/api/dockerfile \n\nREADME.md\n',
+    stderr: ''
   }));
 
   assert.deepEqual(await inspector.listPaths('repo-dir'), [
