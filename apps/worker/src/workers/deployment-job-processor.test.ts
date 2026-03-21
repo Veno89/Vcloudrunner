@@ -515,6 +515,60 @@ test('processor marks cancelled-during-execution deployments failed when stop pe
   assert.equal(failureMessages[0], 'DEPLOYMENT_CANCEL_FINALIZATION_FAILED: database unavailable');
 });
 
+test('processor marks cancelled-during-execution deployments failed when runtime cleanup keeps failing', async () => {
+  const cleanupCalls: Array<Record<string, unknown>> = [];
+  const failureMessages: string[] = [];
+  const stopMessages: string[] = [];
+  let cancellationChecks = 0;
+
+  const processJob = createDeploymentJobProcessor({
+    runtimeExecutor: {
+      run: async () => ({
+        containerId: 'container-123',
+        containerName: 'container-name',
+        imageTag: 'image-tag',
+        hostPort: null,
+        runtimeUrl: 'http://demo-project.example.test',
+        internalPort: 3000,
+        projectPath: 'repo'
+      }),
+      cleanupCancelledRun: async (input) => {
+        cleanupCalls.push(input as unknown as Record<string, unknown>);
+        throw new Error('cleanup unavailable');
+      }
+    },
+    stateService: {
+      isCancellationRequested: async () => {
+        cancellationChecks += 1;
+        return cancellationChecks >= 2;
+      },
+      markStopped: async (_deploymentId, message) => {
+        stopMessages.push(message);
+      },
+      markBuilding: async () => undefined,
+      appendLog: async () => undefined,
+      markRunning: async () => undefined,
+      markFailed: async (_deploymentId, message) => {
+        failureMessages.push(message);
+      }
+    },
+    caddyService: createCaddyServiceStub(),
+    logger: {
+      info: () => undefined,
+      warn: () => undefined,
+      error: () => undefined
+    },
+    emitDeploymentEvent: () => undefined
+  });
+
+  await assert.rejects(processJob(createJob()), /cleanup unavailable/);
+
+  assert.equal(cleanupCalls.length, 2);
+  assert.equal(stopMessages.length, 0);
+  assert.equal(failureMessages.length, 1);
+  assert.equal(failureMessages[0], 'DEPLOYMENT_CANCEL_RUNTIME_CLEANUP_FAILED: cleanup unavailable');
+});
+
 test('processor emits a cancelled event when cancellation completes during execution', async () => {
   const cleanupCalls: Array<Record<string, unknown>> = [];
   const emittedEvents: Array<Record<string, unknown>> = [];
@@ -793,6 +847,62 @@ test('processor marks cancellation finalization failed when stop persistence fai
   assert.equal(cleanupCalls[0]?.deploymentId, 'dep-123');
   assert.equal(failureMessages.length, 1);
   assert.equal(failureMessages[0], 'DEPLOYMENT_CANCEL_FINALIZATION_FAILED: stop persistence unavailable');
+});
+
+test('processor marks cancellation-after-error deployments failed when runtime cleanup fails', async () => {
+  const cleanupCalls: Array<Record<string, unknown>> = [];
+  const failureMessages: string[] = [];
+  const stopMessages: string[] = [];
+  let cancellationChecks = 0;
+
+  const processJob = createDeploymentJobProcessor({
+    runtimeExecutor: {
+      run: async () => ({
+        containerId: 'container-123',
+        containerName: 'container-name',
+        imageTag: 'image-tag',
+        hostPort: 3100,
+        runtimeUrl: 'http://demo-project.example.test',
+        internalPort: 3000,
+        projectPath: 'repo'
+      }),
+      cleanupCancelledRun: async (input) => {
+        cleanupCalls.push(input as unknown as Record<string, unknown>);
+        throw new Error('cleanup unavailable');
+      }
+    },
+    stateService: {
+      isCancellationRequested: async () => {
+        cancellationChecks += 1;
+        return cancellationChecks >= 3;
+      },
+      markStopped: async (_deploymentId, message) => {
+        stopMessages.push(message);
+      },
+      markBuilding: async () => undefined,
+      appendLog: async () => undefined,
+      markRunning: async () => {
+        throw new Error('database unavailable');
+      },
+      markFailed: async (_deploymentId, message) => {
+        failureMessages.push(message);
+      }
+    },
+    caddyService: createCaddyServiceStub(),
+    logger: {
+      info: () => undefined,
+      warn: () => undefined,
+      error: () => undefined
+    },
+    emitDeploymentEvent: () => undefined
+  });
+
+  await assert.rejects(processJob(createJob()), /cleanup unavailable/);
+
+  assert.equal(cleanupCalls.length, 1);
+  assert.equal(stopMessages.length, 0);
+  assert.equal(failureMessages.length, 1);
+  assert.equal(failureMessages[0], 'DEPLOYMENT_CANCEL_RUNTIME_CLEANUP_FAILED: cleanup unavailable');
 });
 
 test('processor emits a cancelled event when cancellation finalizes after an execution error', async () => {

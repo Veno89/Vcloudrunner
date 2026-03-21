@@ -72,6 +72,16 @@ class CancellationFinalizationError extends Error {
   }
 }
 
+class CancellationCleanupError extends Error {
+  constructor(
+    public readonly originalError: unknown,
+    public readonly phase: 'during-execution' | 'after-execution-error'
+  ) {
+    super(getErrorMessage(originalError));
+    this.name = 'CancellationCleanupError';
+  }
+}
+
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timeoutId = setTimeout(() => {
@@ -160,6 +170,7 @@ async function cleanupStartedRuntimeBestEffort(
       containerId: input.result.containerId,
       imageTag: input.result.imageTag
     });
+    return { ok: true as const };
   } catch (error) {
     dependencies.logger.warn('deployment runtime cleanup failed after post-run error', {
       deploymentId: input.deploymentId,
@@ -167,6 +178,10 @@ async function cleanupStartedRuntimeBestEffort(
       reason: input.reason,
       message: getErrorMessage(error)
     });
+    return {
+      ok: false as const,
+      error
+    };
   }
 }
 
@@ -314,11 +329,15 @@ export function createDeploymentJobProcessor(
       runtimeResult = result;
 
       if (await dependencies.stateService.isCancellationRequested(job.data.deploymentId)) {
-        await dependencies.runtimeExecutor.cleanupCancelledRun({
-          deploymentId: job.data.deploymentId,
-          containerId: result.containerId,
-          imageTag: result.imageTag
-        });
+        try {
+          await dependencies.runtimeExecutor.cleanupCancelledRun({
+            deploymentId: job.data.deploymentId,
+            containerId: result.containerId,
+            imageTag: result.imageTag
+          });
+        } catch (cleanupError) {
+          throw new CancellationCleanupError(cleanupError, 'during-execution');
+        }
         try {
           await dependencies.stateService.markStopped(
             job.data.deploymentId,
@@ -408,14 +427,21 @@ export function createDeploymentJobProcessor(
       }
 
       const cancellationRequested = await dependencies.stateService.isCancellationRequested(job.data.deploymentId);
+      const cancellationCleanupPhase =
+        error instanceof CancellationCleanupError ? error.phase : 'after-execution-error';
+      let cleanupFailure: unknown = null;
 
       if (runtimeResult) {
-        await cleanupStartedRuntimeBestEffort(dependencies, {
+        const cleanupResult = await cleanupStartedRuntimeBestEffort(dependencies, {
           deploymentId: job.data.deploymentId,
           correlationId,
           result: runtimeResult,
           reason: cancellationRequested ? 'cancellation-after-post-run-failure' : 'post-run-failure'
         });
+
+        if (!cleanupResult.ok) {
+          cleanupFailure = cleanupResult.error;
+        }
 
         if (configuredRouteHost) {
           await cleanupRouteBestEffort(dependencies, {
@@ -428,11 +454,26 @@ export function createDeploymentJobProcessor(
       }
 
       if (cancellationRequested) {
+        if (cleanupFailure) {
+          await markFailedBestEffort(dependencies, {
+            deploymentId: job.data.deploymentId,
+            correlationId,
+            prefix: 'DEPLOYMENT_CANCEL_RUNTIME_CLEANUP_FAILED',
+            error: cleanupFailure,
+            reason:
+              cancellationCleanupPhase === 'during-execution'
+                ? 'cancelled-during-execution-finalization'
+                : 'cancellation-after-error-finalization'
+          });
+          throw cleanupFailure;
+        }
+
+        const stopMessage =
+          cancellationCleanupPhase === 'during-execution'
+            ? `Deployment cancelled during build execution (correlation ${correlationId}).`
+            : `Deployment cancellation confirmed after execution error (correlation ${correlationId}).`;
         try {
-          await dependencies.stateService.markStopped(
-            job.data.deploymentId,
-            `Deployment cancellation confirmed after execution error (correlation ${correlationId}).`
-          );
+          await dependencies.stateService.markStopped(job.data.deploymentId, stopMessage);
         } catch (markStoppedError) {
           await markFailedBestEffort(dependencies, {
             deploymentId: job.data.deploymentId,
@@ -443,22 +484,37 @@ export function createDeploymentJobProcessor(
           });
           throw markStoppedError;
         }
-        dependencies.logger.info('deployment cancellation finalized after execution error', {
-          deploymentId: job.data.deploymentId,
-          correlationId,
-          attempt: job.attemptsMade + 1
-        });
+        dependencies.logger.info(
+          cancellationCleanupPhase === 'during-execution'
+            ? 'deployment cancelled during execution'
+            : 'deployment cancellation finalized after execution error',
+          {
+            deploymentId: job.data.deploymentId,
+            correlationId,
+            attempt: job.attemptsMade + 1
+          }
+        );
         emitDeploymentEventBestEffort(dependencies, {
           deploymentId: job.data.deploymentId,
           correlationId,
-          stage: 'cancelled-after-error',
+          stage:
+            cancellationCleanupPhase === 'during-execution'
+              ? 'cancelled-during-execution'
+              : 'cancelled-after-error',
           event: {
             type: 'deployment.cancelled',
             deploymentId: job.data.deploymentId,
             projectId: job.data.projectId,
             projectSlug: job.data.projectSlug,
             correlationId,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            ...(cancellationCleanupPhase === 'during-execution' && runtimeResult
+              ? {
+                  details: {
+                    containerId: runtimeResult.containerId
+                  }
+                }
+              : {})
           }
         });
         return;

@@ -21,6 +21,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - make worker cancellation finalization fall back to `failed` when runtime cleanup succeeds but the final `stopped` persistence write still fails, so cancelled deployments do not remain stranded in active-looking states
 - emit `deployment.cancelled` consistently for late worker cancellation completions too, so lifecycle webhooks/events stay truthful whether cancellation lands before execution, during runtime cleanup, or after an execution error
 - remove configured Caddy routes best-effort when runtime startup succeeded but a later persistence/finalization step failed, so post-run cleanup no longer leaves stale reverse-proxy routes pointing at torn-down runtimes
+- stop finalizing worker cancellations as `stopped` when runtime cleanup itself still fails, so broken cleanup now surfaces as a failed deployment instead of falsely claiming the runtime was fully torn down
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another
@@ -160,11 +161,12 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - document the worker cancellation-finalization fallback so progress notes match the new state-correction behavior after stop-persistence failures in cancellation paths
 - document the now-consistent worker cancellation event emission behavior so progress notes match the later cancellation-complete paths too
 - document the new best-effort Caddy route cleanup path so progress notes match the stale-route prevention behavior after post-run failures
+- document the stricter cancellation cleanup requirement so progress notes match the new failed-state correction behavior when teardown itself cannot complete
 
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
-  - passed (`89/89`)
+  - passed (`91/91`)
 - `npm --workspace @vcloudrunner/api test`
   - passed (`183/183`)
 - `npm run typecheck`
