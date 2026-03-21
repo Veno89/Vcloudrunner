@@ -86,20 +86,21 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function appendPostRunLogBestEffort(
+async function appendLogBestEffort(
   dependencies: Required<DeploymentJobProcessorDependencies>,
   input: {
     deploymentId: string;
     correlationId: string;
     message: string;
     level?: string;
-    stage: 'route-configured' | 'route-config-skipped' | 'running';
+    stage: 'pre-run' | 'retry-scheduled' | 'route-configured' | 'route-config-skipped' | 'running';
+    warningMessage: string;
   }
 ) {
   try {
     await dependencies.stateService.appendLog(input.deploymentId, input.message, input.level);
   } catch (error) {
-    dependencies.logger.warn('deployment post-run log append failed; continuing deployment', {
+    dependencies.logger.warn(input.warningMessage, {
       deploymentId: input.deploymentId,
       correlationId: input.correlationId,
       stage: input.stage,
@@ -182,14 +183,20 @@ export function createDeploymentJobProcessor(
       timestamp: new Date().toISOString()
     });
 
-    await dependencies.stateService.appendLog(
-      job.data.deploymentId,
-      `Deployment started (attempt ${job.attemptsMade + 1}, correlation ${correlationId})`
-    );
-    await dependencies.stateService.appendLog(
-      job.data.deploymentId,
-      `Deployment timeout is set to ${Math.floor(env.DEPLOYMENT_EXECUTION_TIMEOUT_MS / 1000)} seconds`
-    );
+    await appendLogBestEffort(dependencies, {
+      deploymentId: job.data.deploymentId,
+      correlationId,
+      message: `Deployment started (attempt ${job.attemptsMade + 1}, correlation ${correlationId})`,
+      stage: 'pre-run',
+      warningMessage: 'deployment worker log append failed; continuing deployment'
+    });
+    await appendLogBestEffort(dependencies, {
+      deploymentId: job.data.deploymentId,
+      correlationId,
+      message: `Deployment timeout is set to ${Math.floor(env.DEPLOYMENT_EXECUTION_TIMEOUT_MS / 1000)} seconds`,
+      stage: 'pre-run',
+      warningMessage: 'deployment worker log append failed; continuing deployment'
+    });
 
     try {
       const result = await withTimeout(
@@ -233,11 +240,12 @@ export function createDeploymentJobProcessor(
         runtimeUrl: result.runtimeUrl
       });
 
-      await appendPostRunLogBestEffort(dependencies, {
+      await appendLogBestEffort(dependencies, {
         deploymentId: job.data.deploymentId,
         correlationId,
         message: `Deployment running. Container ${result.containerName} on port ${result.hostPort ?? 'unknown'}`,
-        stage: 'running'
+        stage: 'running',
+        warningMessage: 'deployment post-run log append failed; continuing deployment'
       });
       dependencies.emitDeploymentEvent({
         type: 'deployment.running',
@@ -306,11 +314,14 @@ export function createDeploymentJobProcessor(
       }
 
       if (retriesRemaining > 0) {
-        await dependencies.stateService.appendLog(
-          job.data.deploymentId,
-          `Attempt ${job.attemptsMade + 1} failed. Retrying (${retriesRemaining} retries left). Error: [${failure.code}] ${failure.message}`,
-          'warn'
-        );
+        await appendLogBestEffort(dependencies, {
+          deploymentId: job.data.deploymentId,
+          correlationId,
+          message: `Attempt ${job.attemptsMade + 1} failed. Retrying (${retriesRemaining} retries left). Error: [${failure.code}] ${failure.message}`,
+          level: 'warn',
+          stage: 'retry-scheduled',
+          warningMessage: 'deployment worker log append failed; continuing deployment'
+        });
 
         dependencies.logger.warn('deployment attempt failed; retry scheduled', {
           deploymentId: job.data.deploymentId,
@@ -360,11 +371,12 @@ async function configureRouteIfNeeded(
   const host = `${input.job.data.projectSlug}.${env.PLATFORM_DOMAIN}`;
   try {
     await dependencies.caddyService.upsertRoute({ host, upstreamPort: input.result.hostPort });
-    await appendPostRunLogBestEffort(dependencies, {
+    await appendLogBestEffort(dependencies, {
       deploymentId: input.job.data.deploymentId,
       correlationId: input.correlationId,
       message: `Route configured for ${host}`,
-      stage: 'route-configured'
+      stage: 'route-configured',
+      warningMessage: 'deployment post-run log append failed; continuing deployment'
     });
   } catch (error) {
     const message = getErrorMessage(error);
@@ -375,12 +387,13 @@ async function configureRouteIfNeeded(
       upstreamPort: input.result.hostPort,
       message
     });
-    await appendPostRunLogBestEffort(dependencies, {
+    await appendLogBestEffort(dependencies, {
       deploymentId: input.job.data.deploymentId,
       correlationId: input.correlationId,
       message: `Route configuration skipped (${message}). Container remains available on mapped port ${input.result.hostPort}.`,
       level: 'warn',
-      stage: 'route-config-skipped'
+      stage: 'route-config-skipped',
+      warningMessage: 'deployment post-run log append failed; continuing deployment'
     });
   }
 }
