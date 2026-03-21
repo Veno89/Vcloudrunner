@@ -6,7 +6,7 @@ import { logger } from '../logger/logger.js';
 import { createDeploymentEventSink } from '../services/deployment-event-sink.factory.js';
 import type { DeploymentEventSink } from '../services/deployment-event-sink.js';
 import type { DeploymentEvent } from '../services/deployment-events.js';
-import { DeploymentStateService } from '../services/deployment-state.service.js';
+import { createDeploymentStateService } from '../services/deployment-state.service.factory.js';
 import { createIngressManager } from '../services/ingress/ingress-manager.factory.js';
 import type { IngressManager } from '../services/ingress/ingress-manager.js';
 import { createRuntimeExecutor } from '../services/runtime/runtime-executor.factory.js';
@@ -57,7 +57,7 @@ interface DeploymentJobProcessorDependencies {
 
 const defaultDependencies: Required<DeploymentJobProcessorDependencies> = {
   runtimeExecutor: createRuntimeExecutor(),
-  stateService: new DeploymentStateService(),
+  stateService: createDeploymentStateService(),
   ingressManager: createIngressManager(),
   logger,
   eventSink: createDeploymentEventSink()

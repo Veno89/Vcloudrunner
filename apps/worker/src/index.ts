@@ -1,13 +1,13 @@
 import { logger } from './logger/logger.js';
 import { env } from './config/env.js';
-import { DeploymentStateService } from './services/deployment-state.service.js';
+import { createDeploymentStateService } from './services/deployment-state.service.factory.js';
 import { BackgroundScheduler } from './services/background-scheduler.js';
 import { createRuntimeInspector } from './services/runtime/runtime-inspector.factory.js';
 import { deploymentWorker } from './workers/deployment.worker.js';
 import { createWorkerLifecycle } from './bootstrap.js';
 import { Redis } from 'ioredis';
 
-const stateService = new DeploymentStateService();
+const stateService = createDeploymentStateService();
 const runtimeInspector = createRuntimeInspector();
 const heartbeatRedis = new Redis(env.REDIS_URL, {
   maxRetriesPerRequest: null,
