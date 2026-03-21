@@ -13,6 +13,7 @@ import { loadDashboardData } from '@/lib/loaders';
 import { apiAuthToken, fetchDeploymentLogs } from '@/lib/api';
 import {
   describeDashboardLiveDataFailure,
+  formatDeploymentStatusText,
   hasRequestedCancellation,
   logLevelTextClassName,
   truncateUuid
@@ -72,6 +73,7 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
   const { deployment, project } = match;
   const refreshedAt = new Date().toISOString();
   const cancellationRequested = hasRequestedCancellation(deployment.metadata);
+  const statusText = formatDeploymentStatusText(deployment.status, cancellationRequested);
 
   let logs: Array<{ level: string; message: string; timestamp: string }> = [];
   let logsErrorMessage: string | null = null;
@@ -214,7 +216,7 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
           <CardContent className="space-y-3 text-sm">
             <DetailRow label="Deployment ID" value={deployment.id} mono />
             <DetailRow label="Project" value={project.name} />
-            <DetailRow label="Status" value={deployment.status} />
+            <DetailRow label="Status" value={statusText} />
             {cancellationRequested && (deployment.status === 'queued' || deployment.status === 'building') ? (
               <DetailRow label="Cancellation" value="requested" />
             ) : null}
