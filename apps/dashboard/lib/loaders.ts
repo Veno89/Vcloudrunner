@@ -15,6 +15,7 @@ import {
   deriveDomain,
   describeDashboardLiveDataFailure,
   describePartialDashboardDeploymentFailure,
+  formatDeploymentStatusText,
   hasRequestedCancellation,
 } from './helpers';
 
@@ -24,6 +25,8 @@ export interface MappedProject {
   repo: string;
   domain: string;
   status: string;
+  deploymentStatus?: DeploymentStatus;
+  cancellationRequested?: boolean;
 }
 
 export interface MappedDeployment {
@@ -150,14 +153,49 @@ export async function loadDashboardData(): Promise<DashboardData> {
     const sortedDeployments = deploymentGroups
       .flat()
       .sort((a, b) => Date.parse(b.deployment.createdAt) - Date.parse(a.deployment.createdAt));
+    const deploymentGroupResultsByProjectId = new Map(
+      apiProjects.map((project, index) => [project.id, deploymentGroupsResult[index]])
+    );
 
-    const projects = apiProjects.map((project) => ({
-      id: project.id,
-      name: project.name,
-      repo: project.gitRepositoryUrl,
-      domain: deriveDomain(project),
-      status: 'active',
-    }));
+    const projects = apiProjects.map((project) => {
+      const projectDeploymentResult = deploymentGroupResultsByProjectId.get(project.id);
+      if (!projectDeploymentResult || projectDeploymentResult.status === 'rejected') {
+        return {
+          id: project.id,
+          name: project.name,
+          repo: project.gitRepositoryUrl,
+          domain: deriveDomain(project),
+          status: 'history unavailable',
+        };
+      }
+
+      const latestDeployment = projectDeploymentResult.value
+        .slice()
+        .sort((a, b) => Date.parse(b.deployment.createdAt) - Date.parse(a.deployment.createdAt))[0]
+        ?.deployment;
+
+      if (!latestDeployment) {
+        return {
+          id: project.id,
+          name: project.name,
+          repo: project.gitRepositoryUrl,
+          domain: deriveDomain(project),
+          status: 'no deployments',
+        };
+      }
+
+      const cancellationRequested = hasRequestedCancellation(latestDeployment.metadata);
+
+      return {
+        id: project.id,
+        name: project.name,
+        repo: project.gitRepositoryUrl,
+        domain: deriveDomain(project),
+        status: formatDeploymentStatusText(latestDeployment.status, cancellationRequested),
+        deploymentStatus: latestDeployment.status,
+        cancellationRequested,
+      };
+    });
 
     const deployments = sortedDeployments.slice(0, 10).map(({ deployment, project }) => ({
       id: deployment.id,

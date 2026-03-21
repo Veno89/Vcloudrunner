@@ -1,17 +1,31 @@
-export const projects = [
+import type { DeploymentStatus } from '@vcloudrunner/shared-types';
+
+export const projects: Array<{
+  id: string;
+  name: string;
+  repo: string;
+  domain: string;
+  status: string;
+  deploymentStatus?: DeploymentStatus;
+  cancellationRequested?: boolean;
+}> = [
   {
     id: 'p1',
     name: 'landing-api',
     repo: 'https://github.com/example/landing-api',
     domain: 'landing-api.apps.platform.example.com',
-    status: 'running'
+    status: 'running',
+    deploymentStatus: 'running',
+    cancellationRequested: false
   },
   {
     id: 'p2',
     name: 'worker-demo',
     repo: 'https://github.com/example/worker-demo',
     domain: 'worker-demo.apps.platform.example.com',
-    status: 'building'
+    status: 'building',
+    deploymentStatus: 'building',
+    cancellationRequested: false
   }
 ];
 

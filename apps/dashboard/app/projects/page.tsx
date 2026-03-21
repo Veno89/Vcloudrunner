@@ -82,7 +82,8 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
                 repo={project.repo}
                 domain={project.domain}
                 status={project.status}
-                buttonLabel={data.usingLiveData ? 'Deploy now' : 'Deploy (mock mode)'}
+                deploymentStatus={project.deploymentStatus}
+                cancellationRequested={project.cancellationRequested}
               />
               {data.usingLiveData && (
                 <Button asChild variant="ghost" size="sm" className="w-full justify-start">

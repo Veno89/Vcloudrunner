@@ -37,6 +37,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - add a real `cancelling` filter on the global Deployments screen so operators can isolate cancellation-requested queued/building work instead of only spotting it by badge
 - keep deployment detail plain-text status readouts cancellation-aware too, so queued/building deployments with cancellation requested do not revert back to raw backend status text in the details panel
 - make stopped deployment detail guidance/timeline reflect whether runtime startup actually happened, so post-start cancellations no longer read like pre-activation stops
+- make project overview cards derive their badge state from the latest deployment, including `cancelling` and per-project deployment-history outage cases, instead of flattening live projects into a generic `active` label
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another
