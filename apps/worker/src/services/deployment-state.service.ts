@@ -7,9 +7,10 @@ import { createDeploymentLogArchiveUploader } from './archive-upload/deployment-
 import type { ArchiveUploadRequest } from './archive-upload/archive-upload-provider.js';
 import type { DeploymentLogArchiveUploader } from './archive-upload/deployment-log-archive-uploader.js';
 import type { DeploymentLogArchiveStore } from './archive-store/deployment-log-archive-store.js';
+import { createDeploymentStateRepository } from './deployment-state.repository.factory.js';
 import { createIngressManager } from './ingress/ingress-manager.factory.js';
 import type { IngressManager } from './ingress/ingress-manager.js';
-import { DeploymentStateRepository, type Queryable, type SuccessInput } from './deployment-state.repository.js';
+import type { DeploymentStateRepository, Queryable, SuccessInput } from './deployment-state.repository.js';
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
@@ -27,7 +28,7 @@ export class DeploymentStateService {
     archiveUploader: DeploymentLogArchiveUploader = createDeploymentLogArchiveUploader(),
     archiveStore: DeploymentLogArchiveStore = createDeploymentLogArchiveStore()
   ) {
-    this.repository = new DeploymentStateRepository(pool);
+    this.repository = createDeploymentStateRepository(pool);
     this.ingressManager = ingressManager;
     this.archiveUploader = archiveUploader;
     this.archiveStore = archiveStore;

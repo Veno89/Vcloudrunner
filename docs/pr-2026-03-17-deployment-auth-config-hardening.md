@@ -57,6 +57,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - extract deployment-state construction behind a worker factory seam too, so the bootstrap path and job-processor defaults no longer name `DeploymentStateService` directly and future state backends have a cleaner composition root
 - extract BullMQ deployment-worker construction behind a worker factory seam too, so queue-worker wiring no longer lives inline at the module boundary and future queue backends have a cleaner composition root
 - extract worker background-scheduler and heartbeat-Redis construction behind a dedicated factory seam too, so the bootstrap entrypoint no longer wires those infrastructure dependencies inline and future scheduler backends have a cleaner composition root
+- extract deployment-state repository construction behind a dedicated factory seam too, so state-service composition no longer names `DeploymentStateRepository` directly and future state backends have a cleaner injection point
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another
@@ -206,7 +207,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
-  - passed (`147/147`)
+  - passed (`148/148`)
 - `npm --workspace @vcloudrunner/api test`
   - passed (`183/183`)
 - `npm run typecheck`
