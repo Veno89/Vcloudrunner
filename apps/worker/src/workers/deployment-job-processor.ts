@@ -109,6 +109,28 @@ async function appendLogBestEffort(
   }
 }
 
+function emitDeploymentEventBestEffort(
+  dependencies: Required<DeploymentJobProcessorDependencies>,
+  input: {
+    deploymentId: string;
+    correlationId: string;
+    event: Parameters<typeof emitDeploymentEvent>[0];
+    stage: 'cancelled-before-execution' | 'building' | 'running' | 'failed';
+  }
+) {
+  try {
+    dependencies.emitDeploymentEvent(input.event);
+  } catch (error) {
+    dependencies.logger.warn('deployment event emission failed; continuing deployment', {
+      deploymentId: input.deploymentId,
+      correlationId: input.correlationId,
+      stage: input.stage,
+      eventType: input.event.type,
+      message: getErrorMessage(error)
+    });
+  }
+}
+
 async function cleanupStartedRuntimeBestEffort(
   dependencies: Required<DeploymentJobProcessorDependencies>,
   input: {
@@ -151,13 +173,18 @@ export function createDeploymentJobProcessor(
         job.data.deploymentId,
         `Deployment cancelled before worker execution (correlation ${correlationId}).`
       );
-      dependencies.emitDeploymentEvent({
-        type: 'deployment.cancelled',
+      emitDeploymentEventBestEffort(dependencies, {
         deploymentId: job.data.deploymentId,
-        projectId: job.data.projectId,
-        projectSlug: job.data.projectSlug,
         correlationId,
-        timestamp: new Date().toISOString()
+        stage: 'cancelled-before-execution',
+        event: {
+          type: 'deployment.cancelled',
+          deploymentId: job.data.deploymentId,
+          projectId: job.data.projectId,
+          projectSlug: job.data.projectSlug,
+          correlationId,
+          timestamp: new Date().toISOString()
+        }
       });
       dependencies.logger.info('deployment cancelled before execution', {
         deploymentId: job.data.deploymentId,
@@ -174,13 +201,18 @@ export function createDeploymentJobProcessor(
       attempt: job.attemptsMade + 1
     });
     await dependencies.stateService.markBuilding(job.data.deploymentId);
-    dependencies.emitDeploymentEvent({
-      type: 'deployment.building',
+    emitDeploymentEventBestEffort(dependencies, {
       deploymentId: job.data.deploymentId,
-      projectId: job.data.projectId,
-      projectSlug: job.data.projectSlug,
       correlationId,
-      timestamp: new Date().toISOString()
+      stage: 'building',
+      event: {
+        type: 'deployment.building',
+        deploymentId: job.data.deploymentId,
+        projectId: job.data.projectId,
+        projectSlug: job.data.projectSlug,
+        correlationId,
+        timestamp: new Date().toISOString()
+      }
     });
 
     await appendLogBestEffort(dependencies, {
@@ -247,14 +279,19 @@ export function createDeploymentJobProcessor(
         stage: 'running',
         warningMessage: 'deployment post-run log append failed; continuing deployment'
       });
-      dependencies.emitDeploymentEvent({
-        type: 'deployment.running',
+      emitDeploymentEventBestEffort(dependencies, {
         deploymentId: job.data.deploymentId,
-        projectId: job.data.projectId,
-        projectSlug: job.data.projectSlug,
         correlationId,
-        timestamp: new Date().toISOString(),
-        details: { containerId: result.containerId, hostPort: result.hostPort }
+        stage: 'running',
+        event: {
+          type: 'deployment.running',
+          deploymentId: job.data.deploymentId,
+          projectId: job.data.projectId,
+          projectSlug: job.data.projectSlug,
+          correlationId,
+          timestamp: new Date().toISOString(),
+          details: { containerId: result.containerId, hostPort: result.hostPort }
+        }
       });
 
       dependencies.logger.info('deployment finished', {
@@ -294,14 +331,19 @@ export function createDeploymentJobProcessor(
 
       if (!failure.retryable) {
         await dependencies.stateService.markFailed(job.data.deploymentId, `[${failure.code}] ${failure.message}`);
-        dependencies.emitDeploymentEvent({
-          type: 'deployment.failed',
+        emitDeploymentEventBestEffort(dependencies, {
           deploymentId: job.data.deploymentId,
-          projectId: job.data.projectId,
-          projectSlug: job.data.projectSlug,
           correlationId,
-          timestamp: new Date().toISOString(),
-          details: { code: failure.code, message: failure.message }
+          stage: 'failed',
+          event: {
+            type: 'deployment.failed',
+            deploymentId: job.data.deploymentId,
+            projectId: job.data.projectId,
+            projectSlug: job.data.projectSlug,
+            correlationId,
+            timestamp: new Date().toISOString(),
+            details: { code: failure.code, message: failure.message }
+          }
         });
         dependencies.logger.error('deployment failed (non-retryable)', {
           deploymentId: job.data.deploymentId,
@@ -335,14 +377,19 @@ export function createDeploymentJobProcessor(
       }
 
       await dependencies.stateService.markFailed(job.data.deploymentId, `[${failure.code}] ${failure.message}`);
-      dependencies.emitDeploymentEvent({
-        type: 'deployment.failed',
+      emitDeploymentEventBestEffort(dependencies, {
         deploymentId: job.data.deploymentId,
-        projectId: job.data.projectId,
-        projectSlug: job.data.projectSlug,
         correlationId,
-        timestamp: new Date().toISOString(),
-        details: { code: failure.code, message: failure.message, retriesExhausted: true }
+        stage: 'failed',
+        event: {
+          type: 'deployment.failed',
+          deploymentId: job.data.deploymentId,
+          projectId: job.data.projectId,
+          projectSlug: job.data.projectSlug,
+          correlationId,
+          timestamp: new Date().toISOString(),
+          details: { code: failure.code, message: failure.message, retriesExhausted: true }
+        }
       });
       dependencies.logger.error('deployment failed (retries exhausted)', {
         deploymentId: job.data.deploymentId,

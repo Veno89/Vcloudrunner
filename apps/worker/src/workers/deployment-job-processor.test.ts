@@ -4,6 +4,7 @@ import test from 'node:test';
 await import('../test/worker-test-env.js');
 
 const { createDeploymentJobProcessor } = await import('./deployment-job-processor.js');
+const { DeploymentFailure } = await import('./deployment-errors.js');
 
 const jobData = {
   deploymentId: 'dep-123',
@@ -151,6 +152,59 @@ test('processor continues into runtime execution when pre-run informational log 
   assert.equal(warnings[1]?.metadata?.stage, 'pre-run');
 });
 
+test('processor continues into runtime execution when the building event emission fails', async () => {
+  const warnings: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
+  const markRunningCalls: Array<Record<string, unknown>> = [];
+
+  const processJob = createDeploymentJobProcessor({
+    runtimeExecutor: {
+      run: async () => ({
+        containerId: 'container-123',
+        containerName: 'container-name',
+        imageTag: 'image-tag',
+        hostPort: null,
+        runtimeUrl: 'http://demo-project.example.test',
+        internalPort: 3000,
+        projectPath: 'repo'
+      }),
+      cleanupCancelledRun: async () => undefined
+    },
+    stateService: {
+      isCancellationRequested: async () => false,
+      markStopped: async () => undefined,
+      markBuilding: async () => undefined,
+      appendLog: async () => undefined,
+      markRunning: async (input) => {
+        markRunningCalls.push(input as unknown as Record<string, unknown>);
+      },
+      markFailed: async () => undefined
+    },
+    caddyService: {
+      upsertRoute: async () => undefined
+    },
+    logger: {
+      info: () => undefined,
+      warn: (message, metadata) => {
+        warnings.push({ message, metadata });
+      },
+      error: () => undefined
+    },
+    emitDeploymentEvent: (event) => {
+      if (event.type === 'deployment.building') {
+        throw new Error('event bus unavailable');
+      }
+    }
+  });
+
+  await processJob(createJob());
+
+  assert.equal(markRunningCalls.length, 1);
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0]?.message, 'deployment event emission failed; continuing deployment');
+  assert.equal(warnings[0]?.metadata?.stage, 'building');
+  assert.equal(warnings[0]?.metadata?.eventType, 'deployment.building');
+});
+
 test('processor keeps successful deployments successful when route warning log append fails after Caddy failure', async () => {
   const warnings: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
   const markRunningCalls: Array<Record<string, unknown>> = [];
@@ -261,6 +315,115 @@ test('processor still rethrows the original retryable error when retry logging f
   assert.equal(warnings[0]?.message, 'deployment worker log append failed; continuing deployment');
   assert.equal(warnings[0]?.metadata?.stage, 'retry-scheduled');
   assert.equal(warnings[1]?.message, 'deployment attempt failed; retry scheduled');
+});
+
+test('processor keeps successful deployments successful when the running event emission fails', async () => {
+  const warnings: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
+  const infoLogs: string[] = [];
+  const markRunningCalls: Array<Record<string, unknown>> = [];
+  const stateFailures: string[] = [];
+
+  const processJob = createDeploymentJobProcessor({
+    runtimeExecutor: {
+      run: async () => ({
+        containerId: 'container-123',
+        containerName: 'container-name',
+        imageTag: 'image-tag',
+        hostPort: null,
+        runtimeUrl: 'http://demo-project.example.test',
+        internalPort: 3000,
+        projectPath: 'repo'
+      }),
+      cleanupCancelledRun: async () => undefined
+    },
+    stateService: {
+      isCancellationRequested: async () => false,
+      markStopped: async () => undefined,
+      markBuilding: async () => undefined,
+      appendLog: async () => undefined,
+      markRunning: async (input) => {
+        markRunningCalls.push(input as unknown as Record<string, unknown>);
+      },
+      markFailed: async (deploymentId) => {
+        stateFailures.push(deploymentId);
+      }
+    },
+    caddyService: {
+      upsertRoute: async () => undefined
+    },
+    logger: {
+      info: (message) => {
+        infoLogs.push(message);
+      },
+      warn: (message, metadata) => {
+        warnings.push({ message, metadata });
+      },
+      error: () => undefined
+    },
+    emitDeploymentEvent: (event) => {
+      if (event.type === 'deployment.running') {
+        throw new Error('event sink unavailable');
+      }
+    }
+  });
+
+  await processJob(createJob());
+
+  assert.equal(markRunningCalls.length, 1);
+  assert.deepEqual(stateFailures, []);
+  assert.ok(infoLogs.includes('deployment finished'));
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0]?.message, 'deployment event emission failed; continuing deployment');
+  assert.equal(warnings[0]?.metadata?.stage, 'running');
+  assert.equal(warnings[0]?.metadata?.eventType, 'deployment.running');
+});
+
+test('processor still fails non-retryable deployments when failed event emission fails', async () => {
+  const warnings: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
+  const failureMessages: string[] = [];
+
+  const processJob = createDeploymentJobProcessor({
+    runtimeExecutor: {
+      run: async () => {
+        throw new DeploymentFailure('DEPLOYMENT_CONFIGURATION_ERROR', 'project access denied', false);
+      },
+      cleanupCancelledRun: async () => undefined
+    },
+    stateService: {
+      isCancellationRequested: async () => false,
+      markStopped: async () => undefined,
+      markBuilding: async () => undefined,
+      appendLog: async () => undefined,
+      markRunning: async () => undefined,
+      markFailed: async (_deploymentId, message) => {
+        failureMessages.push(message);
+      }
+    },
+    caddyService: {
+      upsertRoute: async () => undefined
+    },
+    logger: {
+      info: () => undefined,
+      warn: (message, metadata) => {
+        warnings.push({ message, metadata });
+      },
+      error: () => undefined
+    },
+    emitDeploymentEvent: (event) => {
+      if (event.type === 'deployment.failed') {
+        throw new Error('event sink unavailable');
+      }
+    }
+  });
+
+  await assert.rejects(processJob(createJob()), /project access denied/);
+
+  assert.equal(failureMessages.length, 1);
+  assert.match(failureMessages[0] ?? '', /^\[DEPLOYMENT_CONFIGURATION_ERROR\] project access denied$/);
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0]?.message, 'deployment event emission failed; continuing deployment');
+  assert.equal(warnings[0]?.metadata?.stage, 'failed');
+  assert.equal(warnings[0]?.metadata?.eventType, 'deployment.failed');
 });
 
 test('processor cleans up started runtime before failing an exhausted post-run persistence error', async () => {
