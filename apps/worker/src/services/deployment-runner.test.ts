@@ -8,35 +8,30 @@ const { DeploymentRunner } = await import('./deployment-runner.js');
 
 test('ensureDeploymentNetwork tolerates already-exists races and caches the result', async (t) => {
   const infos: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
-  const listCalls: Array<{ filters: { name: string[] } }> = [];
-  const createCalls: Array<{ Name: string }> = [];
+  const listCalls: string[] = [];
+  const createCalls: string[] = [];
 
   t.mock.method(logger, 'info', (message: string, metadata?: Record<string, unknown>) => {
     infos.push({ message, metadata });
   });
 
   const runner = new DeploymentRunner() as unknown as {
-    docker: {
-      listNetworks: (input: { filters: { name: string[] } }) => Promise<Array<{ Name?: string }>>;
-      createNetwork: (input: {
-        Name: string;
-        Driver: string;
-        Internal: boolean;
-        Labels: Record<string, string>;
-      }) => Promise<void>;
+    runtimeManager: {
+      listNetworksByName: (name: string) => Promise<Array<{ name?: string }>>;
+      createNetwork: (name: string) => Promise<void>;
     };
     ensureDeploymentNetwork: () => Promise<string>;
   };
 
   let listAttempt = 0;
-  runner.docker = {
-    listNetworks: async (input) => {
-      listCalls.push(input);
+  runner.runtimeManager = {
+    listNetworksByName: async (name) => {
+      listCalls.push(name);
       listAttempt += 1;
-      return listAttempt === 1 ? [] : [{ Name: 'vcloudrunner-deployments' }];
+      return listAttempt === 1 ? [] : [{ name: 'vcloudrunner-deployments' }];
     },
-    createNetwork: async (input) => {
-      createCalls.push({ Name: input.Name });
+    createNetwork: async (name) => {
+      createCalls.push(name);
       const error = new Error('network with name vcloudrunner-deployments already exists') as Error & {
         statusCode?: number;
       };
@@ -50,27 +45,22 @@ test('ensureDeploymentNetwork tolerates already-exists races and caches the resu
 
   assert.equal(firstNetworkName, 'vcloudrunner-deployments');
   assert.equal(secondNetworkName, 'vcloudrunner-deployments');
-  assert.deepEqual(createCalls, [{ Name: 'vcloudrunner-deployments' }]);
+  assert.deepEqual(createCalls, ['vcloudrunner-deployments']);
   assert.equal(listCalls.length, 2);
   assert.equal(infos.length, 0);
 });
 
 test('ensureDeploymentNetwork rethrows unexpected network creation failures', async () => {
   const runner = new DeploymentRunner() as unknown as {
-    docker: {
-      listNetworks: (input: { filters: { name: string[] } }) => Promise<Array<{ Name?: string }>>;
-      createNetwork: (input: {
-        Name: string;
-        Driver: string;
-        Internal: boolean;
-        Labels: Record<string, string>;
-      }) => Promise<void>;
+    runtimeManager: {
+      listNetworksByName: (name: string) => Promise<Array<{ name?: string }>>;
+      createNetwork: (name: string) => Promise<void>;
     };
     ensureDeploymentNetwork: () => Promise<string>;
   };
 
-  runner.docker = {
-    listNetworks: async () => [],
+  runner.runtimeManager = {
+    listNetworksByName: async () => [],
     createNetwork: async () => {
       throw new Error('docker daemon unavailable');
     }
@@ -96,32 +86,28 @@ test('removeContainerByName continues removing later stale containers when one r
   });
 
   const runner = new DeploymentRunner() as unknown as {
-    docker: {
-      listContainers: (input: { all: boolean; filters: { name: string[] } }) => Promise<Array<{ Id: string; State: string }>>;
-      getContainer: (id: string) => {
-        stop: (input: { t: number }) => Promise<void>;
-        remove: (input: { force: boolean }) => Promise<void>;
-      };
+    runtimeManager: {
+      listContainersByName: (name: string) => Promise<Array<{ id: string; state: string }>>;
+      stopContainer: (containerId: string) => Promise<void>;
+      removeContainer: (containerId: string) => Promise<void>;
     };
     removeContainerByName: (containerName: string) => Promise<void>;
   };
 
-  runner.docker = {
-    listContainers: async () => [
-      { Id: 'container-a', State: 'running' },
-      { Id: 'container-b', State: 'running' }
+  runner.runtimeManager = {
+    listContainersByName: async () => [
+      { id: 'container-a', state: 'running' },
+      { id: 'container-b', state: 'running' }
     ],
-    getContainer: (id: string) => ({
-      stop: async () => {
-        stopCalls.push(id);
-      },
-      remove: async () => {
-        removeCalls.push(id);
-        if (id === 'container-a') {
-          throw new Error('already being removed');
-        }
+    stopContainer: async (id: string) => {
+      stopCalls.push(id);
+    },
+    removeContainer: async (id: string) => {
+      removeCalls.push(id);
+      if (id === 'container-a') {
+        throw new Error('already being removed');
       }
-    })
+    }
   };
 
   await runner.removeContainerByName('vcloudrunner-project-12345678');
@@ -148,26 +134,22 @@ test('removeContainerByName avoids success logging when every stale removal fail
   });
 
   const runner = new DeploymentRunner() as unknown as {
-    docker: {
-      listContainers: () => Promise<Array<{ Id: string; State: string }>>;
-      getContainer: (id: string) => {
-        stop: () => Promise<void>;
-        remove: () => Promise<void>;
-      };
+    runtimeManager: {
+      listContainersByName: () => Promise<Array<{ id: string; state: string }>>;
+      stopContainer: (containerId: string) => Promise<void>;
+      removeContainer: (containerId: string) => Promise<void>;
     };
     removeContainerByName: (containerName: string) => Promise<void>;
   };
 
-  runner.docker = {
-    listContainers: async () => [
-      { Id: 'container-a', State: 'exited' }
+  runner.runtimeManager = {
+    listContainersByName: async () => [
+      { id: 'container-a', state: 'exited' }
     ],
-    getContainer: () => ({
-      stop: async () => undefined,
-      remove: async () => {
-        throw new Error('permission denied');
-      }
-    })
+    stopContainer: async () => undefined,
+    removeContainer: async () => {
+      throw new Error('permission denied');
+    }
   };
 
   await runner.removeContainerByName('vcloudrunner-project-12345678');

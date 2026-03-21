@@ -2,10 +2,11 @@ import { mkdir, rm } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
 import type { DeploymentJobPayload } from '@vcloudrunner/shared-types';
-import Docker from 'dockerode';
 
 import { env } from '../config/env.js';
 import { logger } from '../logger/logger.js';
+import { createContainerRuntimeManager } from './runtime/container-runtime-manager.factory.js';
+import type { ContainerRuntimeManager } from './runtime/container-runtime-manager.js';
 import { createDeploymentCommandRunner } from './runtime/deployment-command-runner.factory.js';
 import type { DeploymentCommandRunner } from './runtime/deployment-command-runner.js';
 import { DeploymentFailure } from '../workers/deployment-errors.js';
@@ -14,7 +15,7 @@ import { detectBuildSystem } from './build-detection/index.js';
 export class DeploymentRunner {
   constructor(
     private readonly commandRunner: DeploymentCommandRunner = createDeploymentCommandRunner(),
-    private readonly docker = new Docker({ socketPath: env.DOCKER_SOCKET_PATH })
+    private readonly runtimeManager: ContainerRuntimeManager = createContainerRuntimeManager()
   ) {}
 
   private networkEnsured = false;
@@ -50,7 +51,7 @@ export class DeploymentRunner {
   }
 
   private async removeContainerForce(containerId: string) {
-    await this.docker.getContainer(containerId).remove({ force: true });
+    await this.runtimeManager.removeContainer(containerId);
   }
 
   private async removeImageForce(imageTag: string) {
@@ -82,28 +83,19 @@ export class DeploymentRunner {
     const networkName = env.DEPLOYMENT_NETWORK_NAME;
     if (this.networkEnsured) return networkName;
 
-    const networks = await this.docker.listNetworks({ filters: { name: [networkName] } });
-    const exact = networks.find((network: { Name?: string }) => network.Name === networkName);
+    const networks = await this.runtimeManager.listNetworksByName(networkName);
+    const exact = networks.find((network) => network.name === networkName);
     if (!exact) {
       try {
-        await this.docker.createNetwork({
-          Name: networkName,
-          Driver: 'bridge',
-          Internal: false,
-          Labels: { 'managed-by': 'vcloudrunner' },
-        });
+        await this.runtimeManager.createNetwork(networkName);
         logger.info('created deployment network', { networkName });
       } catch (error) {
         if (!this.isNetworkAlreadyExistsError(error)) {
           throw error;
         }
 
-        const refreshedNetworks = await this.docker.listNetworks({
-          filters: { name: [networkName] }
-        });
-        const refreshedExact = refreshedNetworks.find(
-          (network: { Name?: string }) => network.Name === networkName
-        );
+        const refreshedNetworks = await this.runtimeManager.listNetworksByName(networkName);
+        const refreshedExact = refreshedNetworks.find((network) => network.name === networkName);
 
         if (!refreshedExact) {
           throw error;
@@ -161,36 +153,23 @@ export class DeploymentRunner {
       logger.info('starting container', { containerName, containerPort, memoryMb, cpuMillicores });
 
       const networkName = await this.ensureDeploymentNetwork();
-      const exposedPort = `${containerPort}/tcp`;
-      const container = await this.docker.createContainer({
+      const startResult = await this.runtimeManager.startContainer({
         name: containerName,
-        Image: imageTag,
-        User: '1000:1000',
-        Env: Object.entries(job.env).map(([key, value]) => `${key}=${value}`),
-        ExposedPorts: { [exposedPort]: {} },
-        HostConfig: {
-          PublishAllPorts: true,
-          Memory: memoryMb * 1024 * 1024,
-          NanoCpus: cpuMillicores * 1_000_000,
-          PidsLimit: 256,
-          ReadonlyRootfs: false,
-          RestartPolicy: { Name: 'unless-stopped' },
-          NetworkMode: networkName
-        }
+        imageTag,
+        env: job.env,
+        networkName,
+        containerPort,
+        memoryMb,
+        cpuMillicores
       });
-
-      createdContainerId = container.id;
-
-      await container.start();
-      const inspected = await container.inspect();
-      const hostPort = inspected.NetworkSettings.Ports[exposedPort]?.[0]?.HostPort;
+      createdContainerId = startResult.containerId;
 
       return {
-        containerId: inspected.Id,
+        containerId: startResult.containerId,
         containerName,
         imageTag,
-        hostPort: hostPort ? Number(hostPort) : null,
-        runtimeUrl: hostPort ? `http://${job.projectSlug}.${env.PLATFORM_DOMAIN}` : null,
+        hostPort: startResult.hostPort,
+        runtimeUrl: startResult.hostPort ? `http://${job.projectSlug}.${env.PLATFORM_DOMAIN}` : null,
         internalPort: containerPort,
         projectPath: basename(repoDir)
       };
@@ -251,7 +230,7 @@ export class DeploymentRunner {
 
   private async removeContainerByName(containerName: string) {
     try {
-      const matches = await this.docker.listContainers({ all: true, filters: { name: [containerName] } });
+      const matches = await this.runtimeManager.listContainersByName(containerName);
 
       if (matches.length === 0) {
         return;
@@ -260,26 +239,25 @@ export class DeploymentRunner {
       let removedCount = 0;
 
       for (const item of matches) {
-        const container = this.docker.getContainer(item.Id);
         try {
-          if (item.State === 'running') {
-            await container.stop({ t: 10 });
+          if (item.state === 'running') {
+            await this.runtimeManager.stopContainer(item.id);
           }
         } catch (error) {
           logger.warn('failed stopping stale container before retry', {
             containerName,
-            containerId: item.Id,
+            containerId: item.id,
             message: error instanceof Error ? error.message : String(error)
           });
         }
 
         try {
-          await container.remove({ force: true });
+          await this.runtimeManager.removeContainer(item.id);
           removedCount += 1;
         } catch (error) {
           logger.warn('failed removing stale container before retry', {
             containerName,
-            containerId: item.Id,
+            containerId: item.id,
             message: error instanceof Error ? error.message : String(error)
           });
         }
