@@ -5,7 +5,8 @@ import { gzipSync } from 'node:zlib';
 
 import { env } from '../config/env.js';
 import { logger } from '../logger/logger.js';
-import { CaddyService } from './caddy.service.js';
+import { createIngressManager } from './ingress/ingress-manager.factory.js';
+import type { IngressManager } from './ingress/ingress-manager.js';
 import { DeploymentStateRepository, type Queryable, type SuccessInput } from './deployment-state.repository.js';
 
 interface ArchiveUploadRequest {
@@ -39,12 +40,15 @@ function getErrorMessage(error: unknown) {
 
 export class DeploymentStateService {
   private readonly repository: DeploymentStateRepository;
-  private readonly caddyService: Pick<CaddyService, 'deleteRoute'>;
+  private readonly ingressManager: Pick<IngressManager, 'deleteRoute'>;
   private gcsAccessTokenCache: { token: string; expiresAt: number } | null = null;
 
-  constructor(pool?: Queryable, caddyService: Pick<CaddyService, 'deleteRoute'> = new CaddyService()) {
+  constructor(
+    pool?: Queryable,
+    ingressManager: Pick<IngressManager, 'deleteRoute'> = createIngressManager()
+  ) {
     this.repository = new DeploymentStateRepository(pool);
-    this.caddyService = caddyService;
+    this.ingressManager = ingressManager;
   }
 
   async markBuilding(deploymentId: string) {
@@ -131,7 +135,7 @@ export class DeploymentStateService {
           if (row.runtime_url) {
             const host = `${row.project_slug}.${env.PLATFORM_DOMAIN}`;
             try {
-              await this.caddyService.deleteRoute({ host });
+              await this.ingressManager.deleteRoute({ host });
             } catch (error) {
               logger.warn('running deployment route cleanup failed during reconciliation', {
                 deploymentId: row.deployment_id,

@@ -36,7 +36,7 @@ function createJob(overrides?: Partial<typeof jobData>) {
   };
 }
 
-function createCaddyServiceStub(overrides: {
+function createIngressManagerStub(overrides: {
   upsertRoute?: (input: { host: string; upstreamPort: number }) => Promise<void>;
   deleteRoute?: (input: { host: string }) => Promise<void>;
 } = {}) {
@@ -83,7 +83,7 @@ test('processor keeps successful deployments successful when the final running l
         stateFailures.push(deploymentId);
       }
     },
-    caddyService: createCaddyServiceStub(),
+    ingressManager: createIngressManagerStub(),
     logger: {
       info: (message) => {
         infoLogs.push(message);
@@ -139,7 +139,7 @@ test('processor continues into runtime execution when pre-run informational log 
       },
       markFailed: async () => undefined
     },
-    caddyService: createCaddyServiceStub(),
+    ingressManager: createIngressManagerStub(),
     logger: {
       info: () => undefined,
       warn: (message, metadata) => {
@@ -187,7 +187,7 @@ test('processor continues into runtime execution when the building event emissio
       },
       markFailed: async () => undefined
     },
-    caddyService: createCaddyServiceStub(),
+    ingressManager: createIngressManagerStub(),
     logger: {
       info: () => undefined,
       warn: (message, metadata) => {
@@ -247,7 +247,7 @@ test('processor keeps successful deployments successful when route warning log a
         stateFailures.push(deploymentId);
       }
     },
-    caddyService: createCaddyServiceStub({
+    ingressManager: createIngressManagerStub({
       upsertRoute: async () => {
         throw new Error('caddy unavailable');
       }
@@ -299,7 +299,7 @@ test('processor persists runtimeUrl only when public route configuration succeed
       },
       markFailed: async () => undefined
     },
-    caddyService: createCaddyServiceStub({
+    ingressManager: createIngressManagerStub({
       upsertRoute: async () => {
         throw new Error('caddy unavailable');
       }
@@ -343,7 +343,7 @@ test('processor still rethrows the original retryable error when retry logging f
       markRunning: async () => undefined,
       markFailed: async () => undefined
     },
-    caddyService: createCaddyServiceStub(),
+    ingressManager: createIngressManagerStub(),
     logger: {
       info: () => undefined,
       warn: (message, metadata) => {
@@ -399,7 +399,7 @@ test('processor keeps successful deployments successful when the running event e
         stateFailures.push(deploymentId);
       }
     },
-    caddyService: createCaddyServiceStub(),
+    ingressManager: createIngressManagerStub(),
     logger: {
       info: (message) => {
         infoLogs.push(message);
@@ -448,7 +448,7 @@ test('processor still fails non-retryable deployments when failed event emission
         failureMessages.push(message);
       }
     },
-    caddyService: createCaddyServiceStub(),
+    ingressManager: createIngressManagerStub(),
     logger: {
       info: () => undefined,
       warn: (message, metadata) => {
@@ -495,7 +495,7 @@ test('processor marks cancelled-before-execution deployments failed when stop pe
         failureMessages.push(message);
       }
     },
-    caddyService: createCaddyServiceStub(),
+    ingressManager: createIngressManagerStub(),
     logger: {
       info: () => undefined,
       warn: () => undefined,
@@ -545,7 +545,7 @@ test('processor marks cancelled-during-execution deployments failed when stop pe
         failureMessages.push(message);
       }
     },
-    caddyService: createCaddyServiceStub(),
+    ingressManager: createIngressManagerStub(),
     logger: {
       info: () => undefined,
       warn: () => undefined,
@@ -599,7 +599,7 @@ test('processor marks cancelled-during-execution deployments failed when runtime
         failureMessages.push(message);
       }
     },
-    caddyService: createCaddyServiceStub(),
+    ingressManager: createIngressManagerStub(),
     logger: {
       info: () => undefined,
       warn: () => undefined,
@@ -647,7 +647,7 @@ test('processor emits a cancelled event when cancellation completes during execu
       markRunning: async () => undefined,
       markFailed: async () => undefined
     },
-    caddyService: createCaddyServiceStub(),
+    ingressManager: createIngressManagerStub(),
     logger: {
       info: () => undefined,
       warn: () => undefined,
@@ -700,7 +700,7 @@ test('processor cleans up started runtime before failing an exhausted post-run p
         failureMessages.push(message);
       }
     },
-    caddyService: createCaddyServiceStub({
+    ingressManager: createIngressManagerStub({
       deleteRoute: async (input) => {
         deleteRouteCalls.push(input as unknown as Record<string, unknown>);
       }
@@ -763,7 +763,7 @@ test('processor cleans up started runtime before finalizing cancellation after a
         throw new Error('markFailed should not be called for cancellation finalization');
       }
     },
-    caddyService: createCaddyServiceStub({
+    ingressManager: createIngressManagerStub({
       deleteRoute: async (input) => {
         deleteRouteCalls.push(input as unknown as Record<string, unknown>);
       }
@@ -818,7 +818,7 @@ test('processor warns and continues when route cleanup fails after a post-run er
         failureMessages.push(message);
       }
     },
-    caddyService: createCaddyServiceStub({
+    ingressManager: createIngressManagerStub({
       deleteRoute: async () => {
         throw new Error('caddy delete unavailable');
       }
@@ -879,7 +879,7 @@ test('processor marks cancellation finalization failed when stop persistence fai
         failureMessages.push(message);
       }
     },
-    caddyService: createCaddyServiceStub(),
+    ingressManager: createIngressManagerStub(),
     logger: {
       info: () => undefined,
       warn: () => undefined,
@@ -935,7 +935,7 @@ test('processor marks cancellation-after-error deployments failed when runtime c
         failureMessages.push(message);
       }
     },
-    caddyService: createCaddyServiceStub(),
+    ingressManager: createIngressManagerStub(),
     logger: {
       info: () => undefined,
       warn: () => undefined,
@@ -985,7 +985,7 @@ test('processor emits a cancelled event when cancellation finalizes after an exe
       },
       markFailed: async () => undefined
     },
-    caddyService: createCaddyServiceStub(),
+    ingressManager: createIngressManagerStub(),
     logger: {
       info: () => undefined,
       warn: () => undefined,

@@ -43,6 +43,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - make the status page’s “Recent Deployment Outcomes” panel terminal-only, so queued/building activity no longer appears under an outcomes heading
 - rename the platform strip’s “Last Successful Deploy” card to a truthful “Latest Running Deployment” metric, matching the actual data source instead of overstating historical success tracking
 - extract worker runtime inspection behind the same runtime-family seam as execution, so bootstrap reconciliation no longer reaches directly into Docker and future runtime adapters have a cleaner hook point
+- extract worker ingress management behind an ingress-manager seam too, so job processing and reconciliation no longer name `CaddyService` directly and future ingress adapters have a cleaner integration point
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another

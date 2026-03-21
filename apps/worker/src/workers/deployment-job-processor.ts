@@ -3,9 +3,10 @@ import type { DeploymentJobPayload } from '@vcloudrunner/shared-types';
 
 import { env } from '../config/env.js';
 import { logger } from '../logger/logger.js';
-import { CaddyService } from '../services/caddy.service.js';
 import { emitDeploymentEvent } from '../services/deployment-events.js';
 import { DeploymentStateService } from '../services/deployment-state.service.js';
+import { createIngressManager } from '../services/ingress/ingress-manager.factory.js';
+import type { IngressManager } from '../services/ingress/ingress-manager.js';
 import { createRuntimeExecutor } from '../services/runtime/runtime-executor.factory.js';
 import type { RuntimeExecutionResult, RuntimeExecutor } from '../services/runtime/runtime-executor.js';
 import { DeploymentFailure, classifyDeploymentFailure } from './deployment-errors.js';
@@ -38,11 +39,6 @@ interface StateServiceLike {
   markFailed(deploymentId: string, message: string): Promise<void>;
 }
 
-interface CaddyServiceLike {
-  upsertRoute(input: { host: string; upstreamPort: number }): Promise<void>;
-  deleteRoute(input: { host: string }): Promise<void>;
-}
-
 interface LoggerLike {
   info(message: string, metadata?: Record<string, unknown>): void;
   warn(message: string, metadata?: Record<string, unknown>): void;
@@ -52,7 +48,7 @@ interface LoggerLike {
 interface DeploymentJobProcessorDependencies {
   runtimeExecutor?: RuntimeExecutor;
   stateService?: StateServiceLike;
-  caddyService?: CaddyServiceLike;
+  ingressManager?: IngressManager;
   logger?: LoggerLike;
   emitDeploymentEvent?: typeof emitDeploymentEvent;
 }
@@ -60,7 +56,7 @@ interface DeploymentJobProcessorDependencies {
 const defaultDependencies: Required<DeploymentJobProcessorDependencies> = {
   runtimeExecutor: createRuntimeExecutor(),
   stateService: new DeploymentStateService(),
-  caddyService: new CaddyService(),
+  ingressManager: createIngressManager(),
   logger,
   emitDeploymentEvent
 };
@@ -195,7 +191,7 @@ async function cleanupRouteBestEffort(
   }
 ) {
   try {
-    await dependencies.caddyService.deleteRoute({ host: input.host });
+    await dependencies.ingressManager.deleteRoute({ host: input.host });
   } catch (error) {
     dependencies.logger.warn('deployment route cleanup failed after post-run error', {
       deploymentId: input.deploymentId,
@@ -611,7 +607,7 @@ async function configureRouteIfNeeded(
 
   const host = `${input.job.data.projectSlug}.${env.PLATFORM_DOMAIN}`;
   try {
-    await dependencies.caddyService.upsertRoute({ host, upstreamPort: input.result.hostPort });
+    await dependencies.ingressManager.upsertRoute({ host, upstreamPort: input.result.hostPort });
     await appendLogBestEffort(dependencies, {
       deploymentId: input.job.data.deploymentId,
       correlationId: input.correlationId,
