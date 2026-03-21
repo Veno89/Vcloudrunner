@@ -55,6 +55,27 @@ export class DeploymentRunner {
     await execFileAsync('docker', ['image', 'rm', '-f', imageTag]);
   }
 
+  private async removeWorkspace(workspaceDir: string) {
+    await rm(workspaceDir, { recursive: true, force: true });
+  }
+
+  private async cleanupWorkspaceBestEffort(input: {
+    deploymentId: string;
+    workspaceDir: string;
+    reason: 'post-run' | 'deployment-error';
+  }) {
+    try {
+      await this.removeWorkspace(input.workspaceDir);
+    } catch (error) {
+      logger.warn('failed removing deployment workspace after error', {
+        deploymentId: input.deploymentId,
+        workspaceDir: input.workspaceDir,
+        reason: input.reason,
+        message: this.getErrorMessage(error)
+      });
+    }
+  }
+
   private async ensureDeploymentNetwork(): Promise<string> {
     const networkName = env.DEPLOYMENT_NETWORK_NAME;
     if (this.networkEnsured) return networkName;
@@ -173,7 +194,11 @@ export class DeploymentRunner {
       });
       throw error;
     } finally {
-      await rm(workspaceDir, { recursive: true, force: true });
+      await this.cleanupWorkspaceBestEffort({
+        deploymentId: job.deploymentId,
+        workspaceDir,
+        reason: 'post-run'
+      });
     }
   }
 
@@ -301,15 +326,11 @@ export class DeploymentRunner {
       }
     }
 
-    try {
-      await rm(input.workspaceDir, { recursive: true, force: true });
-    } catch (error) {
-      logger.warn('failed removing deployment workspace after error', {
-        deploymentId: input.deploymentId,
-        workspaceDir: input.workspaceDir,
-        message: this.getErrorMessage(error)
-      });
-    }
+    await this.cleanupWorkspaceBestEffort({
+      deploymentId: input.deploymentId,
+      workspaceDir: input.workspaceDir,
+      reason: 'deployment-error'
+    });
 
     if (failures.length > 0) {
       throw new Error(

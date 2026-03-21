@@ -342,3 +342,65 @@ test('cleanupFailedRun ignores already-gone runtime resources after a deployment
 
   assert.equal(warnings.length, 0);
 });
+
+test('cleanupWorkspaceBestEffort warns and continues when post-run workspace cleanup fails', async (t) => {
+  const warnings: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
+
+  t.mock.method(logger, 'warn', (message: string, metadata?: Record<string, unknown>) => {
+    warnings.push({ message, metadata });
+  });
+
+  const runner = new DeploymentRunner() as unknown as {
+    removeWorkspace: (workspaceDir: string) => Promise<void>;
+    cleanupWorkspaceBestEffort: (input: {
+      deploymentId: string;
+      workspaceDir: string;
+      reason: 'post-run' | 'deployment-error';
+    }) => Promise<void>;
+  };
+
+  runner.removeWorkspace = async () => {
+    throw new Error('EPERM: workspace locked');
+  };
+
+  await runner.cleanupWorkspaceBestEffort({
+    deploymentId: 'dep-123',
+    workspaceDir: 'workspace',
+    reason: 'post-run'
+  });
+
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0]?.message, 'failed removing deployment workspace after error');
+  assert.equal(warnings[0]?.metadata?.reason, 'post-run');
+});
+
+test('cleanupWorkspaceBestEffort warns and continues when deployment-error workspace cleanup fails', async (t) => {
+  const warnings: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
+
+  t.mock.method(logger, 'warn', (message: string, metadata?: Record<string, unknown>) => {
+    warnings.push({ message, metadata });
+  });
+
+  const runner = new DeploymentRunner() as unknown as {
+    removeWorkspace: (workspaceDir: string) => Promise<void>;
+    cleanupWorkspaceBestEffort: (input: {
+      deploymentId: string;
+      workspaceDir: string;
+      reason: 'post-run' | 'deployment-error';
+    }) => Promise<void>;
+  };
+
+  runner.removeWorkspace = async () => {
+    throw new Error('EPERM: workspace locked');
+  };
+
+  await runner.cleanupWorkspaceBestEffort({
+    deploymentId: 'dep-123',
+    workspaceDir: 'workspace',
+    reason: 'deployment-error'
+  });
+
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0]?.message, 'failed removing deployment workspace after error');
+  assert.equal(warnings[0]?.metadata?.reason, 'deployment-error');
+});
