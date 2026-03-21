@@ -1,11 +1,11 @@
-import { mkdir, readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
 import { env } from '../config/env.js';
 import { logger } from '../logger/logger.js';
+import { createDeploymentLogArchiveStore } from './archive-store/deployment-log-archive-store.factory.js';
 import { createArchiveUploadProvider } from './archive-upload/archive-upload-provider.factory.js';
 import type { ArchiveUploadProvider, ArchiveUploadRequest } from './archive-upload/archive-upload-provider.js';
+import type { DeploymentLogArchiveStore } from './archive-store/deployment-log-archive-store.js';
 import { createIngressManager } from './ingress/ingress-manager.factory.js';
 import type { IngressManager } from './ingress/ingress-manager.js';
 import { DeploymentStateRepository, type Queryable, type SuccessInput } from './deployment-state.repository.js';
@@ -22,15 +22,18 @@ export class DeploymentStateService {
   private readonly repository: DeploymentStateRepository;
   private readonly ingressManager: Pick<IngressManager, 'deleteRoute'>;
   private readonly archiveUploadProvider: ArchiveUploadProvider;
+  private readonly archiveStore: DeploymentLogArchiveStore;
 
   constructor(
     pool?: Queryable,
     ingressManager: Pick<IngressManager, 'deleteRoute'> = createIngressManager(),
-    archiveUploadProvider: ArchiveUploadProvider = createArchiveUploadProvider()
+    archiveUploadProvider: ArchiveUploadProvider = createArchiveUploadProvider(),
+    archiveStore: DeploymentLogArchiveStore = createDeploymentLogArchiveStore()
   ) {
     this.repository = new DeploymentStateRepository(pool);
     this.ingressManager = ingressManager;
     this.archiveUploadProvider = archiveUploadProvider;
+    this.archiveStore = archiveStore;
   }
 
   async markBuilding(deploymentId: string) {
@@ -145,7 +148,7 @@ export class DeploymentStateService {
     const candidates = await this.repository.listArchivableDeploymentIds();
     let archivedCount = 0;
 
-    await mkdir(env.DEPLOYMENT_LOG_ARCHIVE_DIR, { recursive: true });
+    await this.archiveStore.ensureArchiveDir();
 
     for (const deploymentId of candidates) {
       try {
@@ -170,26 +173,19 @@ export class DeploymentStateService {
       return 0;
     }
 
-    await mkdir(env.DEPLOYMENT_LOG_ARCHIVE_DIR, { recursive: true });
-    const entries = await readdir(env.DEPLOYMENT_LOG_ARCHIVE_DIR);
+    await this.archiveStore.ensureArchiveDir();
+    const candidates = await this.archiveStore.listUploadCandidates();
 
     let uploadedCount = 0;
 
-    for (const fileName of entries) {
-      if (!fileName.endsWith('.ndjson.gz')) {
-        continue;
-      }
-
-      const archivePath = join(env.DEPLOYMENT_LOG_ARCHIVE_DIR, fileName);
-      const markerPath = `${archivePath}.uploaded`;
-
-      if (await this.fileExists(markerPath)) {
-        continue;
-      }
-
+    for (const candidate of candidates) {
       try {
-        const payload = await readFile(archivePath);
-        const uploadRequest = await this.createArchiveUploadRequest({ fileName, baseUrl, payload });
+        const payload = await this.archiveStore.readArchivePayload(candidate);
+        const uploadRequest = await this.createArchiveUploadRequest({
+          fileName: candidate.fileName,
+          baseUrl,
+          payload
+        });
 
         await this.uploadArchiveWithRetry({
           targetUrl: uploadRequest.targetUrl,
@@ -197,18 +193,15 @@ export class DeploymentStateService {
           headers: uploadRequest.headers
         });
 
-        await writeFile(
-          markerPath,
-          JSON.stringify({ uploadedAt: new Date().toISOString(), targetUrl: uploadRequest.targetUrl })
-        );
+        await this.archiveStore.markUploaded(candidate, uploadRequest.targetUrl);
 
         if (env.DEPLOYMENT_LOG_ARCHIVE_DELETE_LOCAL_AFTER_UPLOAD) {
           try {
-            await unlink(archivePath);
+            await this.archiveStore.deleteArchive(candidate);
           } catch (error) {
             logger.warn('deployment log archive local cleanup failed after upload', {
-              fileName,
-              archivePath,
+              fileName: candidate.fileName,
+              archivePath: candidate.archivePath,
               message: getErrorMessage(error)
             });
           }
@@ -217,8 +210,8 @@ export class DeploymentStateService {
         uploadedCount += 1;
       } catch (error) {
         logger.warn('deployment log archive upload failed for one artifact', {
-          fileName,
-          archivePath,
+          fileName: candidate.fileName,
+          archivePath: candidate.archivePath,
           message: getErrorMessage(error)
         });
       }
@@ -228,45 +221,27 @@ export class DeploymentStateService {
   }
 
   async cleanupArchivedArtifacts() {
-    await mkdir(env.DEPLOYMENT_LOG_ARCHIVE_DIR, { recursive: true });
-    const entries = await readdir(env.DEPLOYMENT_LOG_ARCHIVE_DIR);
+    await this.archiveStore.ensureArchiveDir();
 
     const now = Date.now();
     const archiveMaxAgeMs = env.DEPLOYMENT_LOG_ARCHIVE_LOCAL_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
     const markerMaxAgeMs = env.DEPLOYMENT_LOG_ARCHIVE_MARKER_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+    const candidates = await this.archiveStore.listCleanupCandidates({
+      nowMs: now,
+      archiveMaxAgeMs,
+      markerMaxAgeMs
+    });
 
     let deletedCount = 0;
 
-    for (const fileName of entries) {
-      const filePath = join(env.DEPLOYMENT_LOG_ARCHIVE_DIR, fileName);
-
-      if (!fileName.endsWith('.ndjson.gz') && !fileName.endsWith('.ndjson.gz.uploaded')) {
-        continue;
-      }
-
+    for (const candidate of candidates) {
       try {
-        const info = await stat(filePath);
-        const ageMs = now - info.mtimeMs;
-
-        if (fileName.endsWith('.ndjson.gz.uploaded')) {
-          if (ageMs > markerMaxAgeMs) {
-            await unlink(filePath);
-            deletedCount += 1;
-          }
-          continue;
-        }
-
-        const markerPath = `${filePath}.uploaded`;
-        const hasMarker = await this.fileExists(markerPath);
-
-        if (hasMarker && ageMs > archiveMaxAgeMs) {
-          await unlink(filePath);
-          deletedCount += 1;
-        }
+        await this.archiveStore.deleteCleanupCandidate(candidate);
+        deletedCount += 1;
       } catch (error) {
         logger.warn('deployment log archive cleanup failed for one artifact', {
-          fileName,
-          filePath,
+          fileName: candidate.fileName,
+          filePath: candidate.filePath,
           message: getErrorMessage(error)
         });
       }
@@ -325,13 +300,6 @@ export class DeploymentStateService {
   }
 
   private async archiveDeployment(deploymentId: string) {
-    const archivePath = join(env.DEPLOYMENT_LOG_ARCHIVE_DIR, `${deploymentId}.ndjson.gz`);
-
-    const exists = await this.fileExists(archivePath);
-    if (exists) {
-      return false;
-    }
-
     const rows = await this.repository.listDeploymentLogsByDeployment(deploymentId);
     if (rows.length === 0) {
       return false;
@@ -351,17 +319,7 @@ export class DeploymentStateService {
         .join('\n') + '\n';
 
     const compressed = gzipSync(ndjson);
-    await writeFile(archivePath, compressed);
-    return true;
-  }
-
-  private async fileExists(path: string) {
-    try {
-      await stat(path);
-      return true;
-    } catch {
-      return false;
-    }
+    return this.archiveStore.writeArchiveIfMissing(deploymentId, compressed);
   }
 
   private async enforceRetentionBestEffort(deploymentId: string) {
