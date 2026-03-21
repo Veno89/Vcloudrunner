@@ -42,6 +42,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - disable dashboard log-page auto-refresh for terminal deployments too, so stopped/failed records no longer keep polling the route while simultaneously saying no new live logs are expected
 - make the status page’s “Recent Deployment Outcomes” panel terminal-only, so queued/building activity no longer appears under an outcomes heading
 - rename the platform strip’s “Last Successful Deploy” card to a truthful “Latest Running Deployment” metric, matching the actual data source instead of overstating historical success tracking
+- extract worker runtime inspection behind the same runtime-family seam as execution, so bootstrap reconciliation no longer reaches directly into Docker and future runtime adapters have a cleaner hook point
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another

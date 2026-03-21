@@ -2,13 +2,13 @@ import { logger } from './logger/logger.js';
 import { env } from './config/env.js';
 import { DeploymentStateService } from './services/deployment-state.service.js';
 import { BackgroundScheduler } from './services/background-scheduler.js';
+import { createRuntimeInspector } from './services/runtime/runtime-inspector.factory.js';
 import { deploymentWorker } from './workers/deployment.worker.js';
 import { createWorkerLifecycle } from './bootstrap.js';
 import { Redis } from 'ioredis';
-import Docker from 'dockerode';
 
 const stateService = new DeploymentStateService();
-const docker = new Docker({ socketPath: env.DOCKER_SOCKET_PATH });
+const runtimeInspector = createRuntimeInspector();
 const heartbeatRedis = new Redis(env.REDIS_URL, {
   maxRetriesPerRequest: null,
   enableReadyCheck: false
@@ -19,14 +19,7 @@ const lifecycle = createWorkerLifecycle({
   logger,
   scheduler,
   stateService,
-  isContainerRunning: async (containerId) => {
-    try {
-      const info = await docker.getContainer(containerId).inspect();
-      return info.State.Running === true;
-    } catch {
-      return false;
-    }
-  },
+  isContainerRunning: (containerId) => runtimeInspector.isContainerRunning(containerId),
   closeWorker: async () => {
     await deploymentWorker.close();
   }
