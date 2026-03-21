@@ -64,6 +64,13 @@ const defaultDependencies: Required<DeploymentJobProcessorDependencies> = {
   emitDeploymentEvent
 };
 
+class CancellationFinalizationError extends Error {
+  constructor(public readonly originalError: unknown) {
+    super(getErrorMessage(originalError));
+    this.name = 'CancellationFinalizationError';
+  }
+}
+
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timeoutId = setTimeout(() => {
@@ -156,6 +163,34 @@ async function cleanupStartedRuntimeBestEffort(
   }
 }
 
+async function markFailedBestEffort(
+  dependencies: Required<DeploymentJobProcessorDependencies>,
+  input: {
+    deploymentId: string;
+    correlationId: string;
+    prefix: string;
+    error: unknown;
+    reason:
+      | 'cancelled-before-execution-finalization'
+      | 'cancelled-during-execution-finalization'
+      | 'cancellation-after-error-finalization';
+  }
+) {
+  const message = getErrorMessage(input.error);
+
+  try {
+    await dependencies.stateService.markFailed(input.deploymentId, `${input.prefix}: ${message}`);
+  } catch (markFailedError) {
+    dependencies.logger.warn('deployment failure-state correction failed after cancellation finalization error', {
+      deploymentId: input.deploymentId,
+      correlationId: input.correlationId,
+      reason: input.reason,
+      originalMessage: message,
+      message: getErrorMessage(markFailedError)
+    });
+  }
+}
+
 export function createDeploymentJobProcessor(
   overrides: DeploymentJobProcessorDependencies = {}
 ) {
@@ -169,10 +204,21 @@ export function createDeploymentJobProcessor(
     let runtimeResult: RuntimeExecutionResult | null = null;
 
     if (await dependencies.stateService.isCancellationRequested(job.data.deploymentId)) {
-      await dependencies.stateService.markStopped(
-        job.data.deploymentId,
-        `Deployment cancelled before worker execution (correlation ${correlationId}).`
-      );
+      try {
+        await dependencies.stateService.markStopped(
+          job.data.deploymentId,
+          `Deployment cancelled before worker execution (correlation ${correlationId}).`
+        );
+      } catch (error) {
+        await markFailedBestEffort(dependencies, {
+          deploymentId: job.data.deploymentId,
+          correlationId,
+          prefix: 'DEPLOYMENT_CANCEL_FINALIZATION_FAILED',
+          error,
+          reason: 'cancelled-before-execution-finalization'
+        });
+        throw error;
+      }
       emitDeploymentEventBestEffort(dependencies, {
         deploymentId: job.data.deploymentId,
         correlationId,
@@ -243,10 +289,21 @@ export function createDeploymentJobProcessor(
           containerId: result.containerId,
           imageTag: result.imageTag
         });
-        await dependencies.stateService.markStopped(
-          job.data.deploymentId,
-          `Deployment cancelled during build execution (correlation ${correlationId}).`
-        );
+        try {
+          await dependencies.stateService.markStopped(
+            job.data.deploymentId,
+            `Deployment cancelled during build execution (correlation ${correlationId}).`
+          );
+        } catch (error) {
+          await markFailedBestEffort(dependencies, {
+            deploymentId: job.data.deploymentId,
+            correlationId,
+            prefix: 'DEPLOYMENT_CANCEL_FINALIZATION_FAILED',
+            error,
+            reason: 'cancelled-during-execution-finalization'
+          });
+          throw new CancellationFinalizationError(error);
+        }
         dependencies.logger.info('deployment cancelled during execution', {
           deploymentId: job.data.deploymentId,
           correlationId,
@@ -302,6 +359,10 @@ export function createDeploymentJobProcessor(
         attempt: job.attemptsMade + 1
       });
     } catch (error) {
+      if (error instanceof CancellationFinalizationError) {
+        throw error.originalError;
+      }
+
       const cancellationRequested = await dependencies.stateService.isCancellationRequested(job.data.deploymentId);
 
       if (runtimeResult) {
@@ -314,10 +375,21 @@ export function createDeploymentJobProcessor(
       }
 
       if (cancellationRequested) {
-        await dependencies.stateService.markStopped(
-          job.data.deploymentId,
-          `Deployment cancellation confirmed after execution error (correlation ${correlationId}).`
-        );
+        try {
+          await dependencies.stateService.markStopped(
+            job.data.deploymentId,
+            `Deployment cancellation confirmed after execution error (correlation ${correlationId}).`
+          );
+        } catch (markStoppedError) {
+          await markFailedBestEffort(dependencies, {
+            deploymentId: job.data.deploymentId,
+            correlationId,
+            prefix: 'DEPLOYMENT_CANCEL_FINALIZATION_FAILED',
+            error: markStoppedError,
+            reason: 'cancellation-after-error-finalization'
+          });
+          throw markStoppedError;
+        }
         dependencies.logger.info('deployment cancellation finalized after execution error', {
           deploymentId: job.data.deploymentId,
           correlationId,

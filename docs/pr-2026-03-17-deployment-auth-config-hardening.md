@@ -18,6 +18,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - make post-run worker cleanup best-effort and explicit when persistence/finalization fails after runtime success, so started containers/images are torn down before retry/failure/cancellation finalization instead of being left running out of band
 - make worker pre-run and retry-scheduled informational logging best-effort too, so startup/retry audit-log failures no longer override the true deployment outcome
 - make worker deployment-event emission best-effort too, so lifecycle event sink failures no longer override real build/running/failed outcomes after authoritative state changes
+- make worker cancellation finalization fall back to `failed` when runtime cleanup succeeds but the final `stopped` persistence write still fails, so cancelled deployments do not remain stranded in active-looking states
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another
@@ -154,11 +155,12 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - document the best-effort post-run worker cleanup path so progress notes match the new runtime-teardown behavior after post-run persistence failures
 - document the broader best-effort worker audit-log model so progress notes match the new pre-run / retry / post-run informational logging behavior
 - document the broader best-effort worker side-effect model so progress notes match the new non-authoritative event-emission follow-through
+- document the worker cancellation-finalization fallback so progress notes match the new state-correction behavior after stop-persistence failures in cancellation paths
 
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
-  - passed (`79/79`)
+  - passed (`82/82`)
 - `npm --workspace @vcloudrunner/api test`
   - passed (`183/183`)
 - `npm run typecheck`

@@ -426,6 +426,99 @@ test('processor still fails non-retryable deployments when failed event emission
   assert.equal(warnings[0]?.metadata?.eventType, 'deployment.failed');
 });
 
+test('processor marks cancelled-before-execution deployments failed when stop persistence fails', async () => {
+  const failureMessages: string[] = [];
+
+  const processJob = createDeploymentJobProcessor({
+    runtimeExecutor: {
+      run: async () => {
+        throw new Error('runtime should not start after pre-execution cancellation');
+      },
+      cleanupCancelledRun: async () => undefined
+    },
+    stateService: {
+      isCancellationRequested: async () => true,
+      markStopped: async () => {
+        throw new Error('database unavailable');
+      },
+      markBuilding: async () => undefined,
+      appendLog: async () => undefined,
+      markRunning: async () => undefined,
+      markFailed: async (_deploymentId, message) => {
+        failureMessages.push(message);
+      }
+    },
+    caddyService: {
+      upsertRoute: async () => undefined
+    },
+    logger: {
+      info: () => undefined,
+      warn: () => undefined,
+      error: () => undefined
+    },
+    emitDeploymentEvent: () => undefined
+  });
+
+  await assert.rejects(processJob(createJob()), /database unavailable/);
+
+  assert.equal(failureMessages.length, 1);
+  assert.equal(failureMessages[0], 'DEPLOYMENT_CANCEL_FINALIZATION_FAILED: database unavailable');
+});
+
+test('processor marks cancelled-during-execution deployments failed when stop persistence fails', async () => {
+  const cleanupCalls: Array<Record<string, unknown>> = [];
+  const failureMessages: string[] = [];
+  let cancellationChecks = 0;
+
+  const processJob = createDeploymentJobProcessor({
+    runtimeExecutor: {
+      run: async () => ({
+        containerId: 'container-123',
+        containerName: 'container-name',
+        imageTag: 'image-tag',
+        hostPort: null,
+        runtimeUrl: 'http://demo-project.example.test',
+        internalPort: 3000,
+        projectPath: 'repo'
+      }),
+      cleanupCancelledRun: async (input) => {
+        cleanupCalls.push(input as unknown as Record<string, unknown>);
+      }
+    },
+    stateService: {
+      isCancellationRequested: async () => {
+        cancellationChecks += 1;
+        return cancellationChecks >= 2;
+      },
+      markStopped: async () => {
+        throw new Error('database unavailable');
+      },
+      markBuilding: async () => undefined,
+      appendLog: async () => undefined,
+      markRunning: async () => undefined,
+      markFailed: async (_deploymentId, message) => {
+        failureMessages.push(message);
+      }
+    },
+    caddyService: {
+      upsertRoute: async () => undefined
+    },
+    logger: {
+      info: () => undefined,
+      warn: () => undefined,
+      error: () => undefined
+    },
+    emitDeploymentEvent: () => undefined
+  });
+
+  await assert.rejects(processJob(createJob()), /database unavailable/);
+
+  assert.equal(cleanupCalls.length, 1);
+  assert.equal(cleanupCalls[0]?.deploymentId, 'dep-123');
+  assert.equal(failureMessages.length, 1);
+  assert.equal(failureMessages[0], 'DEPLOYMENT_CANCEL_FINALIZATION_FAILED: database unavailable');
+});
+
 test('processor cleans up started runtime before failing an exhausted post-run persistence error', async () => {
   const cleanupCalls: Array<Record<string, unknown>> = [];
   const failureMessages: string[] = [];
@@ -532,4 +625,60 @@ test('processor cleans up started runtime before finalizing cancellation after a
   assert.equal(cleanupCalls[0]?.deploymentId, 'dep-123');
   assert.equal(stopMessages.length, 1);
   assert.match(stopMessages[0] ?? '', /cancellation confirmed after execution error/i);
+});
+
+test('processor marks cancellation finalization failed when stop persistence fails after an execution error', async () => {
+  const cleanupCalls: Array<Record<string, unknown>> = [];
+  const failureMessages: string[] = [];
+  let cancellationChecks = 0;
+
+  const processJob = createDeploymentJobProcessor({
+    runtimeExecutor: {
+      run: async () => ({
+        containerId: 'container-123',
+        containerName: 'container-name',
+        imageTag: 'image-tag',
+        hostPort: 3100,
+        runtimeUrl: 'http://demo-project.example.test',
+        internalPort: 3000,
+        projectPath: 'repo'
+      }),
+      cleanupCancelledRun: async (input) => {
+        cleanupCalls.push(input as unknown as Record<string, unknown>);
+      }
+    },
+    stateService: {
+      isCancellationRequested: async () => {
+        cancellationChecks += 1;
+        return cancellationChecks >= 3;
+      },
+      markStopped: async () => {
+        throw new Error('stop persistence unavailable');
+      },
+      markBuilding: async () => undefined,
+      appendLog: async () => undefined,
+      markRunning: async () => {
+        throw new Error('database unavailable');
+      },
+      markFailed: async (_deploymentId, message) => {
+        failureMessages.push(message);
+      }
+    },
+    caddyService: {
+      upsertRoute: async () => undefined
+    },
+    logger: {
+      info: () => undefined,
+      warn: () => undefined,
+      error: () => undefined
+    },
+    emitDeploymentEvent: () => undefined
+  });
+
+  await assert.rejects(processJob(createJob()), /stop persistence unavailable/);
+
+  assert.equal(cleanupCalls.length, 1);
+  assert.equal(cleanupCalls[0]?.deploymentId, 'dep-123');
+  assert.equal(failureMessages.length, 1);
+  assert.equal(failureMessages[0], 'DEPLOYMENT_CANCEL_FINALIZATION_FAILED: stop persistence unavailable');
 });
