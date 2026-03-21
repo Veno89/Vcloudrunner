@@ -70,6 +70,7 @@ This guide defines how shared dashboard UI primitives should be used so new scre
 - Apply the same cancellation-requested cue in compact text surfaces too, such as deployment selectors or operational summary rows; do not collapse those back to plain `queued`/`building`.
 - When a dashboard filter exposes cancellation-requested deployments, model that as a derived `cancelling` view over queued/building records rather than overloading `stopped` or pretending cancellation is a first-class backend status.
 - Apply that same derived cancellation-aware wording to plain-text detail rows too, so deployment detail views do not revert from `queued / cancelling` or `building / cancelling` back to raw backend status text.
+- On deployment detail pages, use available lifecycle evidence to distinguish `stopped before activation` from `stopped after startup`; do not describe every stopped deployment as if it never reached runtime startup.
 - On operational summary metrics, treat `stopped` deployments as terminal non-success outcomes rather than dropping them from success-rate calculations.
 - Use `<time>` semantics for timestamps where practical.
 

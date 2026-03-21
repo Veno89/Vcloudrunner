@@ -87,6 +87,7 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
     });
   }
 
+  const runtimeStarted = hasRuntimeStarted(logs);
   const failureSummary = deployment.status === 'failed' ? deriveFailureSummary(logs) : null;
   const timelineSteps = buildDeploymentSteps({
     status: deployment.status,
@@ -108,10 +109,14 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
           ? 'Cancellation requested. This deployment should stop before worker execution begins.'
       : deployment.status === 'building'
         ? 'Build is in progress. Logs will update as steps complete.'
-        : deployment.status === 'queued'
+      : deployment.status === 'queued'
           ? 'Deployment is queued and waiting for worker capacity.'
           : deployment.status === 'stopped'
-            ? 'Deployment was stopped before reaching a running state. Review recent logs for cancellation or worker-stop details.'
+            ? runtimeStarted
+              ? 'Deployment was stopped after startup. The runtime is no longer active. Review recent logs for cancellation or cleanup details.'
+              : deployment.startedAt
+                ? 'Deployment was stopped after work began, before it remained active. Review recent logs for cancellation or worker-stop details.'
+                : 'Deployment was stopped before reaching a running state. Review recent logs for cancellation or worker-stop details.'
           : deployment.status === 'failed'
             ? 'Deployment failed. Review logs to identify the failure point.'
             : 'Deployment state is unknown. Check recent logs for details.';
@@ -123,7 +128,9 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
       : deployment.status === 'failed'
         ? 'inactive after failure'
         : deployment.status === 'stopped'
-          ? 'inactive'
+          ? runtimeStarted
+            ? 'inactive after stop'
+            : 'inactive'
           : cancellationRequested
             ? 'not expected while cancellation is pending'
           : 'pending';
@@ -342,7 +349,8 @@ function buildDeploymentSteps({
   finishedAt?: string;
 }): DeploymentStep[] {
   const failedStep = detectFailedStep(logs);
-  const routeSkipped = logs.some((entry) => entry.message.toLowerCase().includes('route configuration skipped'));
+  const routeProgress = detectRouteProgress(logs);
+  const runtimeStarted = hasRuntimeStarted(logs);
 
   if (status === 'running') {
     return [
@@ -355,7 +363,7 @@ function buildDeploymentSteps({
         state: runtimeUrl ? 'complete' : 'warning',
         detail: runtimeUrl
           ? 'Public routing is active.'
-          : routeSkipped
+          : routeProgress === 'skipped'
             ? 'Public route configuration was skipped. Review recent logs for Caddy or ingress details.'
             : 'No public route is currently available for this deployment.'
       },
@@ -440,7 +448,11 @@ function buildDeploymentSteps({
   if (status === 'stopped') {
     const stopDetail = finishedAt
       ? `Stopped at ${new Date(finishedAt).toLocaleString()}`
-      : 'Deployment stopped before activation.';
+      : runtimeStarted
+        ? 'Deployment stopped after runtime startup.'
+        : startedAt
+          ? 'Deployment stopped before runtime startup.'
+          : 'Deployment stopped before activation.';
 
     return [
       {
@@ -453,10 +465,38 @@ function buildDeploymentSteps({
         id: 'build',
         label: 'Build',
         state: startedAt ? 'complete' : 'upcoming',
-        detail: startedAt ? 'Deployment work began before it was stopped.' : undefined
+        detail: startedAt
+          ? runtimeStarted
+            ? 'Build completed before the deployment was stopped.'
+            : 'Deployment work began before it was stopped.'
+          : undefined
       },
-      { id: 'start', label: 'Start', state: 'upcoming', detail: stopDetail },
-      { id: 'route', label: 'Route', state: 'upcoming' },
+      {
+        id: 'start',
+        label: 'Start',
+        state: runtimeStarted ? 'complete' : startedAt ? 'warning' : 'upcoming',
+        detail: runtimeStarted
+          ? `Runtime startup completed before the deployment was stopped. ${stopDetail}`
+          : stopDetail
+      },
+      {
+        id: 'route',
+        label: 'Route',
+        state:
+          routeProgress === 'configured'
+            ? 'complete'
+            : routeProgress === 'skipped' || runtimeStarted
+              ? 'warning'
+              : 'upcoming',
+        detail:
+          routeProgress === 'configured'
+            ? 'Public route was active before the deployment was stopped.'
+            : routeProgress === 'skipped'
+              ? 'Public route configuration was skipped before the deployment was stopped.'
+              : runtimeStarted
+                ? 'No public route was available before the deployment was stopped.'
+                : undefined
+      },
     ];
   }
 
@@ -493,6 +533,34 @@ function detectFailedStep(logs: Array<{ level: string; message: string }>): Depl
   }
 
   return 'build';
+}
+
+function detectRouteProgress(
+  logs: Array<{ level: string; message: string }>
+): 'configured' | 'skipped' | 'none' {
+  for (const entry of logs) {
+    const message = entry.message.toLowerCase();
+    if (message.includes('route configured')) {
+      return 'configured';
+    }
+
+    if (message.includes('route configuration skipped')) {
+      return 'skipped';
+    }
+  }
+
+  return 'none';
+}
+
+function hasRuntimeStarted(logs: Array<{ level: string; message: string }>) {
+  return logs.some((entry) => {
+    const message = entry.message.toLowerCase();
+    return (
+      message.includes('deployment running')
+      || message.includes('route configured')
+      || message.includes('route configuration skipped')
+    );
+  });
 }
 
 function deriveFailureSummary(logs: Array<{ level: string; message: string }>): string | null {
