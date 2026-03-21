@@ -55,13 +55,13 @@ export class DeploymentStateService {
   async markFailed(deploymentId: string, message: string) {
     await this.repository.markStatusFailed(deploymentId);
     await this.repository.insertLog({ deploymentId, level: 'error', message });
-    await this.repository.enforceRetentionForDeployment(deploymentId);
+    await this.enforceRetentionBestEffort(deploymentId);
   }
 
   async markStopped(deploymentId: string, message: string) {
     await this.repository.markStatusStopped(deploymentId);
     await this.repository.insertLog({ deploymentId, level: 'warn', message });
-    await this.repository.enforceRetentionForDeployment(deploymentId);
+    await this.enforceRetentionBestEffort(deploymentId);
   }
 
   async isCancellationRequested(deploymentId: string) {
@@ -70,7 +70,7 @@ export class DeploymentStateService {
 
   async appendLog(deploymentId: string, message: string, level = 'info') {
     await this.repository.insertLog({ deploymentId, level, message });
-    await this.repository.enforceRetentionForDeployment(deploymentId);
+    await this.enforceRetentionBestEffort(deploymentId);
   }
 
   async pruneLogsByRetentionWindow() {
@@ -631,6 +631,17 @@ export class DeploymentStateService {
       return true;
     } catch {
       return false;
+    }
+  }
+
+  private async enforceRetentionBestEffort(deploymentId: string) {
+    try {
+      await this.repository.enforceRetentionForDeployment(deploymentId);
+    } catch (error) {
+      logger.warn('deployment log retention enforcement failed after write', {
+        deploymentId,
+        message: getErrorMessage(error)
+      });
     }
   }
 }

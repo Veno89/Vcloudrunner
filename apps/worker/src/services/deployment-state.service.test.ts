@@ -7,6 +7,7 @@ import { join } from 'node:path';
 await import('../test/worker-test-env.js');
 
 const { env } = await import('../config/env.js');
+const { logger } = await import('../logger/logger.js');
 const { DeploymentStateService } = await import('./deployment-state.service.js');
 
 interface RecordedQuery {
@@ -17,8 +18,13 @@ interface RecordedQuery {
 class MockPool {
   readonly queries: RecordedQuery[] = [];
 
+  constructor(
+    private readonly onQuery?: (text: string, params: unknown[] | undefined) => void | Promise<void>
+  ) {}
+
   async query(text: string, params?: unknown[]) {
     this.queries.push({ text, params });
+    await this.onQuery?.(text, params);
     return { rowCount: 1, rows: [] };
   }
 }
@@ -62,6 +68,63 @@ test('markFailed writes failed status, error log, and applies retention cap', as
 
   assert.match(pool.queries[2].text, /delete from deployment_logs/i);
   assert.deepEqual(pool.queries[2].params, ['dep-456', env.DEPLOYMENT_LOG_MAX_ROWS_PER_DEPLOYMENT]);
+});
+
+test('appendLog still succeeds when retention enforcement fails after the log write', async () => {
+  const warnings: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
+  const originalWarn = logger.warn;
+  const pool = new MockPool(async (text) => {
+    if (/delete from deployment_logs/i.test(text)) {
+      throw new Error('retention delete failed');
+    }
+  });
+  const service = new DeploymentStateService(pool);
+
+  logger.warn = (message, metadata) => {
+    warnings.push({ message, metadata });
+  };
+
+  try {
+    await service.appendLog('dep-retention-log', 'hello world', 'info');
+  } finally {
+    logger.warn = originalWarn;
+  }
+
+  assert.equal(pool.queries.length, 2);
+  assert.match(pool.queries[0].text, /insert into deployment_logs/i);
+  assert.match(pool.queries[1].text, /delete from deployment_logs/i);
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0]?.message, 'deployment log retention enforcement failed after write');
+  assert.equal(warnings[0]?.metadata?.deploymentId, 'dep-retention-log');
+});
+
+test('markStopped still succeeds when retention enforcement fails after the stop write', async () => {
+  const warnings: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
+  const originalWarn = logger.warn;
+  const pool = new MockPool(async (text) => {
+    if (/delete from deployment_logs/i.test(text)) {
+      throw new Error('retention delete failed');
+    }
+  });
+  const service = new DeploymentStateService(pool);
+
+  logger.warn = (message, metadata) => {
+    warnings.push({ message, metadata });
+  };
+
+  try {
+    await service.markStopped('dep-retention-stop', 'cancelled');
+  } finally {
+    logger.warn = originalWarn;
+  }
+
+  assert.equal(pool.queries.length, 3);
+  assert.match(pool.queries[0].text, /update deployments/i);
+  assert.match(pool.queries[1].text, /insert into deployment_logs/i);
+  assert.match(pool.queries[2].text, /delete from deployment_logs/i);
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0]?.message, 'deployment log retention enforcement failed after write');
+  assert.equal(warnings[0]?.metadata?.deploymentId, 'dep-retention-stop');
 });
 
 test('pruneLogsByRetentionWindow deletes old log rows using configured day window', async () => {

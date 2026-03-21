@@ -12,6 +12,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - mark just-created deployments `failed` when project env reads or decrypts blow up before queue enqueue, preventing stranded active records while preserving the original API error contract
 - mark queue-removed deployments `failed` if the follow-up `stopped` state write fails during cancellation, preventing stranded `queued` records while preserving the original persistence error contract
 - keep cancellation responses stable when the state change succeeds but the follow-up deployment log insert fails
+- make deployment-log retention enforcement best-effort after worker status/log writes so secondary trimming failures do not turn successful `appendLog`/`markStopped`/`markFailed` calls into job failures
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another
@@ -142,11 +143,12 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - normalize GCS token-fetch timeout failures so archive token exchange now reports a stable `request timed out after ...ms` message instead of raw fetch abort strings
 - document the pre-queue env-resolution failure path so deployment-flow and progress notes match the new failed-state correction behavior during deployment creation
 - document the queued-cancel finalization fallback so deployment-flow and progress notes match the new state-correction behavior after successful queue removal
+- document the best-effort worker log-retention follow-through so progress notes match the new partial-failure behavior after state/log writes
 
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
-  - passed (`66/66`)
+  - passed (`68/68`)
 - `npm --workspace @vcloudrunner/api test`
   - passed (`183/183`)
 - `npm run typecheck`
