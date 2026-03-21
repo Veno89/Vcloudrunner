@@ -1,7 +1,6 @@
-import type { DeploymentStatus } from '@vcloudrunner/shared-types';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Badge } from '@/components/ui/badge';
+import { DeploymentStatusBadges } from '@/components/deployment-status-badges';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DemoModeBanner } from '@/components/demo-mode-banner';
@@ -17,7 +16,12 @@ import {
   fetchProjectsForDemoUser,
   fetchDeploymentsForProject,
 } from '@/lib/api';
-import { describeDashboardLiveDataFailure, formatRelativeTime, truncateUuid } from '@/lib/helpers';
+import {
+  describeDashboardLiveDataFailure,
+  formatRelativeTime,
+  hasRequestedCancellation,
+  truncateUuid
+} from '@/lib/helpers';
 import { deployProjectAction } from '@/app/deployments/actions';
 
 interface ProjectDeploymentsPageProps {
@@ -29,14 +33,6 @@ interface ProjectDeploymentsPageProps {
     message?: string;
   };
 }
-
-function deploymentStatusVariant(status: DeploymentStatus) {
-  if (status === 'running') return 'success' as const;
-  if (status === 'queued' || status === 'building') return 'warning' as const;
-  if (status === 'failed') return 'destructive' as const;
-  return 'secondary' as const;
-}
-
 export default async function ProjectDeploymentsPage({ params, searchParams }: ProjectDeploymentsPageProps) {
   if (!demoUserId) {
     return (
@@ -148,18 +144,21 @@ export default async function ProjectDeploymentsPage({ params, searchParams }: P
                 <div
                   key={deployment.id}
                   className="flex items-center justify-between rounded-md border px-3 py-2"
-                >
-                  <div className="space-y-1">
-                    <p className="font-mono text-xs">{truncateUuid(deployment.id)}</p>
+                  >
+                    <div className="space-y-1">
+                      <p className="font-mono text-xs">{truncateUuid(deployment.id)}</p>
                     <p className="text-xs text-muted-foreground" title={new Date(deployment.createdAt).toLocaleString()}>
                       {formatRelativeTime(deployment.createdAt)}
                     </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={deploymentStatusVariant(deployment.status)}>{deployment.status}</Badge>
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={`/deployments/${deployment.id}`}>View</Link>
-                    </Button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <DeploymentStatusBadges
+                        status={deployment.status}
+                        cancellationRequested={hasRequestedCancellation(deployment.metadata)}
+                      />
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/deployments/${deployment.id}`}>View</Link>
+                      </Button>
                   </div>
                 </div>
               ))}

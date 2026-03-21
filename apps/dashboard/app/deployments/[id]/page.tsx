@@ -2,6 +2,7 @@ import type { DeploymentStatus } from '@vcloudrunner/shared-types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DemoModeBanner } from '@/components/demo-mode-banner';
+import { DeploymentStatusBadges } from '@/components/deployment-status-badges';
 import { DeploymentAutoRefresh } from '@/components/deployment-auto-refresh';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import { LastRefreshedIndicator } from '@/components/last-refreshed-indicator';
@@ -10,7 +11,12 @@ import { LiveDataUnavailableState } from '@/components/live-data-unavailable-sta
 import { PageLayout } from '@/components/page-layout';
 import { loadDashboardData } from '@/lib/loaders';
 import { apiAuthToken, fetchDeploymentLogs } from '@/lib/api';
-import { describeDashboardLiveDataFailure, logLevelTextClassName, truncateUuid } from '@/lib/helpers';
+import {
+  describeDashboardLiveDataFailure,
+  hasRequestedCancellation,
+  logLevelTextClassName,
+  truncateUuid
+} from '@/lib/helpers';
 import { deployProjectAction } from '../actions';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -65,6 +71,7 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
 
   const { deployment, project } = match;
   const refreshedAt = new Date().toISOString();
+  const cancellationRequested = hasRequestedCancellation(deployment.metadata);
 
   let logs: Array<{ level: string; message: string; timestamp: string }> = [];
   let logsErrorMessage: string | null = null;
@@ -81,26 +88,22 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
   const failureSummary = deployment.status === 'failed' ? deriveFailureSummary(logs) : null;
   const timelineSteps = buildDeploymentSteps({
     status: deployment.status,
+    cancellationRequested,
     runtimeUrl: deployment.runtimeUrl,
     logs,
     startedAt: deployment.startedAt ?? undefined,
     finishedAt: deployment.finishedAt ?? undefined,
   });
 
-  const statusVariant =
-    deployment.status === 'running'
-      ? 'success'
-      : deployment.status === 'building' || deployment.status === 'queued'
-        ? 'warning'
-        : deployment.status === 'failed'
-          ? 'destructive'
-          : 'secondary';
-
   const statusGuidance =
     deployment.status === 'running'
       ? deployment.runtimeUrl
         ? 'Deployment is healthy and serving traffic.'
         : 'Deployment is running, but no public runtime URL is currently available. Review recent logs for route configuration details.'
+      : deployment.status === 'building' && cancellationRequested
+        ? 'Cancellation requested. The worker should stop this deployment before it reaches a running state.'
+        : deployment.status === 'queued' && cancellationRequested
+          ? 'Cancellation requested. This deployment should stop before worker execution begins.'
       : deployment.status === 'building'
         ? 'Build is in progress. Logs will update as steps complete.'
         : deployment.status === 'queued'
@@ -119,6 +122,8 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
         ? 'inactive after failure'
         : deployment.status === 'stopped'
           ? 'inactive'
+          : cancellationRequested
+            ? 'not expected while cancellation is pending'
           : 'pending';
 
   return (
@@ -131,7 +136,10 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
         <h1 className="text-lg font-semibold tracking-tight">
           {project.name} / <span className="font-mono">{truncateUuid(deployment.id)}</span>
         </h1>
-        <Badge variant={statusVariant}>{deployment.status}</Badge>
+        <DeploymentStatusBadges
+          status={deployment.status}
+          cancellationRequested={cancellationRequested}
+        />
         <Link href={`/projects/${project.id}`} className="text-sm text-primary hover:underline">
           View Project
         </Link>
@@ -207,6 +215,9 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
             <DetailRow label="Deployment ID" value={deployment.id} mono />
             <DetailRow label="Project" value={project.name} />
             <DetailRow label="Status" value={deployment.status} />
+            {cancellationRequested && (deployment.status === 'queued' || deployment.status === 'building') ? (
+              <DetailRow label="Cancellation" value="requested" />
+            ) : null}
             <DetailRow label="Commit" value={deployment.commitSha ?? 'unknown'} mono />
             <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Runtime URL</p>
@@ -315,12 +326,14 @@ function stepStateVariant(state: DeploymentStepState) {
 
 function buildDeploymentSteps({
   status,
+  cancellationRequested,
   runtimeUrl,
   logs,
   startedAt,
   finishedAt,
 }: {
   status: DeploymentStatus;
+  cancellationRequested?: boolean;
   runtimeUrl?: string | null;
   logs: Array<{ level: string; message: string; timestamp: string }>;
   startedAt?: string;
@@ -349,7 +362,14 @@ function buildDeploymentSteps({
 
   if (status === 'queued') {
     return [
-      { id: 'queued', label: 'Queued', state: 'current', detail: 'Waiting for worker capacity.' },
+      {
+        id: 'queued',
+        label: 'Queued',
+        state: cancellationRequested ? 'warning' : 'current',
+        detail: cancellationRequested
+          ? 'Cancellation requested. The worker should stop this deployment before execution begins.'
+          : 'Waiting for worker capacity.'
+      },
       { id: 'build', label: 'Build', state: 'upcoming' },
       { id: 'start', label: 'Start', state: 'upcoming' },
       { id: 'route', label: 'Route', state: 'upcoming' },
@@ -359,7 +379,14 @@ function buildDeploymentSteps({
   if (status === 'building') {
     return [
       { id: 'queued', label: 'Queued', state: 'complete', detail: startedAt ? `Started at ${new Date(startedAt).toLocaleString()}` : undefined },
-      { id: 'build', label: 'Build', state: 'current', detail: 'Build logs are still streaming.' },
+      {
+        id: 'build',
+        label: 'Build',
+        state: cancellationRequested ? 'warning' : 'current',
+        detail: cancellationRequested
+          ? 'Cancellation requested. The worker should stop this deployment before activation.'
+          : 'Build logs are still streaming.'
+      },
       { id: 'start', label: 'Start', state: 'upcoming' },
       { id: 'route', label: 'Route', state: 'upcoming' },
     ];

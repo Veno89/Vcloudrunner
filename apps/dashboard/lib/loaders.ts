@@ -15,6 +15,7 @@ import {
   deriveDomain,
   describeDashboardLiveDataFailure,
   describePartialDashboardDeploymentFailure,
+  hasRequestedCancellation,
 } from './helpers';
 
 export interface MappedProject {
@@ -30,6 +31,7 @@ export interface MappedDeployment {
   project: string;
   projectId: string;
   status: DeploymentStatus;
+  cancellationRequested?: boolean;
   commitSha: string;
   createdAt: string;
   startedAt?: string | null;
@@ -162,6 +164,7 @@ export async function loadDashboardData(): Promise<DashboardData> {
       project: project.name,
       projectId: project.id,
       status: deployment.status,
+      cancellationRequested: hasRequestedCancellation(deployment.metadata),
       commitSha: deployment.commitSha ?? 'unknown',
       createdAt: new Date(deployment.createdAt).toISOString(),
       startedAt: deployment.startedAt,

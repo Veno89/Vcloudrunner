@@ -1,6 +1,6 @@
 import type { DeploymentStatus } from '@vcloudrunner/shared-types';
 import { DeploymentTable } from '@/components/deployment-table';
-import { Badge } from '@/components/ui/badge';
+import { DeploymentStatusBadges } from '@/components/deployment-status-badges';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,7 @@ import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
 import { loadDashboardData } from '@/lib/loaders';
 import { deployments as mockDeployments } from '@/lib/mock-data';
-import { truncateUuid } from '@/lib/helpers';
+import { hasRequestedCancellation, truncateUuid } from '@/lib/helpers';
 import Link from 'next/link';
 
 type DeploymentFilterStatus = 'all' | DeploymentStatus | 'cancelled';
@@ -32,6 +32,8 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
     ...deployment,
     projectId: 'projectId' in deployment ? deployment.projectId : String(deployment.project),
     status: deployment.status as DeploymentStatus,
+    cancellationRequested:
+      'cancellationRequested' in deployment ? Boolean(deployment.cancellationRequested) : false
   }));
 
   const selectedStatus: 'all' | DeploymentStatus =
@@ -56,6 +58,7 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
       deployment.project.toLowerCase().includes(normalizedQuery) ||
       deployment.id.toLowerCase().includes(normalizedQuery) ||
       deployment.status.toLowerCase().includes(normalizedQuery) ||
+      (deployment.cancellationRequested && 'cancelling'.includes(normalizedQuery)) ||
       deployment.commitSha.toLowerCase().includes(normalizedQuery);
     return statusMatch && projectMatch && queryMatch;
   });
@@ -200,7 +203,10 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
                   >
                     <span className="text-muted-foreground">{project.name}</span>
                     <span className="font-mono">{truncateUuid(deployment.id)}</span>
-                    <DeploymentStatusBadge status={deployment.status} />
+                    <DeploymentStatusBadges
+                      status={deployment.status}
+                      cancellationRequested={hasRequestedCancellation(deployment.metadata)}
+                    />
                   </Link>
                 ))}
               </div>
@@ -210,17 +216,4 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
       )}
     </PageLayout>
   );
-}
-
-function DeploymentStatusBadge({ status }: { status: DeploymentStatus }) {
-  const variant =
-    status === 'running'
-      ? 'success'
-      : status === 'building' || status === 'queued'
-        ? 'warning'
-        : status === 'failed'
-          ? 'destructive'
-          : 'secondary';
-
-  return <Badge variant={variant}>{status}</Badge>;
 }

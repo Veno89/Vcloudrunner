@@ -4,6 +4,20 @@ export function deriveDomain(project: ApiProject): string {
   return `${project.slug}.apps.platform.example.com`;
 }
 
+export function hasRequestedCancellation(metadata: unknown): boolean {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return false;
+  }
+
+  const cancellation = (metadata as Record<string, unknown>).cancellation;
+  if (!cancellation || typeof cancellation !== 'object' || Array.isArray(cancellation)) {
+    return false;
+  }
+
+  const requestedAt = (cancellation as Record<string, unknown>).requestedAt;
+  return typeof requestedAt === 'string' && requestedAt.trim().length > 0;
+}
+
 export function slugifyProjectName(name: string): string {
   return name
     .trim()

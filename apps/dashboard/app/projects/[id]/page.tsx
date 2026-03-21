@@ -1,10 +1,9 @@
-import type { DeploymentStatus } from '@vcloudrunner/shared-types';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DemoModeBanner } from '@/components/demo-mode-banner';
+import { DeploymentStatusBadges } from '@/components/deployment-status-badges';
 import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
 import { ProjectSubnav } from '@/components/project-subnav';
 import { FormSubmitButton } from '@/components/form-submit-button';
@@ -18,7 +17,13 @@ import {
   fetchDeploymentLogs,
   demoUserId,
 } from '@/lib/api';
-import { describeDashboardLiveDataFailure, formatRelativeTime, logLevelTextClassName, truncateUuid } from '@/lib/helpers';
+import {
+  describeDashboardLiveDataFailure,
+  formatRelativeTime,
+  hasRequestedCancellation,
+  logLevelTextClassName,
+  truncateUuid
+} from '@/lib/helpers';
 import { deployProjectAction } from '@/app/deployments/actions';
 
 interface ProjectDetailPageProps {
@@ -29,13 +34,6 @@ interface ProjectDetailPageProps {
     status?: 'success' | 'error';
     message?: string;
   };
-}
-
-function deploymentStatusVariant(status: DeploymentStatus) {
-  if (status === 'running') return 'success' as const;
-  if (status === 'queued' || status === 'building') return 'warning' as const;
-  if (status === 'failed') return 'destructive' as const;
-  return 'secondary' as const;
 }
 
 
@@ -185,9 +183,10 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
               {deploymentReadErrorMessage ? (
                 <p className="text-muted-foreground">Unavailable</p>
               ) : latestDeployment ? (
-                <Badge variant={deploymentStatusVariant(latestDeployment.status)}>
-                  {latestDeployment.status}
-                </Badge>
+                <DeploymentStatusBadges
+                  status={latestDeployment.status}
+                  cancellationRequested={hasRequestedCancellation(latestDeployment.metadata)}
+                />
               ) : (
                 <p className="text-muted-foreground">No deployments</p>
               )}
@@ -251,7 +250,10 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant={deploymentStatusVariant(deployment.status)}>{deployment.status}</Badge>
+                      <DeploymentStatusBadges
+                        status={deployment.status}
+                        cancellationRequested={hasRequestedCancellation(deployment.metadata)}
+                      />
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/deployments/${deployment.id}`}>View</Link>
                       </Button>

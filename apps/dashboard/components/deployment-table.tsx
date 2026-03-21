@@ -1,5 +1,5 @@
 import type { DeploymentStatus } from '@vcloudrunner/shared-types';
-import { Badge } from '@/components/ui/badge';
+import { DeploymentStatusBadges } from '@/components/deployment-status-badges';
 import { formatRelativeTime, truncateUuid } from '@/lib/helpers';
 import Link from 'next/link';
 
@@ -7,15 +7,9 @@ interface DeploymentItem {
   id: string;
   project: string;
   status: DeploymentStatus;
+  cancellationRequested?: boolean;
   commitSha: string;
   createdAt: string;
-}
-
-function statusVariant(status: DeploymentStatus) {
-  if (status === 'running') return 'success' as const;
-  if (status === 'building' || status === 'queued') return 'warning' as const;
-  if (status === 'failed') return 'destructive' as const;
-  return 'secondary' as const;
 }
 
 export function DeploymentTable({ deployments }: { deployments: DeploymentItem[] }) {
@@ -44,7 +38,10 @@ export function DeploymentTable({ deployments }: { deployments: DeploymentItem[]
               </td>
               <td className="px-3 py-2">{item.project}</td>
               <td className="px-3 py-2">
-                <Badge variant={statusVariant(item.status)}>{item.status}</Badge>
+                <DeploymentStatusBadges
+                  status={item.status}
+                  cancellationRequested={item.cancellationRequested}
+                />
               </td>
               <td className="px-3 py-2 font-mono text-xs">{item.commitSha}</td>
               <td className="px-3 py-2 text-xs text-muted-foreground" title={new Date(item.createdAt).toLocaleString()}>

@@ -17,6 +17,7 @@ export interface ApiDeployment {
   startedAt?: string | null;
   finishedAt?: string | null;
   runtimeUrl?: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface ApiQueueCounts {
