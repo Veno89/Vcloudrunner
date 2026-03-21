@@ -1,6 +1,3 @@
-import { mkdir, rm } from 'node:fs/promises';
-import { basename, join } from 'node:path';
-
 import type { DeploymentJobPayload } from '@vcloudrunner/shared-types';
 
 import { env } from '../config/env.js';
@@ -9,11 +6,17 @@ import { createContainerRuntimeManager } from './runtime/container-runtime-manag
 import type { ContainerRuntimeManager } from './runtime/container-runtime-manager.js';
 import { createDeploymentCommandRunner } from './runtime/deployment-command-runner.factory.js';
 import type { DeploymentCommandRunner } from './runtime/deployment-command-runner.js';
+import { createDeploymentWorkspaceManager } from './runtime/deployment-workspace-manager.factory.js';
+import type {
+  DeploymentWorkspaceManager,
+  PreparedDeploymentWorkspace
+} from './runtime/deployment-workspace-manager.js';
 import { DeploymentFailure } from '../workers/deployment-errors.js';
 import { detectBuildSystem } from './build-detection/index.js';
 
 export class DeploymentRunner {
   constructor(
+    private readonly workspaceManager: DeploymentWorkspaceManager = createDeploymentWorkspaceManager(),
     private readonly commandRunner: DeploymentCommandRunner = createDeploymentCommandRunner(),
     private readonly runtimeManager: ContainerRuntimeManager = createContainerRuntimeManager()
   ) {}
@@ -58,8 +61,12 @@ export class DeploymentRunner {
     await this.commandRunner.removeImage(imageTag);
   }
 
+  private async prepareWorkspace(deploymentId: string): Promise<PreparedDeploymentWorkspace> {
+    return this.workspaceManager.prepareWorkspace(deploymentId);
+  }
+
   private async removeWorkspace(workspaceDir: string) {
-    await rm(workspaceDir, { recursive: true, force: true });
+    await this.workspaceManager.cleanupWorkspace(workspaceDir);
   }
 
   private async cleanupWorkspaceBestEffort(input: {
@@ -107,8 +114,7 @@ export class DeploymentRunner {
   }
 
   async run(job: DeploymentJobPayload) {
-    const workspaceDir = join(env.WORK_DIR, job.deploymentId);
-    const repoDir = join(workspaceDir, 'repo');
+    const workspace = await this.prepareWorkspace(job.deploymentId);
     const imageTag = `vcloudrunner/${job.projectSlug}:${job.deploymentId}`;
     const containerName = `vcloudrunner-${job.projectSlug}-${job.deploymentId.slice(0, 8)}`;
 
@@ -119,9 +125,6 @@ export class DeploymentRunner {
     let createdContainerId: string | null = null;
     let imageBuilt = false;
 
-    await rm(workspaceDir, { recursive: true, force: true });
-    await mkdir(workspaceDir, { recursive: true });
-
     try {
       await this.removeContainerByName(containerName);
 
@@ -129,10 +132,10 @@ export class DeploymentRunner {
       await this.commandRunner.cloneRepository({
         gitRepositoryUrl: job.gitRepositoryUrl,
         branch: job.branch,
-        repoDir
+        repoDir: workspace.repoDir
       });
 
-      const buildResult = await detectBuildSystem(repoDir);
+      const buildResult = await detectBuildSystem(workspace.repoDir);
       if (!buildResult) {
         throw new DeploymentFailure(
           'DEPLOYMENT_DOCKERFILE_NOT_FOUND',
@@ -146,7 +149,7 @@ export class DeploymentRunner {
       await this.commandRunner.buildImage({
         dockerfilePath,
         imageTag,
-        repoDir
+        repoDir: workspace.repoDir
       });
       imageBuilt = true;
 
@@ -171,7 +174,7 @@ export class DeploymentRunner {
         hostPort: startResult.hostPort,
         runtimeUrl: startResult.hostPort ? `http://${job.projectSlug}.${env.PLATFORM_DOMAIN}` : null,
         internalPort: containerPort,
-        projectPath: basename(repoDir)
+        projectPath: workspace.projectPath
       };
     } catch (error) {
       await this.cleanupFailedRun({
@@ -184,7 +187,7 @@ export class DeploymentRunner {
     } finally {
       await this.cleanupWorkspaceBestEffort({
         deploymentId: job.deploymentId,
-        workspaceDir,
+        workspaceDir: workspace.workspaceDir,
         reason: 'post-run'
       });
     }
