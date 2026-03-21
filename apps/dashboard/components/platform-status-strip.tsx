@@ -13,7 +13,7 @@ interface PlatformStatusStripProps {
   queueStatus: 'ok' | 'degraded' | 'unavailable';
   queueCounts: QueueCounts;
   workerAgeMs?: number;
-  lastSuccessfulDeployAt?: string;
+  lastRunningDeployAt?: string;
 }
 
 function statusVariant(status: 'ok' | 'degraded' | 'stale' | 'unavailable') {
@@ -59,9 +59,9 @@ export function PlatformStatusStrip(props: PlatformStatusStripProps) {
         </article>
 
         <article className="rounded-md border px-3 py-2">
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Last Successful Deploy</p>
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Latest Running Deployment</p>
           <p className="mt-1 text-sm font-semibold">
-            {props.lastSuccessfulDeployAt ? new Date(props.lastSuccessfulDeployAt).toLocaleString() : 'None recorded'}
+            {props.lastRunningDeployAt ? new Date(props.lastRunningDeployAt).toLocaleString() : 'None currently running'}
           </p>
           <p className="text-[11px] text-muted-foreground">failed {props.queueCounts.failed} / completed {props.queueCounts.completed}</p>
         </article>

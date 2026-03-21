@@ -39,7 +39,7 @@ export default async function StatusPage() {
         workerStatus={data.health.workerStatus}
         queueCounts={data.health.queueCounts}
         workerAgeMs={data.health.workerAgeMs}
-        lastSuccessfulDeployAt={data.health.lastSuccessfulDeployAt}
+        lastRunningDeployAt={data.health.lastRunningDeployAt}
       />
 
       {deploymentHistoryUnavailable ? (

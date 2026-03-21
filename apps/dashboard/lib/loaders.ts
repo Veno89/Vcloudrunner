@@ -53,7 +53,7 @@ export interface PlatformHealth {
   workerStatus: 'ok' | 'stale' | 'unavailable';
   queueCounts: { waiting: number; active: number; completed: number; failed: number };
   workerAgeMs?: number;
-  lastSuccessfulDeployAt?: string;
+  lastRunningDeployAt?: string;
 }
 
 export interface DashboardData {
@@ -75,7 +75,7 @@ export function createFallbackHealth(): PlatformHealth {
 }
 
 export async function loadPlatformHealth(
-  lastSuccessfulDeployAt?: string
+  lastRunningDeployAt?: string
 ): Promise<PlatformHealth> {
   const [apiHealth, queueHealth, workerHealth] = await Promise.all([
     fetchApiHealth(),
@@ -98,7 +98,7 @@ export async function loadPlatformHealth(
     workerStatus: workerHealth.status,
     queueCounts,
     workerAgeMs: workerHealth.ageMs,
-    lastSuccessfulDeployAt,
+    lastRunningDeployAt,
   };
 }
 
@@ -210,13 +210,13 @@ export async function loadDashboardData(): Promise<DashboardData> {
       runtimeUrl: deployment.runtimeUrl,
     }));
 
-    const lastSuccessful = sortedDeployments.find(
+    const lastRunningDeployment = sortedDeployments.find(
       (item) => item.deployment.status === 'running'
     );
 
     const nextHealth = {
       ...health,
-      lastSuccessfulDeployAt: lastSuccessful?.deployment.createdAt,
+      lastRunningDeployAt: lastRunningDeployment?.deployment.createdAt,
     };
 
     return {

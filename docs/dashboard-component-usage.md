@@ -66,6 +66,7 @@ This guide defines how shared dashboard UI primitives should be used so new scre
 - Interval-driven `router.refresh()` helpers should skip refreshes while a prior transition is still pending and avoid background-tab churn when the document is hidden.
 - On status/operational pages, keep platform health visible but label deployment-history metrics as unavailable when project-scoped live data cannot be loaded; do not collapse that case into generic empty-state copy.
 - When a status/operational panel is explicitly about deployment outcomes, render terminal deployments only; do not mix queued/building activity into outcome summaries.
+- Keep operational labels tied to the actual data source. If a card is backed by the newest currently `running` deployment, label it accordingly instead of calling it a true historical “last successful deploy” metric.
 - Keep platform badges semantically separate: the `API` badge should reflect the API `/health` endpoint, not be inferred from queue or worker health results.
 - Preserve upstream operational status semantics even on non-200 health responses; for example, worker `stale` should remain `stale`, not be flattened into generic `unavailable`.
 - Only render deployment runtime URLs as live links for actively `running` deployments; failed/stopped records should prefer truthful inactive copy over stale historical URLs, and `running` records without a public route should use explicit unavailable/not-publicly-exposed copy rather than `pending`.
