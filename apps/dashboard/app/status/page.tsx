@@ -11,7 +11,12 @@ import { StatusQueueTrend } from '@/components/status-queue-trend';
 export default async function StatusPage() {
   const data = await loadDashboardData();
   const recent = data.sortedDeployments.slice(0, 20);
-  const completed = recent.filter((item) => item.deployment.status === 'running' || item.deployment.status === 'failed');
+  const completed = recent.filter(
+    (item) =>
+      item.deployment.status === 'running'
+      || item.deployment.status === 'failed'
+      || item.deployment.status === 'stopped'
+  );
   const successful = completed.filter((item) => item.deployment.status === 'running').length;
   const successRate = completed.length > 0 ? Math.round((successful / completed.length) * 100) : null;
   const deploymentHistoryUnavailable =
@@ -65,7 +70,7 @@ export default async function StatusPage() {
               <>
                 <p className="text-2xl font-semibold">{successRate === null ? 'N/A' : `${successRate}%`}</p>
                 <p className="text-xs text-muted-foreground">
-                  Based on {completed.length} completed deployments in the latest {recent.length} records.
+                  Based on {completed.length} terminal deployments in the latest {recent.length} records. Stopped deployments count as non-successful outcomes.
                 </p>
               </>
             )}
