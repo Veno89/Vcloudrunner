@@ -93,7 +93,7 @@ test('processor keeps successful deployments successful when the final running l
       },
       error: () => undefined
     },
-    emitDeploymentEvent: () => undefined
+    eventSink: { emit: () => undefined }
   });
 
   await processJob(createJob());
@@ -147,7 +147,7 @@ test('processor continues into runtime execution when pre-run informational log 
       },
       error: () => undefined
     },
-    emitDeploymentEvent: () => undefined
+    eventSink: { emit: () => undefined }
   });
 
   await processJob(createJob());
@@ -195,11 +195,11 @@ test('processor continues into runtime execution when the building event emissio
       },
       error: () => undefined
     },
-    emitDeploymentEvent: (event) => {
+    eventSink: { emit: (event) => {
       if (event.type === 'deployment.building') {
         throw new Error('event bus unavailable');
       }
-    }
+    } }
   });
 
   await processJob(createJob());
@@ -259,7 +259,7 @@ test('processor keeps successful deployments successful when route warning log a
       },
       error: () => undefined
     },
-    emitDeploymentEvent: () => undefined
+    eventSink: { emit: () => undefined }
   });
 
   await processJob(createJob());
@@ -309,7 +309,7 @@ test('processor persists runtimeUrl only when public route configuration succeed
       warn: () => undefined,
       error: () => undefined
     },
-    emitDeploymentEvent: () => undefined
+    eventSink: { emit: () => undefined }
   });
 
   await processJob(createJob());
@@ -351,7 +351,7 @@ test('processor still rethrows the original retryable error when retry logging f
       },
       error: () => undefined
     },
-    emitDeploymentEvent: () => undefined
+    eventSink: { emit: () => undefined }
   });
 
   await assert.rejects(
@@ -409,11 +409,11 @@ test('processor keeps successful deployments successful when the running event e
       },
       error: () => undefined
     },
-    emitDeploymentEvent: (event) => {
+    eventSink: { emit: (event) => {
       if (event.type === 'deployment.running') {
         throw new Error('event sink unavailable');
       }
-    }
+    } }
   });
 
   await processJob(createJob());
@@ -456,11 +456,11 @@ test('processor still fails non-retryable deployments when failed event emission
       },
       error: () => undefined
     },
-    emitDeploymentEvent: (event) => {
+    eventSink: { emit: (event) => {
       if (event.type === 'deployment.failed') {
         throw new Error('event sink unavailable');
       }
-    }
+    } }
   });
 
   await assert.rejects(processJob(createJob()), /project access denied/);
@@ -501,7 +501,7 @@ test('processor marks cancelled-before-execution deployments failed when stop pe
       warn: () => undefined,
       error: () => undefined
     },
-    emitDeploymentEvent: () => undefined
+    eventSink: { emit: () => undefined }
   });
 
   await assert.rejects(processJob(createJob()), /database unavailable/);
@@ -551,7 +551,7 @@ test('processor marks cancelled-during-execution deployments failed when stop pe
       warn: () => undefined,
       error: () => undefined
     },
-    emitDeploymentEvent: () => undefined
+    eventSink: { emit: () => undefined }
   });
 
   await assert.rejects(processJob(createJob()), /database unavailable/);
@@ -605,7 +605,7 @@ test('processor marks cancelled-during-execution deployments failed when runtime
       warn: () => undefined,
       error: () => undefined
     },
-    emitDeploymentEvent: () => undefined
+    eventSink: { emit: () => undefined }
   });
 
   await assert.rejects(processJob(createJob()), /cleanup unavailable/);
@@ -653,9 +653,9 @@ test('processor emits a cancelled event when cancellation completes during execu
       warn: () => undefined,
       error: () => undefined
     },
-    emitDeploymentEvent: (event) => {
+    eventSink: { emit: (event) => {
       emittedEvents.push(event as unknown as Record<string, unknown>);
-    }
+    } }
   });
 
   await processJob(createJob());
@@ -710,7 +710,7 @@ test('processor cleans up started runtime before failing an exhausted post-run p
       warn: () => undefined,
       error: () => undefined
     },
-    emitDeploymentEvent: () => undefined
+    eventSink: { emit: () => undefined }
   });
 
   await assert.rejects(processJob(createJob()), /database unavailable/);
@@ -773,7 +773,7 @@ test('processor cleans up started runtime before finalizing cancellation after a
       warn: () => undefined,
       error: () => undefined
     },
-    emitDeploymentEvent: () => undefined
+    eventSink: { emit: () => undefined }
   });
 
   await processJob(createJob());
@@ -830,7 +830,7 @@ test('processor warns and continues when route cleanup fails after a post-run er
       },
       error: () => undefined
     },
-    emitDeploymentEvent: () => undefined
+    eventSink: { emit: () => undefined }
   });
 
   await assert.rejects(processJob(createJob()), /database unavailable/);
@@ -885,7 +885,7 @@ test('processor marks cancellation finalization failed when stop persistence fai
       warn: () => undefined,
       error: () => undefined
     },
-    emitDeploymentEvent: () => undefined
+    eventSink: { emit: () => undefined }
   });
 
   await assert.rejects(processJob(createJob()), /stop persistence unavailable/);
@@ -941,7 +941,7 @@ test('processor marks cancellation-after-error deployments failed when runtime c
       warn: () => undefined,
       error: () => undefined
     },
-    emitDeploymentEvent: () => undefined
+    eventSink: { emit: () => undefined }
   });
 
   await assert.rejects(processJob(createJob()), /cleanup unavailable/);
@@ -991,9 +991,9 @@ test('processor emits a cancelled event when cancellation finalizes after an exe
       warn: () => undefined,
       error: () => undefined
     },
-    emitDeploymentEvent: (event) => {
+    eventSink: { emit: (event) => {
       emittedEvents.push(event as unknown as Record<string, unknown>);
-    }
+    } }
   });
 
   await processJob(createJob());

@@ -3,7 +3,9 @@ import type { DeploymentJobPayload } from '@vcloudrunner/shared-types';
 
 import { env } from '../config/env.js';
 import { logger } from '../logger/logger.js';
-import { emitDeploymentEvent } from '../services/deployment-events.js';
+import { createDeploymentEventSink } from '../services/deployment-event-sink.factory.js';
+import type { DeploymentEventSink } from '../services/deployment-event-sink.js';
+import type { DeploymentEvent } from '../services/deployment-events.js';
 import { DeploymentStateService } from '../services/deployment-state.service.js';
 import { createIngressManager } from '../services/ingress/ingress-manager.factory.js';
 import type { IngressManager } from '../services/ingress/ingress-manager.js';
@@ -50,7 +52,7 @@ interface DeploymentJobProcessorDependencies {
   stateService?: StateServiceLike;
   ingressManager?: IngressManager;
   logger?: LoggerLike;
-  emitDeploymentEvent?: typeof emitDeploymentEvent;
+  eventSink?: DeploymentEventSink;
 }
 
 const defaultDependencies: Required<DeploymentJobProcessorDependencies> = {
@@ -58,7 +60,7 @@ const defaultDependencies: Required<DeploymentJobProcessorDependencies> = {
   stateService: new DeploymentStateService(),
   ingressManager: createIngressManager(),
   logger,
-  emitDeploymentEvent
+  eventSink: createDeploymentEventSink()
 };
 
 class CancellationFinalizationError extends Error {
@@ -128,7 +130,7 @@ function emitDeploymentEventBestEffort(
   input: {
     deploymentId: string;
     correlationId: string;
-    event: Parameters<typeof emitDeploymentEvent>[0];
+    event: DeploymentEvent;
     stage:
       | 'cancelled-before-execution'
       | 'cancelled-during-execution'
@@ -139,7 +141,7 @@ function emitDeploymentEventBestEffort(
   }
 ) {
   try {
-    dependencies.emitDeploymentEvent(input.event);
+    dependencies.eventSink.emit(input.event);
   } catch (error) {
     dependencies.logger.warn('deployment event emission failed; continuing deployment', {
       deploymentId: input.deploymentId,
