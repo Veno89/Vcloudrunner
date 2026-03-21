@@ -188,7 +188,6 @@ export class DeploymentRunner {
       await this.cleanupFailedRun({
         containerId: createdContainerId,
         imageTag: imageBuilt ? imageTag : null,
-        workspaceDir,
         deploymentId: job.deploymentId,
         originalError: error
       });
@@ -291,7 +290,6 @@ export class DeploymentRunner {
     deploymentId: string;
     containerId: string | null;
     imageTag: string | null;
-    workspaceDir: string;
     originalError: unknown;
   }) {
     const failures: string[] = [];
@@ -325,12 +323,6 @@ export class DeploymentRunner {
         }
       }
     }
-
-    await this.cleanupWorkspaceBestEffort({
-      deploymentId: input.deploymentId,
-      workspaceDir: input.workspaceDir,
-      reason: 'deployment-error'
-    });
 
     if (failures.length > 0) {
       throw new Error(

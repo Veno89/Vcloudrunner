@@ -47,6 +47,7 @@ Last updated: 2026-03-21 (Deployment/auth/config hardening follow-through)
   - hardened worker runtime cleanup signaling so cancellation teardown now surfaces real container/image cleanup failures while still tolerating already-gone Docker resources as benign races
   - hardened worker startup-failure cleanup signaling too so deployment-runner teardown now preserves the original deployment failure context while surfacing real container/image cleanup failures instead of hiding them behind warning-only logging
   - hardened worker workspace cleanup follow-through so temp-directory removal is now best-effort after both successful runs and startup failures, preventing workspace-delete errors from overriding the real deployment outcome
+  - deduplicated worker workspace cleanup on startup failures so the runner now relies on the shared final cleanup path instead of attempting temp-directory removal twice and emitting duplicate warnings for the same locked workspace
   - made cancellation audit-log writes best-effort after cancellation state is already persisted, so transient log insertion failures do not turn a successful cancel into an API error
   - fixed Fastify plugin scoping for auth-context and error-handler registration so sibling `/v1` route plugins inherit token auth resolution and domain-error mapping consistently
   - added API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth bypass boundaries, and `requireAuthContext` fallback behavior outside `/v1`

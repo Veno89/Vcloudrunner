@@ -272,7 +272,6 @@ test('cleanupFailedRun rethrows cleanup failures with the original deployment er
       deploymentId: string;
       containerId: string | null;
       imageTag: string | null;
-      workspaceDir: string;
       originalError: unknown;
     }) => Promise<void>;
   };
@@ -291,7 +290,6 @@ test('cleanupFailedRun rethrows cleanup failures with the original deployment er
       deploymentId: 'dep-123',
       containerId: 'container-123',
       imageTag: 'image-tag',
-      workspaceDir: 'workspace',
       originalError: new Error('repository not found')
     }),
     /repository not found \(deployment failure cleanup incomplete: container remove failed: permission denied; image remove failed: image busy\)/
@@ -318,7 +316,6 @@ test('cleanupFailedRun ignores already-gone runtime resources after a deployment
       deploymentId: string;
       containerId: string | null;
       imageTag: string | null;
-      workspaceDir: string;
       originalError: unknown;
     }) => Promise<void>;
   };
@@ -336,11 +333,41 @@ test('cleanupFailedRun ignores already-gone runtime resources after a deployment
     deploymentId: 'dep-123',
     containerId: 'container-123',
     imageTag: 'image-tag',
-    workspaceDir: 'workspace',
     originalError: new Error('temporary unavailable from remote host')
   });
 
   assert.equal(warnings.length, 0);
+});
+
+test('cleanupFailedRun does not attempt workspace cleanup directly', async () => {
+  let workspaceCleanupCalls = 0;
+
+  const runner = new DeploymentRunner() as unknown as {
+    removeContainerForce: (containerId: string) => Promise<void>;
+    removeImageForce: (imageTag: string) => Promise<void>;
+    removeWorkspace: (workspaceDir: string) => Promise<void>;
+    cleanupFailedRun: (input: {
+      deploymentId: string;
+      containerId: string | null;
+      imageTag: string | null;
+      originalError: unknown;
+    }) => Promise<void>;
+  };
+
+  runner.removeContainerForce = async () => undefined;
+  runner.removeImageForce = async () => undefined;
+  runner.removeWorkspace = async () => {
+    workspaceCleanupCalls += 1;
+  };
+
+  await runner.cleanupFailedRun({
+    deploymentId: 'dep-123',
+    containerId: 'container-123',
+    imageTag: 'image-tag',
+    originalError: new Error('temporary unavailable from remote host')
+  });
+
+  assert.equal(workspaceCleanupCalls, 0);
 });
 
 test('cleanupWorkspaceBestEffort warns and continues when post-run workspace cleanup fails', async (t) => {
