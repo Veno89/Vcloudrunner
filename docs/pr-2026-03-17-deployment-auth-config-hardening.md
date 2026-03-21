@@ -40,6 +40,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - make project overview cards derive their badge state from the latest deployment, including `cancelling` and per-project deployment-history outage cases, instead of flattening live projects into a generic `active` label
 - stop opening dashboard live-log SSE streams for terminal deployments, and replace that with explicit captured-history-only guidance so failed/stopped records no longer pretend to be actively streaming
 - disable dashboard log-page auto-refresh for terminal deployments too, so stopped/failed records no longer keep polling the route while simultaneously saying no new live logs are expected
+- make the status page’s “Recent Deployment Outcomes” panel terminal-only, so queued/building activity no longer appears under an outcomes heading
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another

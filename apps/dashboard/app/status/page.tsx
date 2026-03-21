@@ -11,14 +11,15 @@ import { StatusQueueTrend } from '@/components/status-queue-trend';
 export default async function StatusPage() {
   const data = await loadDashboardData();
   const recent = data.sortedDeployments.slice(0, 20);
-  const completed = recent.filter(
+  const terminalOutcomes = recent.filter(
     (item) =>
       item.deployment.status === 'running'
       || item.deployment.status === 'failed'
       || item.deployment.status === 'stopped'
   );
-  const successful = completed.filter((item) => item.deployment.status === 'running').length;
-  const successRate = completed.length > 0 ? Math.round((successful / completed.length) * 100) : null;
+  const successful = terminalOutcomes.filter((item) => item.deployment.status === 'running').length;
+  const successRate =
+    terminalOutcomes.length > 0 ? Math.round((successful / terminalOutcomes.length) * 100) : null;
   const deploymentHistoryUnavailable =
     (!data.usingLiveData && Boolean(data.liveDataErrorMessage)) ||
     (data.usingLiveData && recent.length === 0 && Boolean(data.liveDataErrorMessage));
@@ -70,7 +71,7 @@ export default async function StatusPage() {
               <>
                 <p className="text-2xl font-semibold">{successRate === null ? 'N/A' : `${successRate}%`}</p>
                 <p className="text-xs text-muted-foreground">
-                  Based on {completed.length} terminal deployments in the latest {recent.length} records. Stopped deployments count as non-successful outcomes.
+                  Based on {terminalOutcomes.length} terminal deployments in the latest {recent.length} records. Stopped deployments count as non-successful outcomes.
                 </p>
               </>
             )}
@@ -119,8 +120,12 @@ export default async function StatusPage() {
             </>
           ) : recent.length === 0 ? (
             <p className="text-sm text-muted-foreground">No deployment history available yet.</p>
+          ) : terminalOutcomes.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No completed deployment outcomes yet in the latest activity. Recent deployments are still queued or building.
+            </p>
           ) : (
-            recent.map(({ deployment, project }) => (
+            terminalOutcomes.map(({ deployment, project }) => (
               <div key={deployment.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
                 <div>
                   <p className="font-medium">{project.name}</p>
