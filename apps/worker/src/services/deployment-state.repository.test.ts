@@ -83,3 +83,15 @@ test('markRunning preserves the original write error when rollback also fails', 
   assert.match(pool.queries[2]?.text ?? '', /insert into containers/i);
   assert.equal(pool.queries[3]?.text, 'rollback');
 });
+
+test('markStatusFailed clears runtimeUrl when marking a deployment failed', async () => {
+  const pool = new MockPool();
+  const repository = new DeploymentStateRepository(pool);
+
+  await repository.markStatusFailed('dep-failed');
+
+  assert.equal(pool.queries.length, 1);
+  assert.match(pool.queries[0]?.text ?? '', /update deployments/i);
+  assert.match(pool.queries[0]?.text ?? '', /runtime_url = null/i);
+  assert.deepEqual(pool.queries[0]?.params, ['dep-failed']);
+});

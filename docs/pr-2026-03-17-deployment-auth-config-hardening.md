@@ -27,6 +27,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - make worker workspace cleanup best-effort after both successful runs and startup failures, so temp-directory delete problems can no longer override the real deployment result
 - dedupe worker workspace cleanup on startup failures so the runner no longer attempts the same temp-directory delete twice or emits duplicate warnings for one locked workspace
 - preserve the original `markRunning` write error when the worker repository rollback also fails, so transaction cleanup no longer hides the real runtime-state persistence problem behind a secondary rollback exception
+- clear stale `runtime_url` values when the worker marks a deployment `failed`, so dead or reconciled deployments no longer advertise a live endpoint after failure-state persistence
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another
@@ -176,7 +177,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 ## Tests Run
 
 - `npm --workspace @vcloudrunner/worker test`
-  - passed (`100/100`)
+  - passed (`101/101`)
 - `npm --workspace @vcloudrunner/api test`
   - passed (`183/183`)
 - `npm run typecheck`

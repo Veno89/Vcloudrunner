@@ -122,7 +122,7 @@ export class DeploymentStateRepository {
   async markStatusFailed(deploymentId: string) {
     await this.pool.query(
       `update deployments
-       set status = 'failed', finished_at = now(), updated_at = now()
+       set status = 'failed', runtime_url = null, finished_at = now(), updated_at = now()
        where id = $1`,
       [deploymentId]
     );
