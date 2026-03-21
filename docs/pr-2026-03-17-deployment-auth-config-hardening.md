@@ -45,6 +45,7 @@ Deployment cancellation needed one more hardening pass around queue races and pa
 - extract worker runtime inspection behind the same runtime-family seam as execution, so bootstrap reconciliation no longer reaches directly into Docker and future runtime adapters have a cleaner hook point
 - extract worker ingress management behind an ingress-manager seam too, so job processing and reconciliation no longer name `CaddyService` directly and future ingress adapters have a cleaner integration point
 - extract worker lifecycle event emission behind a deployment-event-sink seam too, so job processing no longer depends on a raw webhook-emitter function and future event backends have a cleaner hook point
+- extract archive upload request/auth logic behind a dedicated provider seam too, so deployment state management no longer owns S3/GCS/Azure signing internals directly and future storage adapters have a cleaner integration point
 - register the auth-context and error-handler plugins at the root Fastify scope so sibling route plugins inherit auth resolution and domain error mapping consistently
 - add direct API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth-only bypass behavior, and non-`/v1` `requireAuthContext` fallback behavior
 - harden bootstrap `API_TOKENS_JSON` parsing so malformed JSON and duplicate token entries fail startup explicitly instead of surfacing raw parser output or silently shadowing one another
