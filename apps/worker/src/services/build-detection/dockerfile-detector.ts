@@ -1,8 +1,6 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import type { BuildSystemDetector, BuildSystemDetectionResult } from './build-system-detector.js';
-
-const execFileAsync = promisify(execFile);
+import { createRepositoryFileInspector } from './repository-file-inspector.factory.js';
+import type { RepositoryFileInspector } from './repository-file-inspector.js';
 
 const DOCKERFILE_CANDIDATES = [
   'Dockerfile',
@@ -18,25 +16,21 @@ const DOCKERFILE_CANDIDATES = [
 export class DockerfileBuildDetector implements BuildSystemDetector {
   readonly name = 'Dockerfile';
 
+  constructor(
+    private readonly repositoryFileInspector: RepositoryFileInspector = createRepositoryFileInspector()
+  ) {}
+
   async detect(repoDir: string): Promise<BuildSystemDetectionResult | null> {
     // Fast path: check common candidate paths
     for (const candidate of DOCKERFILE_CANDIDATES) {
-      try {
-        await execFileAsync('git', ['-C', repoDir, 'cat-file', '-e', `HEAD:${candidate}`]);
+      if (await this.repositoryFileInspector.pathExists(repoDir, candidate)) {
         return { type: 'dockerfile', buildFilePath: candidate };
-      } catch {
-        // not found
       }
     }
 
     // Fallback: full tree scan for any file named "dockerfile" (case-insensitive)
     try {
-      const { stdout } = await execFileAsync('git', ['-C', repoDir, 'ls-tree', '-r', '--name-only', 'HEAD']);
-      const files = stdout
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
-
+      const files = await this.repositoryFileInspector.listPaths(repoDir);
       const dockerfile = files.find((file) => /(^|\/)dockerfile$/i.test(file));
       if (dockerfile) {
         return { type: 'dockerfile', buildFilePath: dockerfile };
