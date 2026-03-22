@@ -1,5 +1,5 @@
-import { ConfiguredBuildSystemResolver } from './configured-build-system-resolver.js';
+import { createConfiguredBuildSystemResolver } from './configured-build-system-resolver.factory.js';
 
 export function createBuildSystemResolver() {
-  return new ConfiguredBuildSystemResolver();
+  return createConfiguredBuildSystemResolver();
 }

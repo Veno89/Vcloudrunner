@@ -1,5 +1,4 @@
 import type { BuildSystemDetector, BuildSystemDetectionResult } from './build-system-detector.js';
-import { createRepositoryFileInspector } from './repository-file-inspector.factory.js';
 import type { RepositoryFileInspector } from './repository-file-inspector.js';
 
 const DOCKERFILE_CANDIDATES = [
@@ -16,9 +15,7 @@ const DOCKERFILE_CANDIDATES = [
 export class DockerfileBuildDetector implements BuildSystemDetector {
   readonly name = 'Dockerfile';
 
-  constructor(
-    private readonly repositoryFileInspector: RepositoryFileInspector = createRepositoryFileInspector()
-  ) {}
+  constructor(private readonly repositoryFileInspector: RepositoryFileInspector) {}
 
   async detect(repoDir: string): Promise<BuildSystemDetectionResult | null> {
     // Fast path: check common candidate paths

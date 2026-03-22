@@ -1,6 +1,6 @@
 import type { BuildSystemDetector } from './build-system-detector.js';
-import { DockerfileBuildDetector } from './dockerfile-detector.js';
+import { createDockerfileBuildDetector } from './dockerfile-detector.factory.js';
 
 export function createBuildSystemDetectors(): BuildSystemDetector[] {
-  return [new DockerfileBuildDetector()];
+  return [createDockerfileBuildDetector()];
 }
