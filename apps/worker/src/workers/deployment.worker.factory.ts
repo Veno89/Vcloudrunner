@@ -14,7 +14,7 @@ interface DeploymentWorkerConstructor {
   ): Worker<DeploymentJobPayload>;
 }
 
-interface CreateDeploymentWorkerOptions {
+export interface CreateDeploymentWorkerOptions {
   WorkerClass?: DeploymentWorkerConstructor;
   processor?: DeploymentWorkerProcessor;
   connection?: WorkerOptions['connection'];
@@ -24,10 +24,14 @@ interface CreateDeploymentWorkerOptions {
 export function createDeploymentWorker(options: CreateDeploymentWorkerOptions = {}) {
   const {
     WorkerClass = Worker as unknown as DeploymentWorkerConstructor,
-    processor = createDeploymentJobProcessor(),
+    processor,
     connection = redisConnection,
     concurrency = 2
   } = options;
+
+  if (!processor) {
+    throw new Error('createDeploymentWorker requires an explicit processor');
+  }
 
   return new WorkerClass(QUEUE_NAMES.deployment, processor, {
     connection,

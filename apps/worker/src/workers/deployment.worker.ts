@@ -1,3 +1,3 @@
-import { createDeploymentWorker } from './deployment.worker.factory.js';
+import { createConfiguredDeploymentWorker } from './configured-deployment.worker.factory.js';
 
-export const deploymentWorker = createDeploymentWorker();
+export const deploymentWorker = createConfiguredDeploymentWorker();
