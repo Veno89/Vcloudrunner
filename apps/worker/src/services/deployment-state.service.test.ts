@@ -9,6 +9,7 @@ await import('../test/worker-test-env.js');
 const { env } = await import('../config/env.js');
 const { logger } = await import('../logger/logger.js');
 const { DeploymentStateService } = await import('./deployment-state.service.js');
+type DeploymentLogRow = import('./deployment-state.repository.js').DeploymentLogRow;
 
 interface RecordedQuery {
   text: string;
@@ -423,6 +424,75 @@ test('archiveEligibleDeploymentLogs continues after one archive build fails', as
 
   assert.equal(archivedCount, 1);
   assert.deepEqual(attemptedIds, ['dep-fail', 'dep-ok']);
+});
+
+test('archiveEligibleDeploymentLogs delegates archive encoding to the injected archive builder', async () => {
+  const builtArchives: Array<Array<{ id: string; deployment_id: string; level: string; message: string; timestamp: string }>> = [];
+  const writtenArchives: Array<{ deploymentId: string; payload: Buffer }> = [];
+
+  const service = new DeploymentStateService(
+    new MockPool(),
+    undefined,
+    undefined,
+    {
+      async ensureArchiveDir() {},
+      async writeArchiveIfMissing(deploymentId: string, payload: Buffer) {
+        writtenArchives.push({ deploymentId, payload });
+        return true;
+      },
+      async listUploadCandidates() {
+        return [];
+      },
+      async readArchivePayload() {
+        return Buffer.alloc(0);
+      },
+      async markUploaded() {},
+      async deleteArchive() {},
+      async listCleanupCandidates() {
+        return [];
+      },
+      async deleteCleanupCandidate() {}
+    } as never,
+    {
+      buildArchive(rows: DeploymentLogRow[]) {
+        builtArchives.push(rows);
+        return Buffer.from('built-archive');
+      }
+    } as never
+  ) as unknown as {
+    repository: {
+      listArchivableDeploymentIds: () => Promise<string[]>;
+      listDeploymentLogsByDeployment: (
+        deploymentId: string
+      ) => Promise<Array<{ id: string; deployment_id: string; level: string; message: string; timestamp: string }>>;
+    };
+    archiveEligibleDeploymentLogs: () => Promise<number>;
+  };
+
+  service.repository = {
+    listArchivableDeploymentIds: async () => ['dep-archive'],
+    listDeploymentLogsByDeployment: async () => [
+      {
+        id: 'log-1',
+        deployment_id: 'dep-archive',
+        level: 'info',
+        message: 'hello',
+        timestamp: '2026-03-22T00:00:00.000Z'
+      }
+    ]
+  };
+
+  const archivedCount = await service.archiveEligibleDeploymentLogs();
+
+  assert.equal(archivedCount, 1);
+  assert.equal(builtArchives.length, 1);
+  assert.equal(builtArchives[0]?.[0]?.deployment_id, 'dep-archive');
+  assert.deepEqual(writtenArchives, [
+    {
+      deploymentId: 'dep-archive',
+      payload: Buffer.from('built-archive')
+    }
+  ]);
 });
 
 test('uploadPendingArchives continues after one artifact upload fails', async () => {

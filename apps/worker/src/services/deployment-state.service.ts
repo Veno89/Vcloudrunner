@@ -1,7 +1,6 @@
-import { gzipSync } from 'node:zlib';
-
 import { env } from '../config/env.js';
 import { logger } from '../logger/logger.js';
+import type { DeploymentLogArchiveBuilder } from './archive-build/deployment-log-archive-builder.js';
 import type { ArchiveUploadRequest } from './archive-upload/archive-upload-provider.js';
 import type { DeploymentLogArchiveUploader } from './archive-upload/deployment-log-archive-uploader.js';
 import type { DeploymentLogArchiveStore } from './archive-store/deployment-log-archive-store.js';
@@ -18,24 +17,28 @@ export class DeploymentStateService {
   private readonly ingressManager: Pick<IngressManager, 'deleteRoute'>;
   private readonly archiveUploader: DeploymentLogArchiveUploader;
   private readonly archiveStore: DeploymentLogArchiveStore;
+  private readonly archiveBuilder: DeploymentLogArchiveBuilder;
 
   constructor(
     pool?: Queryable,
     ingressManager?: Pick<IngressManager, 'deleteRoute'>,
     archiveUploader?: DeploymentLogArchiveUploader,
-    archiveStore?: DeploymentLogArchiveStore
+    archiveStore?: DeploymentLogArchiveStore,
+    archiveBuilder?: DeploymentLogArchiveBuilder
   ) {
     const dependencies = createDeploymentStateServiceDependencies({
       pool,
       ingressManager,
       archiveUploader,
-      archiveStore
+      archiveStore,
+      archiveBuilder
     });
 
     this.repository = dependencies.repository;
     this.ingressManager = dependencies.ingressManager;
     this.archiveUploader = dependencies.archiveUploader;
     this.archiveStore = dependencies.archiveStore;
+    this.archiveBuilder = dependencies.archiveBuilder;
   }
 
   async markBuilding(deploymentId: string) {
@@ -266,20 +269,7 @@ export class DeploymentStateService {
       return false;
     }
 
-    const ndjson =
-      rows
-        .map((item) =>
-          JSON.stringify({
-            id: item.id,
-            deploymentId: item.deployment_id,
-            level: item.level,
-            message: item.message,
-            timestamp: item.timestamp
-          })
-        )
-        .join('\n') + '\n';
-
-    const compressed = gzipSync(ndjson);
+    const compressed = this.archiveBuilder.buildArchive(rows);
     return this.archiveStore.writeArchiveIfMissing(deploymentId, compressed);
   }
 

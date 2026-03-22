@@ -1,3 +1,5 @@
+import { createDeploymentLogArchiveBuilder } from './archive-build/deployment-log-archive-builder.factory.js';
+import type { DeploymentLogArchiveBuilder } from './archive-build/deployment-log-archive-builder.js';
 import { createDeploymentLogArchiveStore } from './archive-store/deployment-log-archive-store.factory.js';
 import { createDeploymentLogArchiveUploader } from './archive-upload/deployment-log-archive-uploader.factory.js';
 import type { DeploymentLogArchiveUploader } from './archive-upload/deployment-log-archive-uploader.js';
@@ -12,6 +14,7 @@ interface CreateDeploymentStateServiceDependenciesOptions {
   ingressManager?: Pick<IngressManager, 'deleteRoute'>;
   archiveUploader?: DeploymentLogArchiveUploader;
   archiveStore?: DeploymentLogArchiveStore;
+  archiveBuilder?: DeploymentLogArchiveBuilder;
 }
 
 export function createDeploymentStateServiceDependencies(
@@ -21,11 +24,13 @@ export function createDeploymentStateServiceDependencies(
   ingressManager: Pick<IngressManager, 'deleteRoute'>;
   archiveUploader: DeploymentLogArchiveUploader;
   archiveStore: DeploymentLogArchiveStore;
+  archiveBuilder: DeploymentLogArchiveBuilder;
 } {
   return {
     repository: createDeploymentStateRepository(options.pool),
     ingressManager: options.ingressManager ?? createIngressManager(),
     archiveUploader: options.archiveUploader ?? createDeploymentLogArchiveUploader(),
-    archiveStore: options.archiveStore ?? createDeploymentLogArchiveStore()
+    archiveStore: options.archiveStore ?? createDeploymentLogArchiveStore(),
+    archiveBuilder: options.archiveBuilder ?? createDeploymentLogArchiveBuilder()
   };
 }

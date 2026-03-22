@@ -40,16 +40,23 @@ test('createDeploymentStateServiceDependencies wires the repository and preserve
     },
     async deleteCleanupCandidate() {}
   };
+  const archiveBuilder = {
+    buildArchive() {
+      return Buffer.from('archive');
+    }
+  };
 
   const dependencies = createDeploymentStateServiceDependencies({
     pool: new MockPool(),
     ingressManager,
     archiveUploader: archiveUploader as never,
-    archiveStore: archiveStore as never
+    archiveStore: archiveStore as never,
+    archiveBuilder: archiveBuilder as never
   });
 
   assert.ok(dependencies.repository instanceof DeploymentStateRepository);
   assert.equal(dependencies.ingressManager, ingressManager);
   assert.equal(dependencies.archiveUploader, archiveUploader);
   assert.equal(dependencies.archiveStore, archiveStore);
+  assert.equal(dependencies.archiveBuilder, archiveBuilder);
 });
