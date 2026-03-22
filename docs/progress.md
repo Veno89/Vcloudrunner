@@ -1,6 +1,6 @@
-﻿# Vcloudrunner MVP Progress Tracker
+# Vcloudrunner MVP Progress Tracker
 
-Last updated: 2026-03-22 (Phase 4 worker bootstrap composition)
+Last updated: 2026-03-22 (Phase 4 worker deployment event bus composition)
 
 ## Legend
 
@@ -26,6 +26,29 @@ Last updated: 2026-03-22 (Phase 4 worker bootstrap composition)
   - left (~38%): broader auth/user model evolution, runtime adapter expansion, advanced day-2 operational tooling
 
 ## Implementation Log
+
+### Phase: Phase 4 worker transport/event composition follow-through (2026-03-22, deployment event bus)
+
+- what was built:
+  - extracted webhook delivery out of `deployment-events.ts` into a dedicated `WebhookDeploymentEventListener` class with explicit dependencies (outbound HTTP, logger, config)
+  - replaced the module-level auto-subscribed event bus with a pure `DeploymentEventBus` implementation
+  - added dedicated factories to compose the webhook listener and attach it to the event bus, so the worker event sink no longer depends on inline module-level instantiation
+  - updated unit tests to inject listener seams directly, allowing webhook logic and pure event bus emission to be tested in isolation
+- files created or changed:
+  - `apps/worker/src/services/webhook-deployment-event-listener.ts`
+  - `apps/worker/src/services/webhook-deployment-event-listener.factory.ts`
+  - `apps/worker/src/services/webhook-deployment-event-listener.test.ts`
+  - `apps/worker/src/services/deployment-event-bus.factory.ts`
+  - `apps/worker/src/services/deployment-event-bus.factory.test.ts`
+  - `apps/worker/src/services/deployment-events.ts`
+  - `apps/worker/src/services/deployment-events.test.ts`
+  - `apps/worker/src/services/deployment-event-sink.factory.ts`
+  - `apps/worker/src/services/deployment-event-sink.factory.test.ts`
+  - `docs/progress.md`
+- what is still missing:
+  - the core event bus is much cleaner, but additional listeners or alternate transport backends (e.g., streaming logs over events) are future work
+- next recommended step:
+  - continue Phase 4 by removing the next remaining inline defaults from service constructors or module-level singleton wiring so composition continues moving outward toward dedicated configured factories
 
 ### Phase: Phase 4 worker bootstrap composition follow-through (2026-03-22, configured lifecycle factory)
 

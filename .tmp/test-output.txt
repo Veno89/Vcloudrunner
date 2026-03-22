@@ -1,0 +1,88 @@
+﻿TAP version 13
+# Subtest: createConfiguredDeploymentEventBus returns a DeploymentEventBus instance
+ok 1 - createConfiguredDeploymentEventBus returns a DeploymentEventBus instance
+  ---
+  duration_ms: 1.278
+  type: 'test'
+  ...
+# Subtest: createConfiguredDeploymentEventBus attaches the provided listener to the bus
+ok 2 - createConfiguredDeploymentEventBus attaches the provided listener to the bus
+  ---
+  duration_ms: 0.4919
+  type: 'test'
+  ...
+# Subtest: createConfiguredDeploymentEventBus produces a bus that emits events to attached listeners
+ok 3 - createConfiguredDeploymentEventBus produces a bus that emits events to attached listeners
+  ---
+  duration_ms: 0.3196
+  type: 'test'
+  ...
+# Subtest: createDeploymentEventSink emits onto a configured deployment event bus
+ok 4 - createDeploymentEventSink emits onto a configured deployment event bus
+  ---
+  duration_ms: 8.3771
+  type: 'test'
+  ...
+# Subtest: DeploymentEventBus emits events to registered listeners
+ok 5 - DeploymentEventBus emits events to registered listeners
+  ---
+  duration_ms: 2.5567
+  type: 'test'
+  ...
+# Subtest: emitDeploymentEvent emits onto the provided bus
+ok 6 - emitDeploymentEvent emits onto the provided bus
+  ---
+  duration_ms: 0.2937
+  type: 'test'
+  ...
+# Subtest: DeploymentEventBus supports multiple listeners
+ok 7 - DeploymentEventBus supports multiple listeners
+  ---
+  duration_ms: 0.2551
+  type: 'test'
+  ...
+# Subtest: WebhookDeploymentEventListener skips delivery when the configured URL is blank after trimming
+ok 8 - WebhookDeploymentEventListener skips delivery when the configured URL is blank after trimming
+  ---
+  duration_ms: 1.3608
+  type: 'test'
+  ...
+# Subtest: WebhookDeploymentEventListener sends the lifecycle webhook with auth and correct headers
+ok 9 - WebhookDeploymentEventListener sends the lifecycle webhook with auth and correct headers
+  ---
+  duration_ms: 31.9261
+  type: 'test'
+  ...
+# Subtest: WebhookDeploymentEventListener omits Authorization header when token is empty
+ok 10 - WebhookDeploymentEventListener omits Authorization header when token is empty
+  ---
+  duration_ms: 0.3669
+  type: 'test'
+  ...
+# Subtest: WebhookDeploymentEventListener logs a normalized warning when delivery throws
+ok 11 - WebhookDeploymentEventListener logs a normalized warning when delivery throws
+  ---
+  duration_ms: 0.4277
+  type: 'test'
+  ...
+# Subtest: WebhookDeploymentEventListener logs a normalized warning when delivery times out
+ok 12 - WebhookDeploymentEventListener logs a normalized warning when delivery times out
+  ---
+  duration_ms: 0.3382
+  type: 'test'
+  ...
+# Subtest: WebhookDeploymentEventListener logs a warning when the webhook returns a non-OK status
+ok 13 - WebhookDeploymentEventListener logs a warning when the webhook returns a non-OK status
+  ---
+  duration_ms: 0.3651
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 436.1528
