@@ -170,6 +170,7 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 ## Progress Tracking
 
 - See `docs/progress.md` for a live checklist of done vs remaining MVP tasks.
+- See `docs/roadmap.md` for the product roadmap and planned feature direction, including multi-service apps and managed databases.
 
 ## API Endpoints
 
