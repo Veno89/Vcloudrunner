@@ -1,18 +1,9 @@
 import { logger } from './logger/logger.js';
-import { createDeploymentStateService } from './services/deployment-state.service.factory.js';
-import { createBackgroundScheduler } from './services/background-scheduler.factory.js';
-import { createRuntimeInspector } from './services/runtime/runtime-inspector.factory.js';
 import { deploymentWorker } from './workers/deployment.worker.js';
-import { createWorkerLifecycle } from './bootstrap.js';
+import { createConfiguredWorkerLifecycle } from './configured-worker-lifecycle.factory.js';
 
-const stateService = createDeploymentStateService();
-const runtimeInspector = createRuntimeInspector();
-const scheduler = createBackgroundScheduler({ stateService, logger });
-const lifecycle = createWorkerLifecycle({
+const lifecycle = createConfiguredWorkerLifecycle({
   logger,
-  scheduler,
-  stateService,
-  isContainerRunning: (containerId) => runtimeInspector.isContainerRunning(containerId),
   closeWorker: async () => {
     await deploymentWorker.close();
   }
