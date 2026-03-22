@@ -1,9 +1,11 @@
 import { env } from '../../config/env.js';
+import { createOutboundHttpClient } from '../http/outbound-http-client.factory.js';
+import type { OutboundHttpClient } from '../http/outbound-http-client.js';
+import { OutboundHttpRequestError } from '../http/outbound-http-client.js';
 import type { ArchiveUploadProvider } from './archive-upload-provider.js';
 import {
   encodeObjectKey,
   encodePathSegment,
-  getErrorMessage,
   joinObjectKey,
   normalizePrivateKey,
   signJwtAssertion
@@ -11,6 +13,10 @@ import {
 
 export class GcsArchiveUploadProvider implements ArchiveUploadProvider {
   private gcsAccessTokenCache: { token: string; expiresAt: number } | null = null;
+
+  constructor(
+    private readonly outboundHttpClient: OutboundHttpClient = createOutboundHttpClient()
+  ) {}
 
   async createUploadRequest(input: {
     fileName: string;
@@ -71,32 +77,28 @@ export class GcsArchiveUploadProvider implements ArchiveUploadProvider {
     const unsignedToken = `${header}.${claimSet}`;
     const assertion = `${unsignedToken}.${signJwtAssertion({ unsignedToken, privateKey })}`;
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-    }, env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS);
-
     let response: Response;
     try {
-      response = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({
-          grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-          assertion
-        }),
-        signal: controller.signal
+      response = await this.outboundHttpClient.request({
+        url: 'https://oauth2.googleapis.com/token',
+        timeoutMs: env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS,
+        init: {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/x-www-form-urlencoded'
+          },
+          body: new URLSearchParams({
+            grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+            assertion
+          })
+        }
       });
     } catch (error) {
       throw new Error(
-        controller.signal.aborted
-          ? `failed to obtain GCS access token: request timed out after ${env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS}ms`
-          : `failed to obtain GCS access token: request failed: ${getErrorMessage(error)}`
+        error instanceof OutboundHttpRequestError && error.timedOut
+          ? `failed to obtain GCS access token: ${error.message}`
+          : `failed to obtain GCS access token: request failed: ${error instanceof Error ? error.message : String(error)}`
       );
-    } finally {
-      clearTimeout(timeoutId);
     }
 
     if (!response.ok) {

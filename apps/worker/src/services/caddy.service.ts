@@ -1,4 +1,7 @@
 import { env } from '../config/env.js';
+import { createOutboundHttpClient } from './http/outbound-http-client.factory.js';
+import type { OutboundHttpClient } from './http/outbound-http-client.js';
+import { OutboundHttpRequestError } from './http/outbound-http-client.js';
 
 interface UpsertRouteInput {
   host: string;
@@ -11,50 +14,46 @@ interface DeleteRouteInput {
 
 const CADDY_ADMIN_TIMEOUT_MS = 10_000;
 
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
-}
-
 export class CaddyService {
-  async upsertRoute(input: UpsertRouteInput) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-    }, CADDY_ADMIN_TIMEOUT_MS);
+  constructor(
+    private readonly outboundHttpClient: OutboundHttpClient = createOutboundHttpClient()
+  ) {}
 
+  async upsertRoute(input: UpsertRouteInput) {
     let response: Response;
     try {
-      response = await fetch(`${env.CADDY_ADMIN_URL}/id/vcloudrunner/routes/${input.host}`, {
-        method: 'PUT',
-        headers: {
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          '@id': `vcloudrunner/routes/${input.host}`,
-          match: [
-            {
-              host: [input.host]
-            }
-          ],
-          handle: [
-            {
-              handler: 'reverse_proxy',
-              upstreams: [
-                {
-                  dial: `127.0.0.1:${input.upstreamPort}`
-                }
-              ]
-            }
-          ]
-        }),
-        signal: controller.signal
+      response = await this.outboundHttpClient.request({
+        url: `${env.CADDY_ADMIN_URL}/id/vcloudrunner/routes/${input.host}`,
+        timeoutMs: CADDY_ADMIN_TIMEOUT_MS,
+        init: {
+          method: 'PUT',
+          headers: {
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify({
+            '@id': `vcloudrunner/routes/${input.host}`,
+            match: [
+              {
+                host: [input.host]
+              }
+            ],
+            handle: [
+              {
+                handler: 'reverse_proxy',
+                upstreams: [
+                  {
+                    dial: `127.0.0.1:${input.upstreamPort}`
+                  }
+                ]
+              }
+            ]
+          })
+        }
       });
     } catch (error) {
-      throw controller.signal.aborted
-        ? new Error(`CADDY_ROUTE_UPDATE_FAILED: request timed out after ${CADDY_ADMIN_TIMEOUT_MS}ms`)
-        : new Error(`CADDY_ROUTE_UPDATE_FAILED: ${getErrorMessage(error)}`);
-    } finally {
-      clearTimeout(timeoutId);
+      const message =
+        error instanceof OutboundHttpRequestError ? error.message : String(error);
+      throw new Error(`CADDY_ROUTE_UPDATE_FAILED: ${message}`);
     }
 
     if (!response.ok) {
@@ -64,23 +63,19 @@ export class CaddyService {
   }
 
   async deleteRoute(input: DeleteRouteInput) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-    }, CADDY_ADMIN_TIMEOUT_MS);
-
     let response: Response;
     try {
-      response = await fetch(`${env.CADDY_ADMIN_URL}/id/vcloudrunner/routes/${input.host}`, {
-        method: 'DELETE',
-        signal: controller.signal
+      response = await this.outboundHttpClient.request({
+        url: `${env.CADDY_ADMIN_URL}/id/vcloudrunner/routes/${input.host}`,
+        timeoutMs: CADDY_ADMIN_TIMEOUT_MS,
+        init: {
+          method: 'DELETE'
+        }
       });
     } catch (error) {
-      throw controller.signal.aborted
-        ? new Error(`CADDY_ROUTE_DELETE_FAILED: request timed out after ${CADDY_ADMIN_TIMEOUT_MS}ms`)
-        : new Error(`CADDY_ROUTE_DELETE_FAILED: ${getErrorMessage(error)}`);
-    } finally {
-      clearTimeout(timeoutId);
+      const message =
+        error instanceof OutboundHttpRequestError ? error.message : String(error);
+      throw new Error(`CADDY_ROUTE_DELETE_FAILED: ${message}`);
     }
 
     if (response.status === 404) {
