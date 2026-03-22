@@ -5,7 +5,6 @@ import type {
   StartContainerInput,
   StartedContainerResult
 } from './container-runtime-manager.js';
-import { createDockerClient } from './docker-client.factory.js';
 
 interface DockerContainerLike {
   start(): Promise<void>;
@@ -52,9 +51,7 @@ interface DockerClientLike {
 }
 
 export class DockerContainerRuntimeManager implements ContainerRuntimeManager {
-  constructor(
-    private readonly docker: DockerClientLike = createDockerClient() as DockerClientLike
-  ) {}
+  constructor(private readonly docker: DockerClientLike) {}
 
   async listNetworksByName(name: string): Promise<RuntimeNetworkSummary[]> {
     const networks = await this.docker.listNetworks({ filters: { name: [name] } });

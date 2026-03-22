@@ -1,4 +1,3 @@
-import { createDeploymentRunner } from '../deployment-runner.factory.js';
 import type { RuntimeExecutor } from './runtime-executor.js';
 
 interface DeploymentRunnerLike {
@@ -7,7 +6,7 @@ interface DeploymentRunnerLike {
 }
 
 export class DockerRuntimeExecutor implements RuntimeExecutor {
-  constructor(private readonly runner: DeploymentRunnerLike = createDeploymentRunner()) {}
+  constructor(private readonly runner: DeploymentRunnerLike) {}
 
   run: RuntimeExecutor['run'] = (job) => {
     return this.runner.run(job);

@@ -1,5 +1,4 @@
 import { env } from '../config/env.js';
-import { createOutboundHttpClient } from './http/outbound-http-client.factory.js';
 import type { OutboundHttpClient } from './http/outbound-http-client.js';
 import { OutboundHttpRequestError } from './http/outbound-http-client.js';
 
@@ -15,9 +14,7 @@ interface DeleteRouteInput {
 const CADDY_ADMIN_TIMEOUT_MS = 10_000;
 
 export class CaddyService {
-  constructor(
-    private readonly outboundHttpClient: OutboundHttpClient = createOutboundHttpClient()
-  ) {}
+  constructor(private readonly outboundHttpClient: OutboundHttpClient) {}
 
   async upsertRoute(input: UpsertRouteInput) {
     let response: Response;
