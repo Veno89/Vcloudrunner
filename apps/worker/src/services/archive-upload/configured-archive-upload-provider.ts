@@ -1,11 +1,8 @@
 import { env } from '../../config/env.js';
 import type { ArchiveUploadProvider, ArchiveUploadProviders } from './archive-upload-provider.js';
-import { createArchiveUploadProviders } from './archive-upload-provider.registry.js';
 
 export class ConfiguredArchiveUploadProvider implements ArchiveUploadProvider {
-  constructor(
-    private readonly providers: ArchiveUploadProviders = createArchiveUploadProviders()
-  ) {}
+  constructor(private readonly providers: ArchiveUploadProviders) {}
 
   async createUploadRequest(input: {
     fileName: string;

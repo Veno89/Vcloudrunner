@@ -1,5 +1,4 @@
 import { env } from '../../config/env.js';
-import { createOutboundHttpClient } from '../http/outbound-http-client.factory.js';
 import type { OutboundHttpClient } from '../http/outbound-http-client.js';
 import { OutboundHttpRequestError } from '../http/outbound-http-client.js';
 import type { ArchiveUploadProvider } from './archive-upload-provider.js';
@@ -14,9 +13,7 @@ import {
 export class GcsArchiveUploadProvider implements ArchiveUploadProvider {
   private gcsAccessTokenCache: { token: string; expiresAt: number } | null = null;
 
-  constructor(
-    private readonly outboundHttpClient: OutboundHttpClient = createOutboundHttpClient()
-  ) {}
+  constructor(private readonly outboundHttpClient: OutboundHttpClient) {}
 
   async createUploadRequest(input: {
     fileName: string;

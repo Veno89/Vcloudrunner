@@ -1,5 +1,5 @@
-import { ConfiguredDeploymentLogArchiveUploader } from './configured-deployment-log-archive-uploader.js';
+import { createConfiguredDeploymentLogArchiveUploader } from './configured-deployment-log-archive-uploader.factory.js';
 
 export function createDeploymentLogArchiveUploader() {
-  return new ConfiguredDeploymentLogArchiveUploader();
+  return createConfiguredDeploymentLogArchiveUploader();
 }

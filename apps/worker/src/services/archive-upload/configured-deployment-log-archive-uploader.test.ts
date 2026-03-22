@@ -21,17 +21,24 @@ test.after(() => {
 });
 
 test('ConfiguredDeploymentLogArchiveUploader delegates upload-request creation to the archive upload provider', async () => {
-  const uploader = new ConfiguredDeploymentLogArchiveUploader({
-    async createUploadRequest(input) {
-      assert.equal(input.fileName, 'dep-123.ndjson.gz');
-      assert.equal(input.baseUrl, 'https://uploads.example.test');
-      assert.equal(input.payload.toString(), 'fixture');
-      return {
-        targetUrl: 'https://uploads.example.test/dep-123.ndjson.gz',
-        headers: { authorization: 'Bearer token' }
-      };
+  const uploader = new ConfiguredDeploymentLogArchiveUploader(
+    {
+      async createUploadRequest(input) {
+        assert.equal(input.fileName, 'dep-123.ndjson.gz');
+        assert.equal(input.baseUrl, 'https://uploads.example.test');
+        assert.equal(input.payload.toString(), 'fixture');
+        return {
+          targetUrl: 'https://uploads.example.test/dep-123.ndjson.gz',
+          headers: { authorization: 'Bearer token' }
+        };
+      }
+    },
+    {
+      async request() {
+        throw new Error('request should not be called by createUploadRequest');
+      }
     }
-  });
+  );
 
   const request = await uploader.createUploadRequest({
     fileName: 'dep-123.ndjson.gz',
@@ -45,28 +52,29 @@ test('ConfiguredDeploymentLogArchiveUploader delegates upload-request creation t
   });
 });
 
-test('ConfiguredDeploymentLogArchiveUploader uploads archive payloads with the provided headers', async (t) => {
+test('ConfiguredDeploymentLogArchiveUploader uploads archive payloads with the provided headers', async () => {
   env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_MAX_ATTEMPTS = 1;
   env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS = 2_000;
 
   const requests: Array<{
-    url: Parameters<typeof fetch>[0];
-    init?: Parameters<typeof fetch>[1];
+    url: string;
+    timeoutMs: number;
+    init?: RequestInit;
   }> = [];
 
-  t.mock.method(globalThis, 'fetch', async (
-    url: Parameters<typeof fetch>[0],
-    init?: Parameters<typeof fetch>[1]
-  ) => {
-    requests.push({ url, init });
-    return new Response(null, { status: 200 });
-  });
-
-  const uploader = new ConfiguredDeploymentLogArchiveUploader({
-    async createUploadRequest() {
-      throw new Error('createUploadRequest should not be called by uploadWithRetry');
+  const uploader = new ConfiguredDeploymentLogArchiveUploader(
+    {
+      async createUploadRequest() {
+        throw new Error('createUploadRequest should not be called by uploadWithRetry');
+      }
+    },
+    {
+      async request(input) {
+        requests.push(input);
+        return new Response(null, { status: 200 });
+      }
     }
-  });
+  );
 
   await uploader.uploadWithRetry({
     targetUrl: 'https://uploads.example.test/dep-123.ndjson.gz',
@@ -84,23 +92,26 @@ test('ConfiguredDeploymentLogArchiveUploader uploads archive payloads with the p
   assert.equal(headers?.authorization, 'Bearer token');
 });
 
-test('ConfiguredDeploymentLogArchiveUploader retries and normalizes final request failures', async (t) => {
+test('ConfiguredDeploymentLogArchiveUploader retries and normalizes final request failures', async () => {
   env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_MAX_ATTEMPTS = 2;
   env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS = 2_000;
   env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_BACKOFF_BASE_MS = 1;
   env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_BACKOFF_MAX_MS = 1;
 
   let attempts = 0;
-  t.mock.method(globalThis, 'fetch', async () => {
-    attempts += 1;
-    throw new Error('socket hang up');
-  });
-
-  const uploader = new ConfiguredDeploymentLogArchiveUploader({
-    async createUploadRequest() {
-      throw new Error('createUploadRequest should not be called by uploadWithRetry');
+  const uploader = new ConfiguredDeploymentLogArchiveUploader(
+    {
+      async createUploadRequest() {
+        throw new Error('createUploadRequest should not be called by uploadWithRetry');
+      }
+    },
+    {
+      async request() {
+        attempts += 1;
+        throw new Error('socket hang up');
+      }
     }
-  });
+  );
 
   await assert.rejects(
     uploader.uploadWithRetry({

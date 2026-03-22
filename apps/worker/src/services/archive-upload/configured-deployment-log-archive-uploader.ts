@@ -1,9 +1,7 @@
 import { env } from '../../config/env.js';
-import { createOutboundHttpClient } from '../http/outbound-http-client.factory.js';
 import type { OutboundHttpClient } from '../http/outbound-http-client.js';
 import { OutboundHttpRequestError } from '../http/outbound-http-client.js';
 import type { ArchiveUploadProvider, ArchiveUploadRequest } from './archive-upload-provider.js';
-import { createArchiveUploadProvider } from './archive-upload-provider.factory.js';
 import type { DeploymentLogArchiveUploader } from './deployment-log-archive-uploader.js';
 
 function sleep(ms: number) {
@@ -12,8 +10,8 @@ function sleep(ms: number) {
 
 export class ConfiguredDeploymentLogArchiveUploader implements DeploymentLogArchiveUploader {
   constructor(
-    private readonly archiveUploadProvider: ArchiveUploadProvider = createArchiveUploadProvider(),
-    private readonly outboundHttpClient: OutboundHttpClient = createOutboundHttpClient()
+    private readonly archiveUploadProvider: ArchiveUploadProvider,
+    private readonly outboundHttpClient: OutboundHttpClient
   ) {}
 
   async createUploadRequest(input: {
