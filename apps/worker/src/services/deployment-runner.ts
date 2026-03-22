@@ -2,11 +2,8 @@ import type { DeploymentJobPayload } from '@vcloudrunner/shared-types';
 
 import { env } from '../config/env.js';
 import { logger } from '../logger/logger.js';
-import { createContainerRuntimeManager } from './runtime/container-runtime-manager.factory.js';
 import type { ContainerRuntimeManager } from './runtime/container-runtime-manager.js';
-import { createDeploymentImageBuilder } from './runtime/deployment-image-builder.factory.js';
 import type { DeploymentImageBuilder } from './runtime/deployment-image-builder.js';
-import { createDeploymentWorkspaceManager } from './runtime/deployment-workspace-manager.factory.js';
 import type {
   DeploymentWorkspaceManager,
   PreparedDeploymentWorkspace
@@ -14,9 +11,9 @@ import type {
 
 export class DeploymentRunner {
   constructor(
-    private readonly workspaceManager: DeploymentWorkspaceManager = createDeploymentWorkspaceManager(),
-    private readonly imageBuilder: DeploymentImageBuilder = createDeploymentImageBuilder(),
-    private readonly runtimeManager: ContainerRuntimeManager = createContainerRuntimeManager()
+    private readonly workspaceManager: DeploymentWorkspaceManager,
+    private readonly imageBuilder: DeploymentImageBuilder,
+    private readonly runtimeManager: ContainerRuntimeManager
   ) {}
 
   private networkEnsured = false;

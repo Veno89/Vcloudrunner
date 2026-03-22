@@ -6,6 +6,54 @@ await import('../test/worker-test-env.js');
 const { logger } = await import('../logger/logger.js');
 const { DeploymentRunner } = await import('./deployment-runner.js');
 
+function createRunner() {
+  return new DeploymentRunner(
+    {
+      async prepareWorkspace(deploymentId: string) {
+        return {
+          workspaceDir: `workspace-${deploymentId}`,
+          repoDir: `repo-${deploymentId}`,
+          projectPath: `project-${deploymentId}`
+        };
+      },
+      async cleanupWorkspace() {
+        return undefined;
+      }
+    },
+    {
+      async buildRuntimeImage() {
+        return { buildFilePath: 'Dockerfile' };
+      },
+      async removeImage() {
+        return undefined;
+      }
+    },
+    {
+      async listNetworksByName() {
+        return [];
+      },
+      async createNetwork() {
+        return undefined;
+      },
+      async listContainersByName() {
+        return [];
+      },
+      async stopContainer() {
+        return undefined;
+      },
+      async removeContainer() {
+        return undefined;
+      },
+      async startContainer() {
+        return {
+          containerId: 'container-default',
+          hostPort: 8080
+        };
+      }
+    }
+  );
+}
+
 test('ensureDeploymentNetwork tolerates already-exists races and caches the result', async (t) => {
   const infos: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
   const listCalls: string[] = [];
@@ -15,7 +63,7 @@ test('ensureDeploymentNetwork tolerates already-exists races and caches the resu
     infos.push({ message, metadata });
   });
 
-  const runner = new DeploymentRunner() as unknown as {
+  const runner = createRunner() as unknown as {
     runtimeManager: {
       listNetworksByName: (name: string) => Promise<Array<{ name?: string }>>;
       createNetwork: (name: string) => Promise<void>;
@@ -51,7 +99,7 @@ test('ensureDeploymentNetwork tolerates already-exists races and caches the resu
 });
 
 test('ensureDeploymentNetwork rethrows unexpected network creation failures', async () => {
-  const runner = new DeploymentRunner() as unknown as {
+  const runner = createRunner() as unknown as {
     runtimeManager: {
       listNetworksByName: (name: string) => Promise<Array<{ name?: string }>>;
       createNetwork: (name: string) => Promise<void>;
@@ -85,7 +133,7 @@ test('removeContainerByName continues removing later stale containers when one r
     infos.push({ message, metadata });
   });
 
-  const runner = new DeploymentRunner() as unknown as {
+  const runner = createRunner() as unknown as {
     runtimeManager: {
       listContainersByName: (name: string) => Promise<Array<{ id: string; state: string }>>;
       stopContainer: (containerId: string) => Promise<void>;
@@ -133,7 +181,7 @@ test('removeContainerByName avoids success logging when every stale removal fail
     infos.push({ message, metadata });
   });
 
-  const runner = new DeploymentRunner() as unknown as {
+  const runner = createRunner() as unknown as {
     runtimeManager: {
       listContainersByName: () => Promise<Array<{ id: string; state: string }>>;
       stopContainer: (containerId: string) => Promise<void>;
@@ -168,7 +216,7 @@ test('cleanupCancelledRun rethrows real teardown failures after attempting both 
     warnings.push({ message, metadata });
   });
 
-  const runner = new DeploymentRunner() as unknown as {
+  const runner = createRunner() as unknown as {
     removeContainerForce: (containerId: string) => Promise<void>;
     removeImageForce: (imageTag: string) => Promise<void>;
     cleanupCancelledRun: (input: {
@@ -210,7 +258,7 @@ test('cleanupCancelledRun ignores already-gone runtime resources', async (t) => 
     warnings.push({ message, metadata });
   });
 
-  const runner = new DeploymentRunner() as unknown as {
+  const runner = createRunner() as unknown as {
     removeContainerForce: (containerId: string) => Promise<void>;
     removeImageForce: (imageTag: string) => Promise<void>;
     cleanupCancelledRun: (input: {
@@ -247,7 +295,7 @@ test('cleanupFailedRun rethrows cleanup failures with the original deployment er
     warnings.push({ message, metadata });
   });
 
-  const runner = new DeploymentRunner() as unknown as {
+  const runner = createRunner() as unknown as {
     removeContainerForce: (containerId: string) => Promise<void>;
     removeImageForce: (imageTag: string) => Promise<void>;
     cleanupFailedRun: (input: {
@@ -291,7 +339,7 @@ test('cleanupFailedRun ignores already-gone runtime resources after a deployment
     warnings.push({ message, metadata });
   });
 
-  const runner = new DeploymentRunner() as unknown as {
+  const runner = createRunner() as unknown as {
     removeContainerForce: (containerId: string) => Promise<void>;
     removeImageForce: (imageTag: string) => Promise<void>;
     cleanupFailedRun: (input: {
@@ -324,7 +372,7 @@ test('cleanupFailedRun ignores already-gone runtime resources after a deployment
 test('cleanupFailedRun does not attempt workspace cleanup directly', async () => {
   let workspaceCleanupCalls = 0;
 
-  const runner = new DeploymentRunner() as unknown as {
+  const runner = createRunner() as unknown as {
     removeContainerForce: (containerId: string) => Promise<void>;
     removeImageForce: (imageTag: string) => Promise<void>;
     removeWorkspace: (workspaceDir: string) => Promise<void>;
@@ -359,7 +407,7 @@ test('cleanupWorkspaceBestEffort warns and continues when post-run workspace cle
     warnings.push({ message, metadata });
   });
 
-  const runner = new DeploymentRunner() as unknown as {
+  const runner = createRunner() as unknown as {
     removeWorkspace: (workspaceDir: string) => Promise<void>;
     cleanupWorkspaceBestEffort: (input: {
       deploymentId: string;
@@ -390,7 +438,7 @@ test('cleanupWorkspaceBestEffort warns and continues when deployment-error works
     warnings.push({ message, metadata });
   });
 
-  const runner = new DeploymentRunner() as unknown as {
+  const runner = createRunner() as unknown as {
     removeWorkspace: (workspaceDir: string) => Promise<void>;
     cleanupWorkspaceBestEffort: (input: {
       deploymentId: string;

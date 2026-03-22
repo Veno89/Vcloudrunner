@@ -1,5 +1,5 @@
-import { DeploymentRunner } from './deployment-runner.js';
+import { createConfiguredDeploymentRunner } from './configured-deployment-runner.factory.js';
 
 export function createDeploymentRunner() {
-  return new DeploymentRunner();
+  return createConfiguredDeploymentRunner();
 }
