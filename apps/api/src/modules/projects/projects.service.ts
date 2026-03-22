@@ -34,4 +34,8 @@ export class ProjectsService {
   getProjectById(projectId: string) {
     return this.repository.findById(projectId);
   }
+
+  checkMembership(projectId: string, userId: string) {
+    return this.repository.checkMembership(projectId, userId);
+  }
 }

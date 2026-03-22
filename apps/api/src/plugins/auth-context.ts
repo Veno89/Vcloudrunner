@@ -4,15 +4,19 @@ import { and, eq, gt, isNull, or } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { env } from '../config/env.js';
-import { db } from '../db/client.js';
+import type { DbClient } from '../db/client.js';
 import { apiTokens } from '../db/schema.js';
 import { ALL_TOKEN_SCOPES, normalizeTokenScopes, type TokenScope } from '../modules/auth/auth-scopes.js';
 import { hashApiToken } from '../modules/api-tokens/token-utils.js';
 import { UnauthorizedError } from '../server/domain-errors.js';
 
+export interface AuthContextPluginOptions {
+  dbClient: DbClient;
+}
+
 export type AuthRole = 'admin' | 'user';
 
-interface AuthContext {
+export interface AuthContext {
   userId: string;
   role: AuthRole;
   scopes: TokenScope[];
@@ -91,39 +95,39 @@ function buildStaticTokenLookup() {
   );
 }
 
-async function getDbAuthContext(token: string): Promise<AuthContext | null> {
-  const tokenHash = hashApiToken(token);
-
-  const result = await db
-    .select({ userId: apiTokens.userId, role: apiTokens.role, scopes: apiTokens.scopes })
-    .from(apiTokens)
-    .where(
-      and(
-        eq(apiTokens.tokenHash, tokenHash),
-        isNull(apiTokens.revokedAt),
-        or(isNull(apiTokens.expiresAt), gt(apiTokens.expiresAt, new Date()))
-      )
-    )
-    .limit(1);
-
-  const row = result[0];
-  if (!row) {
-    return null;
-  }
-
-  if (row.role !== 'admin' && row.role !== 'user') {
-    return null;
-  }
-
-  return {
-    userId: row.userId,
-    role: row.role,
-    scopes: normalizeTokenScopes(row.scopes, row.role)
-  };
-}
-
-const authContextPluginImpl: FastifyPluginAsync = async (app) => {
+const authContextPluginImpl: FastifyPluginAsync<AuthContextPluginOptions> = async (app, options) => {
   const staticTokenLookup = buildStaticTokenLookup();
+
+  async function getDbAuthContext(token: string): Promise<AuthContext | null> {
+    const tokenHash = hashApiToken(token);
+
+    const result = await options.dbClient
+      .select({ userId: apiTokens.userId, role: apiTokens.role, scopes: apiTokens.scopes })
+      .from(apiTokens)
+      .where(
+        and(
+          eq(apiTokens.tokenHash, tokenHash),
+          isNull(apiTokens.revokedAt),
+          or(isNull(apiTokens.expiresAt), gt(apiTokens.expiresAt, new Date()))
+        )
+      )
+      .limit(1);
+
+    const row = result[0];
+    if (!row) {
+      return null;
+    }
+
+    if (row.role !== 'admin' && row.role !== 'user') {
+      return null;
+    }
+
+    return {
+      userId: row.userId,
+      role: row.role,
+      scopes: normalizeTokenScopes(row.scopes, row.role)
+    };
+  }
 
   app.decorateRequest('auth', null);
   app.decorateRequest('authHeaderProvided', false);

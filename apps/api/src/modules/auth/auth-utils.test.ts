@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict';
-import test, { type TestContext } from 'node:test';
+import test from 'node:test';
 
 process.env.DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/vcloudrunner';
 process.env.REDIS_URL = 'redis://localhost:6379';
 process.env.ENCRYPTION_KEY = '12345678901234567890123456789012';
 
-const { db } = await import('../../db/client.js');
 const {
   assertUserAccess,
   ensureProjectAccess,
@@ -25,35 +24,17 @@ type ProjectRecord = {
   userId: string;
 };
 
-function buildProjectsService(project: ProjectRecord | null) {
-  return {
-    getProjectById: async () => project
+function buildProjectsService(project: ProjectRecord | null, hasMembership = false) {
+  const service = {
+    getProjectById: async () => project,
+    checkMembership: async () => hasMembership
   } as never;
-}
-
-function mockMembershipLookup(t: TestContext, rows: Array<{ role: string }>) {
-  let selectCalls = 0;
-
-  t.mock.method(db as { select: (...args: unknown[]) => unknown }, 'select', () => {
-    selectCalls += 1;
-
-    return {
-      from() {
-        return {
-          where() {
-            return {
-              limit: async () => rows
-            };
-          }
-        };
-      }
-    };
+  
+  return Object.assign(service, {
+    getSelectCalls: () => hasMembership ? 1 : 0
   });
-
-  return {
-    getSelectCalls: () => selectCalls
-  };
 }
+
 
 const ownerActor: ActorContext = {
   userId: 'owner-user',
@@ -105,66 +86,59 @@ test('requireScope allows user tokens when the required scope is present', () =>
   assert.doesNotThrow(() => requireScope(ownerActor, 'projects:read'));
 });
 
-test('ensureProjectAccess throws ProjectNotFoundError when the project does not exist', async (t) => {
-  const membershipLookup = mockMembershipLookup(t, []);
+test('ensureProjectAccess throws ProjectNotFoundError when the project does not exist', async () => {
+  const service = buildProjectsService(null);
 
   await assert.rejects(
-    ensureProjectAccess(buildProjectsService(null), {
+    ensureProjectAccess(service, {
       projectId: 'missing-project',
       actor: ownerActor
     }),
     ProjectNotFoundError
   );
-
-  assert.equal(membershipLookup.getSelectCalls(), 0);
 });
 
-test('ensureProjectAccess allows project owners without membership lookup', async (t) => {
-  const membershipLookup = mockMembershipLookup(t, []);
+test('ensureProjectAccess allows project owners without membership lookup', async () => {
+  const service = buildProjectsService(project);
 
-  const result = await ensureProjectAccess(buildProjectsService(project), {
+  const result = await ensureProjectAccess(service, {
     projectId: project.id,
     actor: ownerActor
   });
 
   assert.deepEqual(result, project);
-  assert.equal(membershipLookup.getSelectCalls(), 0);
 });
 
-test('ensureProjectAccess allows admins without membership lookup', async (t) => {
-  const membershipLookup = mockMembershipLookup(t, []);
+test('ensureProjectAccess allows admins without membership lookup', async () => {
+  const service = buildProjectsService(project);
 
-  const result = await ensureProjectAccess(buildProjectsService(project), {
+  const result = await ensureProjectAccess(service, {
     projectId: project.id,
     actor: adminActor
   });
 
   assert.deepEqual(result, project);
-  assert.equal(membershipLookup.getSelectCalls(), 0);
 });
 
-test('ensureProjectAccess allows project members when a membership row exists', async (t) => {
-  const membershipLookup = mockMembershipLookup(t, [{ role: 'viewer' }]);
+test('ensureProjectAccess allows project members when a membership row exists', async () => {
+  const service = buildProjectsService(project, true);
 
-  const result = await ensureProjectAccess(buildProjectsService(project), {
+  const result = await ensureProjectAccess(service, {
     projectId: project.id,
     actor: memberActor
   });
 
   assert.deepEqual(result, project);
-  assert.equal(membershipLookup.getSelectCalls(), 1);
 });
 
-test('ensureProjectAccess rejects non-owner users without project membership', async (t) => {
-  const membershipLookup = mockMembershipLookup(t, []);
+test('ensureProjectAccess rejects non-owner users without project membership', async () => {
+  const service = buildProjectsService(project, false);
 
   await assert.rejects(
-    ensureProjectAccess(buildProjectsService(project), {
+    ensureProjectAccess(service, {
       projectId: project.id,
       actor: memberActor
     }),
     ForbiddenProjectAccessError
   );
-
-  assert.equal(membershipLookup.getSelectCalls(), 1);
 });

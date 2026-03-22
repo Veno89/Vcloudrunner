@@ -7,7 +7,6 @@ process.env.REDIS_URL = 'redis://localhost:6379';
 process.env.ENCRYPTION_KEY = '12345678901234567890123456789012';
 
 const { env } = await import('../config/env.js');
-const { db } = await import('../db/client.js');
 const { authContextPlugin, requireAuthContext } = await import('./auth-context.js');
 const { errorHandlerPlugin } = await import('./error-handler.js');
 
@@ -39,17 +38,21 @@ async function withTestApp(
   env.ENABLE_DEV_AUTH = options.enableDevAuth ?? false;
   env.API_TOKENS_JSON = options.apiTokensJson ?? '';
 
-  t.mock.method(db as { select: (...args: unknown[]) => unknown }, 'select', () => ({
-    from() {
-      return {
-        where() {
-          return {
-            limit: async () => rows
-          };
-        }
-      };
-    }
-  }));
+  const mockDbClient = {
+    select: () => ({
+      from() {
+        return {
+          where() {
+            return {
+              limit: async () => rows
+            };
+          }
+        };
+      }
+    })
+  } as any;
+
+  t.mock.method(mockDbClient, 'select', mockDbClient.select);
 
   const app = Fastify({ logger: false });
   t.after(async () => {
@@ -59,7 +62,7 @@ async function withTestApp(
   });
 
   app.register(errorHandlerPlugin);
-  app.register(authContextPlugin);
+  app.register(authContextPlugin, { dbClient: mockDbClient });
 
   app.get('/v1/required', async (request) => requireAuthContext(request));
   app.get('/internal/required', async (request) => requireAuthContext(request));
@@ -267,7 +270,7 @@ test('auth context plugin rejects malformed API_TOKENS_JSON with an explicit sta
   });
 
   app.register(errorHandlerPlugin);
-  app.register(authContextPlugin);
+  app.register(authContextPlugin, { dbClient: {} as any });
 
   await assert.rejects(
     async () => {
@@ -300,7 +303,7 @@ test('auth context plugin rejects duplicate static token entries at startup', as
   });
 
   app.register(errorHandlerPlugin);
-  app.register(authContextPlugin);
+  app.register(authContextPlugin, { dbClient: {} as any });
 
   await assert.rejects(
     async () => {

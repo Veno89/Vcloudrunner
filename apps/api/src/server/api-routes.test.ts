@@ -7,7 +7,6 @@ process.env.REDIS_URL = 'redis://localhost:6379';
 process.env.ENCRYPTION_KEY = '12345678901234567890123456789012';
 
 import { env } from '../config/env.js';
-import { db } from '../db/client.js';
 import { authContextPlugin, requireAuthContext } from '../plugins/auth-context.js';
 import { errorHandlerPlugin } from '../plugins/error-handler.js';
 import {
@@ -49,17 +48,21 @@ async function buildSiblingPluginTestApp(
   env.ENABLE_DEV_AUTH = options?.enableDevAuth ?? false;
   env.API_TOKENS_JSON = options?.apiTokensJson ?? '';
 
-  t.mock.method(db as { select: (...args: unknown[]) => unknown }, 'select', () => ({
-    from() {
-      return {
-        where() {
-          return {
-            limit: async () => rows
-          };
-        }
-      };
-    }
-  }));
+  const mockDbClient = {
+    select: () => ({
+      from() {
+        return {
+          where() {
+            return {
+              limit: async () => rows
+            };
+          }
+        };
+      }
+    })
+  } as any;
+
+  t.mock.method(mockDbClient, 'select', mockDbClient.select);
 
   const app = Fastify({ logger: false });
   t.after(async () => {
@@ -69,13 +72,12 @@ async function buildSiblingPluginTestApp(
   });
 
   app.register(errorHandlerPlugin);
-  app.register(authContextPlugin);
+  app.register(authContextPlugin, { dbClient: mockDbClient });
   app.register(routePlugin);
 
   await app.ready();
   return app;
 }
-
 test('error handler maps ProjectNotFoundError to 404', async () => {
   const app = buildTestApp();
   app.get('/test', async () => {

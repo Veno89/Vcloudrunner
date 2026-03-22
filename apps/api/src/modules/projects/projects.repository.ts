@@ -52,4 +52,17 @@ export class ProjectsRepository {
       where: eq(projects.id, id)
     });
   }
+
+  async checkMembership(projectId: string, userId: string) {
+    const membership = await this.db
+      .select({ role: projectMembers.role })
+      .from(projectMembers)
+      .where(or(
+        eq(projectMembers.projectId, projectId),
+        eq(projectMembers.userId, userId)
+      ))
+      .limit(1);
+
+    return membership.length > 0;
+  }
 }

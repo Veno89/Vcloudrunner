@@ -6,13 +6,20 @@ import Fastify from 'fastify';
 import { Redis } from 'ioredis';
 import { QUEUE_NAMES, type DeploymentJobPayload } from '@vcloudrunner/shared-types';
 
+import { DeploymentQueue } from '../queue/deployment-queue.js';
 import { env } from '../config/env.js';
-import { deploymentsRoutes } from '../modules/deployments/deployments.routes.js';
-import { apiTokensRoutes } from '../modules/api-tokens/api-tokens.routes.js';
+import { createDbClient, type DbClient } from '../db/client.js';
+import { createDeploymentsRoutes } from '../modules/deployments/deployments.routes.js';
+import { DeploymentsService } from '../modules/deployments/deployments.service.js';
+import { createApiTokensRoutes } from '../modules/api-tokens/api-tokens.routes.js';
+import { ApiTokensService } from '../modules/api-tokens/api-tokens.service.js';
 import { authContextPlugin } from '../plugins/auth-context.js';
-import { environmentRoutes } from '../modules/environment/environment.routes.js';
-import { logsRoutes } from '../modules/logs/logs.routes.js';
-import { projectsRoutes } from '../modules/projects/projects.routes.js';
+import { createEnvironmentRoutes } from '../modules/environment/environment.routes.js';
+import { EnvironmentService } from '../modules/environment/environment.service.js';
+import { createLogsRoutes } from '../modules/logs/logs.routes.js';
+import { LogsService } from '../modules/logs/logs.service.js';
+import { createProjectsRoutes } from '../modules/projects/projects.routes.js';
+import { ProjectsService } from '../modules/projects/projects.service.js';
 import { errorHandlerPlugin } from '../plugins/error-handler.js';
 import { redisConnection } from '../queue/redis.js';
 import { AlertMonitorService } from '../services/alert-monitor.service.js';
@@ -32,6 +39,7 @@ type AlertMonitorClient = Pick<
 >;
 
 interface BuildServerDependencies {
+  dbClient?: DbClient;
   deploymentQueue?: DeploymentQueueClient;
   redisClient?: RedisClient;
   alertMonitor?: AlertMonitorClient;
@@ -58,6 +66,7 @@ export const buildServer = (dependencies: BuildServerDependencies = {}) => {
     }
   });
 
+  const dbClient = dependencies.dbClient ?? createDbClient();
   const deploymentQueue = dependencies.deploymentQueue
     ?? new Queue<DeploymentJobPayload, unknown, 'deploy'>(QUEUE_NAMES.deployment, {
       connection: redisConnection
@@ -75,6 +84,14 @@ export const buildServer = (dependencies: BuildServerDependencies = {}) => {
       QUEUE_NAMES.deployment,
       app.log
     );
+
+  const deploymentQueueClient = new DeploymentQueue(deploymentQueue as Pick<Queue<DeploymentJobPayload, unknown, 'deploy'>, 'add' | 'getJobs' | 'getJob'> & Partial<Pick<Queue<DeploymentJobPayload, unknown, 'deploy'>, 'close'>>);
+
+  const projectsService = new ProjectsService(dbClient);
+  const apiTokensService = new ApiTokensService(dbClient);
+  const deploymentsService = new DeploymentsService(dbClient, deploymentQueueClient);
+  const environmentService = new EnvironmentService(dbClient);
+  const logsService = new LogsService(dbClient);
 
   const corsAllowedOrigins = env.CORS_ALLOWED_ORIGINS
     .split(',')
@@ -118,7 +135,7 @@ export const buildServer = (dependencies: BuildServerDependencies = {}) => {
 
   app.register(sensible);
   app.register(errorHandlerPlugin);
-  app.register(authContextPlugin);
+  app.register(authContextPlugin, { dbClient });
 
   app.addHook('onSend', async (request, reply, payload) => {
     reply.header('x-request-id', request.id);
@@ -195,11 +212,11 @@ export const buildServer = (dependencies: BuildServerDependencies = {}) => {
       }
     });
 
-    routeApp.register(projectsRoutes, { prefix: '/v1' });
-    routeApp.register(apiTokensRoutes, { prefix: '/v1' });
-    routeApp.register(deploymentsRoutes, { prefix: '/v1' });
-    routeApp.register(environmentRoutes, { prefix: '/v1' });
-    routeApp.register(logsRoutes, { prefix: '/v1' });
+    routeApp.register(createProjectsRoutes(projectsService), { prefix: '/v1' });
+    routeApp.register(createApiTokensRoutes(apiTokensService), { prefix: '/v1' });
+    routeApp.register(createDeploymentsRoutes(deploymentsService, projectsService), { prefix: '/v1' });
+    routeApp.register(createEnvironmentRoutes(environmentService, projectsService), { prefix: '/v1' });
+    routeApp.register(createLogsRoutes(logsService, projectsService), { prefix: '/v1' });
   });
 
   return app;

@@ -7,10 +7,9 @@ process.env.REDIS_URL = 'redis://localhost:6379';
 process.env.ENCRYPTION_KEY = '12345678901234567890123456789012';
 
 const { env } = await import('../../config/env.js');
-const { db } = await import('../../db/client.js');
 const { authContextPlugin } = await import('../../plugins/auth-context.js');
 const { errorHandlerPlugin } = await import('../../plugins/error-handler.js');
-const { apiTokensRoutes } = await import('./api-tokens.routes.js');
+const { createApiTokensRoutes } = await import('./api-tokens.routes.js');
 const { ApiTokensService } = await import('./api-tokens.service.js');
 
 const targetUserId = '00000000-0000-0000-0000-000000000010';
@@ -94,8 +93,12 @@ async function withApiTokensRoutesApp(
     scopes: options.scopes
   }]);
 
+  const mockDbClient = {
+    select: () => buildSelectResult([])
+  } as any;
+
   t.mock.method(
-    db as { select: (fields: Record<string, unknown>) => unknown },
+    mockDbClient,
     'select',
     () => buildSelectResult([])
   );
@@ -128,8 +131,10 @@ async function withApiTokensRoutesApp(
   });
 
   app.register(errorHandlerPlugin);
-  app.register(authContextPlugin);
-  app.register(apiTokensRoutes, { prefix: '/v1' });
+  app.register(authContextPlugin, { dbClient: mockDbClient });
+  
+  const apiTokensService = new ApiTokensService(mockDbClient);
+  app.register(createApiTokensRoutes(apiTokensService), { prefix: '/v1' });
 
   await app.ready();
   await run(app);

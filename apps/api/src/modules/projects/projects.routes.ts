@@ -1,11 +1,8 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 
-import { db } from '../../db/client.js';
 import { assertUserAccess, ensureProjectAccess, requireActor, requireScope } from '../auth/auth-utils.js';
-import { ProjectsService } from './projects.service.js';
-
-const projectsService = new ProjectsService(db);
+import type { ProjectsService } from './projects.service.js';
 
 const createProjectSchema = z.object({
   userId: z.string().uuid(),
@@ -23,7 +20,9 @@ const projectByIdParamsSchema = z.object({
   projectId: z.string().uuid()
 });
 
-export const projectsRoutes: FastifyPluginAsync = async (app) => {
+export const createProjectsRoutes = (
+  projectsService: ProjectsService
+): FastifyPluginAsync => async (app) => {
   app.post('/projects', async (request, reply) => {
     const actor = requireActor(request);
     const payload = createProjectSchema.parse(request.body);

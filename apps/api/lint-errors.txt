@@ -1,0 +1,15 @@
+﻿
+> @vcloudrunner/api@0.1.0 lint
+> eslint src --ext .ts
+
+
+C:\Users\Zhitn\Desktop\Vcloudrunner\apps\api\src\modules\auth\auth-utils.test.ts
+    2:21  error  'TestContext' is defined but never used  @typescript-eslint/no-unused-vars
+   89:96  error  't' is defined but never used            @typescript-eslint/no-unused-vars
+  101:84  error  't' is defined but never used            @typescript-eslint/no-unused-vars
+  112:76  error  't' is defined but never used            @typescript-eslint/no-unused-vars
+  123:88  error  't' is defined but never used            @typescript-eslint/no-unused-vars
+  134:87  error  't' is defined but never used            @typescript-eslint/no-unused-vars
+
+Γ£û 6 problems (6 errors, 0 warnings)
+

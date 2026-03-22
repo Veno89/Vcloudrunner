@@ -7,10 +7,9 @@ process.env.REDIS_URL = 'redis://localhost:6379';
 process.env.ENCRYPTION_KEY = '12345678901234567890123456789012';
 
 const { env } = await import('../../config/env.js');
-const { db } = await import('../../db/client.js');
 const { authContextPlugin } = await import('../../plugins/auth-context.js');
 const { errorHandlerPlugin } = await import('../../plugins/error-handler.js');
-const { environmentRoutes } = await import('./environment.routes.js');
+const { createEnvironmentRoutes } = await import('./environment.routes.js');
 const { ProjectsService } = await import('../projects/projects.service.js');
 const { EnvironmentService } = await import('./environment.service.js');
 
@@ -70,12 +69,12 @@ async function withEnvironmentRoutesApp(
     scopes: options.scopes
   }]);
 
+  const mockDbClient = {
+    select: () => buildSelectResult(options.membershipRows)
+  } as any;
+
+  t.mock.method(mockDbClient, 'select', mockDbClient.select);
   t.mock.method(ProjectsService.prototype, 'getProjectById', async () => project);
-  t.mock.method(
-    db as { select: (fields: Record<string, unknown>) => unknown },
-    'select',
-    () => buildSelectResult(options.membershipRows)
-  );
   t.mock.method(EnvironmentService.prototype, 'list', async () => [environmentVariable]);
   t.mock.method(EnvironmentService.prototype, 'upsert', async () => environmentVariable);
   t.mock.method(EnvironmentService.prototype, 'remove', async () => true);
@@ -88,8 +87,11 @@ async function withEnvironmentRoutesApp(
   });
 
   app.register(errorHandlerPlugin);
-  app.register(authContextPlugin);
-  app.register(environmentRoutes, { prefix: '/v1' });
+  app.register(authContextPlugin, { dbClient: mockDbClient });
+  
+  const projectsService = new ProjectsService(mockDbClient);
+  const environmentService = new EnvironmentService(mockDbClient);
+  app.register(createEnvironmentRoutes(environmentService, projectsService), { prefix: '/v1' });
 
   await app.ready();
   await run(app);

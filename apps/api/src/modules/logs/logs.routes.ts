@@ -3,13 +3,9 @@ import { createGzip } from 'node:zlib';
 import { PassThrough } from 'node:stream';
 import { z } from 'zod';
 
-import { db } from '../../db/client.js';
 import { ensureProjectAccess, requireActor, requireScope } from '../auth/auth-utils.js';
-import { ProjectsService } from '../projects/projects.service.js';
-import { LogsService } from './logs.service.js';
-
-const logsService = new LogsService(db);
-const projectsService = new ProjectsService(db);
+import type { ProjectsService } from '../projects/projects.service.js';
+import type { LogsService } from './logs.service.js';
 
 const paramsSchema = z.object({
   projectId: z.string().uuid(),
@@ -58,7 +54,10 @@ const exportQuerySchema = z.object({
   format: z.enum(['ndjson', 'ndjson.gz']).default('ndjson')
 });
 
-export const logsRoutes: FastifyPluginAsync = async (app) => {
+export const createLogsRoutes = (
+  logsService: LogsService,
+  projectsService: ProjectsService
+): FastifyPluginAsync => async (app) => {
   app.get('/projects/:projectId/deployments/:deploymentId/logs', async (request) => {
     const actor = requireActor(request);
     const { projectId, deploymentId } = paramsSchema.parse(request.params);

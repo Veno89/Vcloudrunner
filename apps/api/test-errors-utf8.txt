@@ -1,0 +1,1284 @@
+﻿
+> @vcloudrunner/api@0.1.0 test
+> npm --workspace @vcloudrunner/shared-types run build && tsx --test "src/**/*.test.ts"
+
+
+> @vcloudrunner/shared-types@0.1.0 build
+> tsc -p tsconfig.json
+
+TAP version 13
+# [vcloudrunner-api] ENABLE_DEV_AUTH is enabled; this bypass is intended for local development only.
+# [vcloudrunner-api] API_TOKENS_JSON static token fallback is enabled; prefer DB-backed tokens for normal operation.
+# Subtest: start cleans up the app and telemetry when listen fails
+ok 1 - start cleans up the app and telemetry when listen fails
+  ---
+  duration_ms: 2.1942
+  type: 'test'
+  ...
+# Subtest: start still shuts down telemetry when buildServer throws before returning an app
+ok 2 - start still shuts down telemetry when buildServer throws before returning an app
+  ---
+  duration_ms: 0.4516
+  type: 'test'
+  ...
+# Subtest: start still shuts down telemetry and exits when telemetry initialization fails
+ok 3 - start still shuts down telemetry and exits when telemetry initialization fails
+  ---
+  duration_ms: 0.3718
+  type: 'test'
+  ...
+# Subtest: shutdown shares one cleanup path across repeated signals
+ok 4 - shutdown shares one cleanup path across repeated signals
+  ---
+  duration_ms: 0.503
+  type: 'test'
+  ...
+# Subtest: compose api service pins dev auth off for the production-like stack
+ok 5 - compose api service pins dev auth off for the production-like stack
+  ---
+  duration_ms: 1.0977
+  type: 'test'
+  ...
+# Subtest: requireDrizzleDatabaseUrl returns the configured DATABASE_URL
+ok 6 - requireDrizzleDatabaseUrl returns the configured DATABASE_URL
+  ---
+  duration_ms: 1.169
+  type: 'test'
+  ...
+# Subtest: requireDrizzleDatabaseUrl trims surrounding whitespace
+ok 7 - requireDrizzleDatabaseUrl trims surrounding whitespace
+  ---
+  duration_ms: 0.1575
+  type: 'test'
+  ...
+# Subtest: requireDrizzleDatabaseUrl fails fast when DATABASE_URL is missing
+ok 8 - requireDrizzleDatabaseUrl fails fast when DATABASE_URL is missing
+  ---
+  duration_ms: 0.4977
+  type: 'test'
+  ...
+# Subtest: parseEnv defaults TRUST_PROXY to false
+ok 9 - parseEnv defaults TRUST_PROXY to false
+  ---
+  duration_ms: 5.4695
+  type: 'test'
+  ...
+# Subtest: parseEnv honors explicit false string values for boolean flags
+ok 10 - parseEnv honors explicit false string values for boolean flags
+  ---
+  duration_ms: 0.8691
+  type: 'test'
+  ...
+# Subtest: parseEnv honors common truthy and falsy env boolean strings
+ok 11 - parseEnv honors common truthy and falsy env boolean strings
+  ---
+  duration_ms: 0.4181
+  type: 'test'
+  ...
+# Subtest: parseEnv rejects invalid boolean strings
+ok 12 - parseEnv rejects invalid boolean strings
+  ---
+  duration_ms: 1.7393
+  type: 'test'
+  ...
+# Subtest: parseEnv defaults blank numeric strings instead of coercing them to zero
+ok 13 - parseEnv defaults blank numeric strings instead of coercing them to zero
+  ---
+  duration_ms: 2.6888
+  type: 'test'
+  ...
+# Subtest: parseEnv preserves explicit zero-valued numeric strings where zero is valid
+ok 14 - parseEnv preserves explicit zero-valued numeric strings where zero is valid
+  ---
+  duration_ms: 0.6498
+  type: 'test'
+  ...
+# Subtest: parseEnv rejects malformed numeric strings
+ok 15 - parseEnv rejects malformed numeric strings
+  ---
+  duration_ms: 0.5161
+  type: 'test'
+  ...
+# Subtest: assertSafeEnv throws when production enables dev auth
+ok 16 - assertSafeEnv throws when production enables dev auth
+  ---
+  duration_ms: 0.4327
+  type: 'test'
+  ...
+# Subtest: assertSafeEnv throws when production enables static API tokens fallback
+ok 17 - assertSafeEnv throws when production enables static API tokens fallback
+  ---
+  duration_ms: 0.5807
+  type: 'test'
+  ...
+# Subtest: emitStartupWarnings warns for development dev auth bypass
+ok 18 - emitStartupWarnings warns for development dev auth bypass
+  ---
+  duration_ms: 0.8491
+  type: 'test'
+  ...
+# Subtest: emitStartupWarnings warns for API_TOKENS_JSON fallback usage
+ok 19 - emitStartupWarnings warns for API_TOKENS_JSON fallback usage
+  ---
+  duration_ms: 2.1854
+  type: 'test'
+  ...
+# Subtest: emitStartupWarnings stays silent when development dev auth is explicitly disabled
+ok 20 - emitStartupWarnings stays silent when development dev auth is explicitly disabled
+  ---
+  duration_ms: 1.3516
+  type: 'test'
+  ...
+# Subtest: emitStartupWarnings is silent for test env dev-auth bypass config
+ok 21 - emitStartupWarnings is silent for test env dev-auth bypass config
+  ---
+  duration_ms: 0.423
+  type: 'test'
+  ...
+# Subtest: emitStartupWarnings is silent for safe config
+ok 22 - emitStartupWarnings is silent for safe config
+  ---
+  duration_ms: 0.3194
+  type: 'test'
+  ...
+# Subtest: loadEnvFiles loads root .env first and app-local api env with override
+ok 23 - loadEnvFiles loads root .env first and app-local api env with override
+  ---
+  duration_ms: 2.1905
+  type: 'test'
+  ...
+# Subtest: loadEnvFiles skips env files that are not present
+ok 24 - loadEnvFiles skips env files that are not present
+  ---
+  duration_ms: 0.2163
+  type: 'test'
+  ...
+# Subtest: loadEnvFiles uses workspace root instead of command cwd assumptions
+ok 25 - loadEnvFiles uses workspace root instead of command cwd assumptions
+  ---
+  duration_ms: 0.3064
+  type: 'test'
+  ...
+# [vcloudrunner-api] ENABLE_DEV_AUTH is enabled; this bypass is intended for local development only.
+# [vcloudrunner-api] API_TOKENS_JSON static token fallback is enabled; prefer DB-backed tokens for normal operation.
+# Subtest: list api tokens allows admin access to another user without explicit token scopes
+ok 26 - list api tokens allows admin access to another user without explicit token scopes
+  ---
+  duration_ms: 40.6448
+  type: 'test'
+  ...
+# Subtest: list api tokens rejects non-admin access to another user resource
+ok 27 - list api tokens rejects non-admin access to another user resource
+  ---
+  duration_ms: 10.4662
+  type: 'test'
+  ...
+# Subtest: list api tokens rejects tokens missing tokens:read scope
+ok 28 - list api tokens rejects tokens missing tokens:read scope
+  ---
+  duration_ms: 6.9202
+  type: 'test'
+  ...
+# Subtest: create api token allows admin access to another user without explicit token scopes
+ok 29 - create api token allows admin access to another user without explicit token scopes
+  ---
+  duration_ms: 6.8139
+  type: 'test'
+  ...
+# Subtest: create api token rejects non-admin access to another user resource
+ok 30 - create api token rejects non-admin access to another user resource
+  ---
+  duration_ms: 6.3284
+  type: 'test'
+  ...
+# Subtest: create api token rejects tokens missing tokens:write scope
+ok 31 - create api token rejects tokens missing tokens:write scope
+  ---
+  duration_ms: 6.7774
+  type: 'test'
+  ...
+# Subtest: rotate api token allows admin access to another user without explicit token scopes
+ok 32 - rotate api token allows admin access to another user without explicit token scopes
+  ---
+  duration_ms: 4.8551
+  type: 'test'
+  ...
+# Subtest: rotate api token rejects non-admin access to another user resource
+ok 33 - rotate api token rejects non-admin access to another user resource
+  ---
+  duration_ms: 5.6996
+  type: 'test'
+  ...
+# Subtest: rotate api token rejects tokens missing tokens:write scope
+ok 34 - rotate api token rejects tokens missing tokens:write scope
+  ---
+  duration_ms: 13.0505
+  type: 'test'
+  ...
+# Subtest: rotate api token maps missing token to 404
+ok 35 - rotate api token maps missing token to 404
+  ---
+  duration_ms: 6.2793
+  type: 'test'
+  ...
+# Subtest: revoke api token allows admin access to another user without explicit token scopes
+ok 36 - revoke api token allows admin access to another user without explicit token scopes
+  ---
+  duration_ms: 4.6046
+  type: 'test'
+  ...
+# Subtest: revoke api token rejects non-admin access to another user resource
+ok 37 - revoke api token rejects non-admin access to another user resource
+  ---
+  duration_ms: 5.9356
+  type: 'test'
+  ...
+# Subtest: revoke api token rejects tokens missing tokens:write scope
+ok 38 - revoke api token rejects tokens missing tokens:write scope
+  ---
+  duration_ms: 3.5283
+  type: 'test'
+  ...
+# Subtest: revoke api token maps missing token to 404
+ok 39 - revoke api token maps missing token to 404
+  ---
+  duration_ms: 5.4145
+  type: 'test'
+  ...
+# [vcloudrunner-api] ENABLE_DEV_AUTH is enabled; this bypass is intended for local development only.
+# [vcloudrunner-api] API_TOKENS_JSON static token fallback is enabled; prefer DB-backed tokens for normal operation.
+# Subtest: assertUserAccess allows admin access to another user resource
+ok 40 - assertUserAccess allows admin access to another user resource
+  ---
+  duration_ms: 1.8627
+  type: 'test'
+  ...
+# Subtest: assertUserAccess rejects non-admin access to another user resource
+ok 41 - assertUserAccess rejects non-admin access to another user resource
+  ---
+  duration_ms: 0.6399
+  type: 'test'
+  ...
+# Subtest: requireScope allows admin access without explicit scopes
+ok 42 - requireScope allows admin access without explicit scopes
+  ---
+  duration_ms: 0.3024
+  type: 'test'
+  ...
+# Subtest: requireScope rejects user tokens that are missing the required scope
+ok 43 - requireScope rejects user tokens that are missing the required scope
+  ---
+  duration_ms: 0.2372
+  type: 'test'
+  ...
+# Subtest: requireScope allows user tokens when the required scope is present
+ok 44 - requireScope allows user tokens when the required scope is present
+  ---
+  duration_ms: 0.1815
+  type: 'test'
+  ...
+# Subtest: ensureProjectAccess throws ProjectNotFoundError when the project does not exist
+ok 45 - ensureProjectAccess throws ProjectNotFoundError when the project does not exist
+  ---
+  duration_ms: 0.5762
+  type: 'test'
+  ...
+# Subtest: ensureProjectAccess allows project owners without membership lookup
+ok 46 - ensureProjectAccess allows project owners without membership lookup
+  ---
+  duration_ms: 0.9926
+  type: 'test'
+  ...
+# Subtest: ensureProjectAccess allows admins without membership lookup
+ok 47 - ensureProjectAccess allows admins without membership lookup
+  ---
+  duration_ms: 0.2269
+  type: 'test'
+  ...
+# Subtest: ensureProjectAccess allows project members when a membership row exists
+ok 48 - ensureProjectAccess allows project members when a membership row exists
+  ---
+  duration_ms: 0.5175
+  type: 'test'
+  ...
+# Subtest: ensureProjectAccess rejects non-owner users without project membership
+ok 49 - ensureProjectAccess rejects non-owner users without project membership
+  ---
+  duration_ms: 0.8329
+  type: 'test'
+  ...
+# [vcloudrunner-api] ENABLE_DEV_AUTH is enabled; this bypass is intended for local development only.
+# [vcloudrunner-api] API_TOKENS_JSON static token fallback is enabled; prefer DB-backed tokens for normal operation.
+# Subtest: list deployments allows project members with deployments:read scope
+ok 50 - list deployments allows project members with deployments:read scope
+  ---
+  duration_ms: 47.0215
+  type: 'test'
+  ...
+# Subtest: list deployments rejects tokens missing deployments:read scope
+ok 51 - list deployments rejects tokens missing deployments:read scope
+  ---
+  duration_ms: 6.7536
+  type: 'test'
+  ...
+# Subtest: create deployment allows project members with deployments:write scope
+ok 52 - create deployment allows project members with deployments:write scope
+  ---
+  duration_ms: 8.2187
+  type: 'test'
+  ...
+# Subtest: create deployment rejects tokens missing deployments:write scope
+ok 53 - create deployment rejects tokens missing deployments:write scope
+  ---
+  duration_ms: 8.2979
+  type: 'test'
+  ...
+# Subtest: create deployment rejects non-members who are not the owner or admin
+ok 54 - create deployment rejects non-members who are not the owner or admin
+  ---
+  duration_ms: 7.3389
+  type: 'test'
+  ...
+# Subtest: cancel deployment allows project members with deployments:cancel scope
+ok 55 - cancel deployment allows project members with deployments:cancel scope
+  ---
+  duration_ms: 8.1313
+  type: 'test'
+  ...
+# Subtest: cancel deployment rejects tokens that are missing deployments:cancel scope
+ok 56 - cancel deployment rejects tokens that are missing deployments:cancel scope
+  ---
+  duration_ms: 6.9267
+  type: 'test'
+  ...
+# Subtest: cancel deployment rejects non-members who are not the owner or admin
+ok 57 - cancel deployment rejects non-members who are not the owner or admin
+  ---
+  duration_ms: 4.4747
+  type: 'test'
+  ...
+# Subtest: list deployments rejects non-members who are not the owner or admin
+ok 58 - list deployments rejects non-members who are not the owner or admin
+  ---
+  duration_ms: 11.728
+  type: 'test'
+  ...
+# [vcloudrunner-api] ENABLE_DEV_AUTH is enabled; this bypass is intended for local development only.
+# [vcloudrunner-api] API_TOKENS_JSON static token fallback is enabled; prefer DB-backed tokens for normal operation.
+# Subtest: createDeployment throws ProjectNotFoundError when project does not exist
+ok 59 - createDeployment throws ProjectNotFoundError when project does not exist
+  ---
+  duration_ms: 3.4999
+  type: 'test'
+  ...
+# Subtest: createDeployment throws DeploymentAlreadyActiveError when insert is skipped
+ok 60 - createDeployment throws DeploymentAlreadyActiveError when insert is skipped
+  ---
+  duration_ms: 0.4117
+  type: 'test'
+  ...
+# Subtest: createDeployment maps unique constraint violations to DeploymentAlreadyActiveError
+ok 61 - createDeployment maps unique constraint violations to DeploymentAlreadyActiveError
+  ---
+  duration_ms: 0.5057
+  type: 'test'
+  ...
+# Subtest: createDeployment maps index violation without table metadata to DeploymentAlreadyActiveError
+ok 62 - createDeployment maps index violation without table metadata to DeploymentAlreadyActiveError
+  ---
+  duration_ms: 0.3332
+  type: 'test'
+  ...
+# Subtest: createDeployment rethrows unrelated unique violations
+ok 63 - createDeployment rethrows unrelated unique violations
+  ---
+  duration_ms: 0.387
+  type: 'test'
+  ...
+# Subtest: createDeployment rethrows index violation for non-deployments table
+ok 64 - createDeployment rethrows index violation for non-deployments table
+  ---
+  duration_ms: 0.3563
+  type: 'test'
+  ...
+# Subtest: createDeployment maps project foreign-key violations to ProjectNotFoundError
+ok 65 - createDeployment maps project foreign-key violations to ProjectNotFoundError
+  ---
+  duration_ms: 0.2839
+  type: 'test'
+  ...
+# Subtest: createDeployment maps project FK violation without table metadata to ProjectNotFoundError
+ok 66 - createDeployment maps project FK violation without table metadata to ProjectNotFoundError
+  ---
+  duration_ms: 0.2659
+  type: 'test'
+  ...
+# Subtest: createDeployment rethrows unrelated foreign-key violations
+ok 67 - createDeployment rethrows unrelated foreign-key violations
+  ---
+  duration_ms: 1.0924
+  type: 'test'
+  ...
+# Subtest: createDeployment rethrows project FK violation for non-deployments table
+ok 68 - createDeployment rethrows project FK violation for non-deployments table
+  ---
+  duration_ms: 1.6845
+  type: 'test'
+  ...
+# Subtest: createDeployment still throws DeploymentQueueUnavailableError when markFailed best-effort update fails
+ok 69 - createDeployment still throws DeploymentQueueUnavailableError when markFailed best-effort update fails
+  ---
+  duration_ms: 1.0323
+  type: 'test'
+  ...
+# Subtest: createDeployment marks failed with diagnostics and throws DeploymentQueueUnavailableError when enqueue fails
+ok 70 - createDeployment marks failed with diagnostics and throws DeploymentQueueUnavailableError when enqueue fails
+  ---
+  duration_ms: 0.8135
+  type: 'test'
+  ...
+# Subtest: createDeployment marks failed and rethrows the original error when env decryption fails after the deployment row is created
+ok 71 - createDeployment marks failed and rethrows the original error when env decryption fails after the deployment row is created
+  ---
+  duration_ms: 1.2951
+  type: 'test'
+  ...
+# Subtest: createDeployment still rethrows the original env error when markFailed best-effort update fails
+ok 72 - createDeployment still rethrows the original env error when markFailed best-effort update fails
+  ---
+  duration_ms: 1.0791
+  type: 'test'
+  ...
+# Subtest: cancelDeployment throws DeploymentNotFoundError when deployment does not exist
+ok 73 - cancelDeployment throws DeploymentNotFoundError when deployment does not exist
+  ---
+  duration_ms: 1.0677
+  type: 'test'
+  ...
+# Subtest: cancelDeployment returns requested when queue cancellation throws for queued deployment
+ok 74 - cancelDeployment returns requested when queue cancellation throws for queued deployment
+  ---
+  duration_ms: 1.7055
+  type: 'test'
+  ...
+# Subtest: cancelDeployment marks stopped when queued job is removed
+ok 75 - cancelDeployment marks stopped when queued job is removed
+  ---
+  duration_ms: 2.0435
+  type: 'test'
+  ...
+# Subtest: cancelDeployment still returns completed when queued cancellation log write fails after stop state is saved
+ok 76 - cancelDeployment still returns completed when queued cancellation log write fails after stop state is saved
+  ---
+  duration_ms: 0.3621
+  type: 'test'
+  ...
+# Subtest: cancelDeployment marks failed and rethrows the original error when stop persistence fails after queue removal
+ok 77 - cancelDeployment marks failed and rethrows the original error when stop persistence fails after queue removal
+  ---
+  duration_ms: 0.7712
+  type: 'test'
+  ...
+# Subtest: cancelDeployment still rethrows the original stop persistence error when failed-state fallback also fails
+ok 78 - cancelDeployment still rethrows the original stop persistence error when failed-state fallback also fails
+  ---
+  duration_ms: 0.4457
+  type: 'test'
+  ...
+# Subtest: cancelDeployment normalizes non-object metadata before marking cancellation requested
+ok 79 - cancelDeployment normalizes non-object metadata before marking cancellation requested
+  ---
+  duration_ms: 0.8581
+  type: 'test'
+  ...
+# Subtest: cancelDeployment still returns requested when cancellation log write fails after request metadata is saved
+ok 80 - cancelDeployment still returns requested when cancellation log write fails after request metadata is saved
+  ---
+  duration_ms: 0.6356
+  type: 'test'
+  ...
+# Subtest: cancelDeployment rejects status running
+ok 81 - cancelDeployment rejects status running
+  ---
+  duration_ms: 0.4608
+  type: 'test'
+  ...
+# Subtest: cancelDeployment rejects status failed
+ok 82 - cancelDeployment rejects status failed
+  ---
+  duration_ms: 0.3501
+  type: 'test'
+  ...
+# Subtest: cancelDeployment rejects status stopped
+ok 83 - cancelDeployment rejects status stopped
+  ---
+  duration_ms: 0.2263
+  type: 'test'
+  ...
+# [vcloudrunner-api] ENABLE_DEV_AUTH is enabled; this bypass is intended for local development only.
+# [vcloudrunner-api] API_TOKENS_JSON static token fallback is enabled; prefer DB-backed tokens for normal operation.
+# Subtest: list environment variables allows project members with environment:read scope
+ok 84 - list environment variables allows project members with environment:read scope
+  ---
+  duration_ms: 51.0255
+  type: 'test'
+  ...
+# Subtest: list environment variables rejects tokens missing environment:read scope
+ok 85 - list environment variables rejects tokens missing environment:read scope
+  ---
+  duration_ms: 7.9811
+  type: 'test'
+  ...
+# Subtest: upsert environment variable allows project members with environment:write scope
+ok 86 - upsert environment variable allows project members with environment:write scope
+  ---
+  duration_ms: 9.6616
+  type: 'test'
+  ...
+# Subtest: upsert environment variable rejects tokens missing environment:write scope
+ok 87 - upsert environment variable rejects tokens missing environment:write scope
+  ---
+  duration_ms: 4.4998
+  type: 'test'
+  ...
+# Subtest: upsert environment variable rejects non-members who are not the owner or admin
+ok 88 - upsert environment variable rejects non-members who are not the owner or admin
+  ---
+  duration_ms: 6.2115
+  type: 'test'
+  ...
+# Subtest: delete environment variable allows project members with environment:write scope
+ok 89 - delete environment variable allows project members with environment:write scope
+  ---
+  duration_ms: 3.8068
+  type: 'test'
+  ...
+# Subtest: delete environment variable rejects tokens missing environment:write scope
+ok 90 - delete environment variable rejects tokens missing environment:write scope
+  ---
+  duration_ms: 5.6339
+  type: 'test'
+  ...
+# Subtest: delete environment variable rejects non-members who are not the owner or admin
+ok 91 - delete environment variable rejects non-members who are not the owner or admin
+  ---
+  duration_ms: 3.6888
+  type: 'test'
+  ...
+# Subtest: list environment variables rejects non-members who are not the owner or admin
+ok 92 - list environment variables rejects non-members who are not the owner or admin
+  ---
+  duration_ms: 11.5161
+  type: 'test'
+  ...
+# [vcloudrunner-api] ENABLE_DEV_AUTH is enabled; this bypass is intended for local development only.
+# [vcloudrunner-api] API_TOKENS_JSON static token fallback is enabled; prefer DB-backed tokens for normal operation.
+# Subtest: list deployment logs allows project members with logs:read scope
+ok 93 - list deployment logs allows project members with logs:read scope
+  ---
+  duration_ms: 52.2257
+  type: 'test'
+  ...
+# Subtest: list deployment logs treats blank limit as the documented default
+ok 94 - list deployment logs treats blank limit as the documented default
+  ---
+  duration_ms: 7.3402
+  type: 'test'
+  ...
+# Subtest: list deployment logs rejects non-integer limit values
+ok 95 - list deployment logs rejects non-integer limit values
+  ---
+  duration_ms: 7.8807
+  type: 'test'
+  ...
+# Subtest: export deployment logs allows project members with logs:read scope
+ok 96 - export deployment logs allows project members with logs:read scope
+  ---
+  duration_ms: 8.4258
+  type: 'test'
+  ...
+# Subtest: list deployment logs rejects tokens missing logs:read scope
+ok 97 - list deployment logs rejects tokens missing logs:read scope
+  ---
+  duration_ms: 7.5392
+  type: 'test'
+  ...
+# Subtest: list deployment logs rejects non-members who are not the owner or admin
+ok 98 - list deployment logs rejects non-members who are not the owner or admin
+  ---
+  duration_ms: 6.5907
+  type: 'test'
+  ...
+# Subtest: stream deployment logs rejects tokens missing logs:read scope
+ok 99 - stream deployment logs rejects tokens missing logs:read scope
+  ---
+  duration_ms: 6.4648
+  type: 'test'
+  ...
+# Subtest: stream deployment logs rejects non-members who are not the owner or admin
+ok 100 - stream deployment logs rejects non-members who are not the owner or admin
+  ---
+  duration_ms: 10.8528
+  type: 'test'
+  ...
+# Subtest: stream emits an SSE error event and closes cleanly when polling fails after the initial payload
+ok 101 - stream emits an SSE error event and closes cleanly when polling fails after the initial payload
+  ---
+  duration_ms: 10.509
+  type: 'test'
+  ...
+# Subtest: stream skips overlapping poll ticks until the active log query settles
+ok 102 - stream skips overlapping poll ticks until the active log query settles
+  ---
+  duration_ms: 9.3497
+  type: 'test'
+  ...
+# Subtest: stream deployment logs treats blank pollMs as the documented default
+ok 103 - stream deployment logs treats blank pollMs as the documented default
+  ---
+  duration_ms: 4.4565
+  type: 'test'
+  ...
+# Subtest: stream deployment logs rejects non-integer pollMs values
+ok 104 - stream deployment logs rejects non-integer pollMs values
+  ---
+  duration_ms: 5.5735
+  type: 'test'
+  ...
+# [vcloudrunner-api] ENABLE_DEV_AUTH is enabled; this bypass is intended for local development only.
+# [vcloudrunner-api] API_TOKENS_JSON static token fallback is enabled; prefer DB-backed tokens for normal operation.
+# Subtest: create project allows admin access to another user without explicit token scopes
+ok 105 - create project allows admin access to another user without explicit token scopes
+  ---
+  duration_ms: 44.2009
+  type: 'test'
+  ...
+# Subtest: create project rejects tokens missing projects:write scope
+ok 106 - create project rejects tokens missing projects:write scope
+  ---
+  duration_ms: 11.1901
+  type: 'test'
+  ...
+# Subtest: create project rejects non-admin access to another user resource
+ok 107 - create project rejects non-admin access to another user resource
+  ---
+  duration_ms: 7.122
+  type: 'test'
+  ...
+# Subtest: list projects allows admin access to another user without explicit token scopes
+ok 108 - list projects allows admin access to another user without explicit token scopes
+  ---
+  duration_ms: 4.5686
+  type: 'test'
+  ...
+# Subtest: list projects rejects tokens missing projects:read scope
+ok 109 - list projects rejects tokens missing projects:read scope
+  ---
+  duration_ms: 7.7444
+  type: 'test'
+  ...
+# Subtest: get project by id allows project members with projects:read scope
+ok 110 - get project by id allows project members with projects:read scope
+  ---
+  duration_ms: 6.635
+  type: 'test'
+  ...
+# Subtest: get project by id rejects tokens missing projects:read scope
+ok 111 - get project by id rejects tokens missing projects:read scope
+  ---
+  duration_ms: 6.2148
+  type: 'test'
+  ...
+# Subtest: list projects includes membership-accessible projects for the actor user
+ok 112 - list projects includes membership-accessible projects for the actor user
+  ---
+  duration_ms: 6.1719
+  type: 'test'
+  ...
+# Subtest: list projects rejects non-admin access to another user resource
+ok 113 - list projects rejects non-admin access to another user resource
+  ---
+  duration_ms: 11.8534
+  type: 'test'
+  ...
+# Subtest: get project by id rejects non-members who are not the owner or admin
+ok 114 - get project by id rejects non-members who are not the owner or admin
+  ---
+  duration_ms: 6.5856
+  type: 'test'
+  ...
+# [vcloudrunner-api] ENABLE_DEV_AUTH is enabled; this bypass is intended for local development only.
+# [vcloudrunner-api] API_TOKENS_JSON static token fallback is enabled; prefer DB-backed tokens for normal operation.
+# Subtest: auth context falls back to static tokens when the DB lookup misses
+ok 115 - auth context falls back to static tokens when the DB lookup misses
+  ---
+  duration_ms: 46.6522
+  type: 'test'
+  ...
+# Subtest: auth context prefers DB-backed tokens over static token fallback for the same bearer token
+ok 116 - auth context prefers DB-backed tokens over static token fallback for the same bearer token
+  ---
+  duration_ms: 5.5963
+  type: 'test'
+  ...
+# Subtest: auth context accepts dev-admin-token only when explicit dev auth is enabled
+ok 117 - auth context accepts dev-admin-token only when explicit dev auth is enabled
+  ---
+  duration_ms: 8.4123
+  type: 'test'
+  ...
+# Subtest: auth context rejects dev-admin-token when explicit dev auth is disabled
+ok 118 - auth context rejects dev-admin-token when explicit dev auth is disabled
+  ---
+  duration_ms: 5.5642
+  type: 'test'
+  ...
+# Subtest: auth context does not fall back to dev auth when a bearer token is provided but invalid
+ok 119 - auth context does not fall back to dev auth when a bearer token is provided but invalid
+  ---
+  duration_ms: 5.2928
+  type: 'test'
+  ...
+# Subtest: auth context does not fall back to dev auth when the authorization header is malformed
+ok 120 - auth context does not fall back to dev auth when the authorization header is malformed
+  ---
+  duration_ms: 5.6432
+  type: 'test'
+  ...
+# Subtest: auth context uses x-user-id only for v1 requests when explicit dev auth is enabled
+ok 121 - auth context uses x-user-id only for v1 requests when explicit dev auth is enabled
+  ---
+  duration_ms: 6.3388
+  type: 'test'
+  ...
+# Subtest: requireAuthContext preserves the explicit dev-auth fallback for non-v1 routes
+ok 122 - requireAuthContext preserves the explicit dev-auth fallback for non-v1 routes
+  ---
+  duration_ms: 5.92
+  type: 'test'
+  ...
+# Subtest: requireAuthContext does not fall back to dev auth on non-v1 routes when an auth header was provided
+ok 123 - requireAuthContext does not fall back to dev auth on non-v1 routes when an auth header was provided
+  ---
+  duration_ms: 8.2952
+  type: 'test'
+  ...
+# Subtest: auth context plugin rejects malformed API_TOKENS_JSON with an explicit startup error
+ok 124 - auth context plugin rejects malformed API_TOKENS_JSON with an explicit startup error
+  ---
+  duration_ms: 4.3039
+  type: 'test'
+  ...
+# Subtest: auth context plugin rejects duplicate static token entries at startup
+ok 125 - auth context plugin rejects duplicate static token entries at startup
+  ---
+  duration_ms: 5.8781
+  type: 'test'
+  ...
+# [vcloudrunner-api] ENABLE_DEV_AUTH is enabled; this bypass is intended for local development only.
+# [vcloudrunner-api] API_TOKENS_JSON static token fallback is enabled; prefer DB-backed tokens for normal operation.
+# Subtest: enqueue applies deterministic jobId based on deploymentId
+ok 126 - enqueue applies deterministic jobId based on deploymentId
+  ---
+  duration_ms: 595.0201
+  type: 'test'
+  ...
+# Subtest: cancelQueuedDeployment removes direct job-id match and still scans for legacy duplicates
+ok 127 - cancelQueuedDeployment removes direct job-id match and still scans for legacy duplicates
+  ---
+  duration_ms: 6.9541
+  type: 'test'
+  ...
+# Subtest: cancelQueuedDeployment falls back to scan when direct remove throws
+ok 128 - cancelQueuedDeployment falls back to scan when direct remove throws
+  ---
+  duration_ms: 5.3375
+  type: 'test'
+  ...
+# Subtest: cancelQueuedDeployment falls back to scan when direct lookup throws
+ok 129 - cancelQueuedDeployment falls back to scan when direct lookup throws
+  ---
+  duration_ms: 1.4724
+  type: 'test'
+  ...
+# Subtest: cancelQueuedDeployment removes matching jobs via fallback queue scan
+ok 130 - cancelQueuedDeployment removes matching jobs via fallback queue scan
+  ---
+  duration_ms: 2.5237
+  type: 'test'
+  ...
+# Subtest: cancelQueuedDeployment continues fallback scan when one matching remove races away
+ok 131 - cancelQueuedDeployment continues fallback scan when one matching remove races away
+  ---
+  duration_ms: 3.5086
+  type: 'test'
+  ...
+# Subtest: cancelQueuedDeployment still returns true when direct removal succeeds and duplicate scan fails
+ok 132 - cancelQueuedDeployment still returns true when direct removal succeeds and duplicate scan fails
+  ---
+  duration_ms: 2.5456
+  type: 'test'
+  ...
+# Subtest: cancelQueuedDeployment returns false when no matching queued jobs exist
+ok 133 - cancelQueuedDeployment returns false when no matching queued jobs exist
+  ---
+  duration_ms: 1.0145
+  type: 'test'
+  ...
+# Subtest: cancelQueuedDeployment returns false when every matching fallback removal races away
+ok 134 - cancelQueuedDeployment returns false when every matching fallback removal races away
+  ---
+  duration_ms: 1.3447
+  type: 'test'
+  ...
+# Subtest: cancelQueuedDeployment returns false when direct lookup throws and scan finds nothing
+ok 135 - cancelQueuedDeployment returns false when direct lookup throws and scan finds nothing
+  ---
+  duration_ms: 2.0803
+  type: 'test'
+  ...
+# [vcloudrunner-api] ENABLE_DEV_AUTH is enabled; this bypass is intended for local development only.
+# [vcloudrunner-api] API_TOKENS_JSON static token fallback is enabled; prefer DB-backed tokens for normal operation.
+# Subtest: parseRedisConnectionOptions parses credentials and explicit database index
+ok 136 - parseRedisConnectionOptions parses credentials and explicit database index
+  ---
+  duration_ms: 2.6947
+  type: 'test'
+  ...
+# Subtest: parseRedisConnectionOptions defaults to port 6379 and database 0
+ok 137 - parseRedisConnectionOptions defaults to port 6379 and database 0
+  ---
+  duration_ms: 0.3064
+  type: 'test'
+  ...
+# Subtest: parseRedisConnectionOptions rejects non-integer database index paths
+ok 138 - parseRedisConnectionOptions rejects non-integer database index paths
+  ---
+  duration_ms: 1.3402
+  type: 'test'
+  ...
+# Subtest: parseRedisConnectionOptions rejects nested database index paths
+ok 139 - parseRedisConnectionOptions rejects nested database index paths
+  ---
+  duration_ms: 0.3683
+  type: 'test'
+  ...
+# [vcloudrunner-api] ENABLE_DEV_AUTH is enabled; this bypass is intended for local development only.
+# [vcloudrunner-api] API_TOKENS_JSON static token fallback is enabled; prefer DB-backed tokens for normal operation.
+# Subtest: error handler maps ProjectNotFoundError to 404
+ok 140 - error handler maps ProjectNotFoundError to 404
+  ---
+  duration_ms: 36.7871
+  type: 'test'
+  ...
+# Subtest: error handler maps DeploymentNotFoundError to 404
+ok 141 - error handler maps DeploymentNotFoundError to 404
+  ---
+  duration_ms: 4.7133
+  type: 'test'
+  ...
+# Subtest: error handler maps ProjectSlugTakenError to 409
+ok 142 - error handler maps ProjectSlugTakenError to 409
+  ---
+  duration_ms: 2.5969
+  type: 'test'
+  ...
+# Subtest: error handler maps DeploymentAlreadyActiveError to 409
+ok 143 - error handler maps DeploymentAlreadyActiveError to 409
+  ---
+  duration_ms: 3.785
+  type: 'test'
+  ...
+# Subtest: error handler maps DeploymentQueueUnavailableError to 503
+ok 144 - error handler maps DeploymentQueueUnavailableError to 503
+  ---
+  duration_ms: 2.8766
+  type: 'test'
+  ...
+# Subtest: error handler maps DeploymentCancellationNotAllowedError to 409
+ok 145 - error handler maps DeploymentCancellationNotAllowedError to 409
+  ---
+  duration_ms: 2.1924
+  type: 'test'
+  ...
+# Subtest: error handler maps ApiTokenNotFoundError to 404
+ok 146 - error handler maps ApiTokenNotFoundError to 404
+  ---
+  duration_ms: 5.1115
+  type: 'test'
+  ...
+# Subtest: error handler maps unknown DomainError to its statusCode
+ok 147 - error handler maps unknown DomainError to its statusCode
+  ---
+  duration_ms: 4.6043
+  type: 'test'
+  ...
+# Subtest: error handler returns 500 for non-domain errors
+ok 148 - error handler returns 500 for non-domain errors
+  ---
+  duration_ms: 10.6964
+  type: 'test'
+  ...
+# Subtest: error handler preserves explicit operational status codes on non-domain errors
+ok 149 - error handler preserves explicit operational status codes on non-domain errors
+  ---
+  duration_ms: 4.4538
+  type: 'test'
+  ...
+# Subtest: unknown route returns 404 JSON
+ok 150 - unknown route returns 404 JSON
+  ---
+  duration_ms: 2.7611
+  type: 'test'
+  ...
+# Subtest: root auth plugin applies to sibling route plugins
+ok 151 - root auth plugin applies to sibling route plugins
+  ---
+  duration_ms: 11.0972
+  type: 'test'
+  ...
+# Subtest: root error handler applies to sibling route plugins
+ok 152 - root error handler applies to sibling route plugins
+  ---
+  duration_ms: 6.4437
+  type: 'test'
+  ...
+# [vcloudrunner-api] ENABLE_DEV_AUTH is enabled; this bypass is intended for local development only.
+# [vcloudrunner-api] API_TOKENS_JSON static token fallback is enabled; prefer DB-backed tokens for normal operation.
+# {"level":30,"timestamp":"2026-03-22T20:20:33.979Z","service":"api","reqId":"req-1","req":{"method":"GET","url":"/health","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"message":"incoming request"}
+# Subtest: buildServer exposes health endpoint with request id and closes injected dependencies
+not ok 153 - buildServer exposes health endpoint with request id and closes injected dependencies
+  ---
+  duration_ms: 53.2813
+  type: 'test'
+  location: 'C:\\Users\\Zhitn\\Desktop\\Vcloudrunner\\apps\\api\\src\\server\\build-server.test.ts:1:2037'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+        alertStartCalls: 1,
+        alertStopCalls: 1,
+    +   queueCloseCalls: 2,
+    -   queueCloseCalls: 1,
+        redisQuitCalls: 1
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    queueCloseCalls: 1
+    redisQuitCalls: 1
+    alertStartCalls: 1
+    alertStopCalls: 1
+  actual:
+    queueCloseCalls: 2
+    redisQuitCalls: 1
+    alertStartCalls: 1
+    alertStopCalls: 1
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (C:\Users\Zhitn\Desktop\Vcloudrunner\apps\api\src\server\build-server.test.ts:124:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# {"level":30,"timestamp":"2026-03-22T20:20:34.001Z","service":"api","reqId":"req-1","req":{"method":"GET","url":"/health/queue","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"message":"incoming request"}
+# Subtest: buildServer returns queue health payload when redis ping succeeds
+ok 154 - buildServer returns queue health payload when redis ping succeeds
+  ---
+  duration_ms: 13.4286
+  type: 'test'
+  ...
+# {"level":30,"timestamp":"2026-03-22T20:20:34.014Z","service":"api","reqId":"req-1","req":{"method":"GET","url":"/health/queue","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"message":"incoming request"}
+# Subtest: buildServer returns queue health unavailable when redis ping fails
+ok 155 - buildServer returns queue health unavailable when redis ping fails
+  ---
+  duration_ms: 13.2119
+  type: 'test'
+  ...
+# {"level":30,"timestamp":"2026-03-22T20:20:34.023Z","service":"api","reqId":"req-1","req":{"method":"GET","url":"/health/queue","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"message":"incoming request"}
+# Subtest: buildServer marks queue health as degraded when redis ping is not PONG
+ok 156 - buildServer marks queue health as degraded when redis ping is not PONG
+  ---
+  duration_ms: 8.4002
+  type: 'test'
+  ...
+# {"level":30,"timestamp":"2026-03-22T20:20:34.031Z","service":"api","reqId":"req-1","req":{"method":"GET","url":"/health/worker","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"message":"incoming request"}
+# Subtest: buildServer preserves stale worker health payloads on health endpoint
+ok 157 - buildServer preserves stale worker health payloads on health endpoint
+  ---
+  duration_ms: 8.9896
+  type: 'test'
+  ...
+# {"level":30,"timestamp":"2026-03-22T20:20:34.040Z","service":"api","reqId":"req-1","req":{"method":"GET","url":"/health","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"message":"incoming request"}
+# Subtest: buildServer applies allowlisted CORS headers for configured origins
+ok 158 - buildServer applies allowlisted CORS headers for configured origins
+  ---
+  duration_ms: 7.7245
+  type: 'test'
+  ...
+# {"level":30,"timestamp":"2026-03-22T20:20:34.048Z","service":"api","reqId":"req-1","req":{"method":"GET","url":"/health","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"message":"incoming request"}
+# Subtest: buildServer rejects disallowed CORS origins with an explicit 403 response
+ok 159 - buildServer rejects disallowed CORS origins with an explicit 403 response
+  ---
+  duration_ms: 9.0015
+  type: 'test'
+  ...
+# {"level":30,"timestamp":"2026-03-22T20:20:34.060Z","service":"api","reqId":"req-1","req":{"method":"GET","url":"/health/worker","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"message":"incoming request"}
+# Subtest: buildServer maps thrown worker health errors to unavailable on health endpoint
+ok 160 - buildServer maps thrown worker health errors to unavailable on health endpoint
+  ---
+  duration_ms: 11.1712
+  type: 'test'
+  ...
+# {"level":30,"timestamp":"2026-03-22T20:20:34.071Z","service":"api","reqId":"req-1","req":{"method":"GET","url":"/metrics/queue","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"message":"incoming request"}
+# Subtest: buildServer exposes raw queue metrics with request id on metrics endpoint
+ok 161 - buildServer exposes raw queue metrics with request id on metrics endpoint
+  ---
+  duration_ms: 11.2711
+  type: 'test'
+  ...
+# {"level":30,"timestamp":"2026-03-22T20:20:34.080Z","service":"api","reqId":"req-1","req":{"method":"GET","url":"/health","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"message":"incoming request"}
+# Subtest: buildServer enforces configured rate limits and exposes rate-limit headers
+ok 162 - buildServer enforces configured rate limits and exposes rate-limit headers
+  ---
+  duration_ms: 9.5822
+  type: 'test'
+  ...
+# {"level":30,"timestamp":"2026-03-22T20:20:34.089Z","service":"api","reqId":"req-1","req":{"method":"GET","url":"/health","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"message":"incoming request"}
+# Subtest: buildServer ignores forwarded allowlist IPs when trust proxy is disabled
+ok 163 - buildServer ignores forwarded allowlist IPs when trust proxy is disabled
+  ---
+  duration_ms: 8.6211
+  type: 'test'
+  ...
+# {"level":30,"timestamp":"2026-03-22T20:20:34.098Z","service":"api","reqId":"req-1","req":{"method":"GET","url":"/health","hostname":"localhost:80","remoteAddress":"203.0.113.10"},"message":"incoming request"}
+# Subtest: buildServer honors forwarded allowlist IPs when trust proxy is enabled
+ok 164 - buildServer honors forwarded allowlist IPs when trust proxy is enabled
+  ---
+  duration_ms: 8.5384
+  type: 'test'
+  ...
+# {"level":30,"timestamp":"2026-03-22T20:20:34.107Z","service":"api","reqId":"req-1","req":{"method":"GET","url":"/metrics/queue","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"message":"incoming request"}
+# Subtest: buildServer maps thrown queue metric errors to unavailable
+ok 165 - buildServer maps thrown queue metric errors to unavailable
+  ---
+  duration_ms: 8.7066
+  type: 'test'
+  ...
+# {"level":30,"timestamp":"2026-03-22T20:20:34.115Z","service":"api","reqId":"req-1","req":{"method":"GET","url":"/metrics/worker","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"message":"incoming request"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.124Z","service":"api","reqId":"req-1","req":{"method":"GET","url":"/metrics/worker","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"message":"incoming request"}
+# Subtest: buildServer exposes raw stale worker metrics but maps thrown worker metric errors to unavailable
+ok 166 - buildServer exposes raw stale worker metrics but maps thrown worker metric errors to unavailable
+  ---
+  duration_ms: 16.585
+  type: 'test'
+  ...
+# Subtest: buildServer still closes cleanly when queue and redis shutdown hooks fail
+not ok 167 - buildServer still closes cleanly when queue and redis shutdown hooks fail
+  ---
+  duration_ms: 7.1936
+  type: 'test'
+  location: 'C:\\Users\\Zhitn\\Desktop\\Vcloudrunner\\apps\\api\\src\\server\\build-server.test.ts:1:11446'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+        alertStartCalls: 1,
+        alertStopCalls: 1,
+    +   queueCloseCalls: 2,
+    -   queueCloseCalls: 1,
+        redisQuitCalls: 1
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    queueCloseCalls: 1
+    redisQuitCalls: 1
+    alertStartCalls: 1
+    alertStopCalls: 1
+  actual:
+    queueCloseCalls: 2
+    redisQuitCalls: 1
+    alertStartCalls: 1
+    alertStopCalls: 1
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (C:\Users\Zhitn\Desktop\Vcloudrunner\apps\api\src\server\build-server.test.ts:551:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# {"level":30,"timestamp":"2026-03-22T20:20:33.983Z","service":"api","reqId":"req-1","res":{"statusCode":200},"responseTime":3.1926000118255615,"message":"request completed"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.001Z","service":"api","reqId":"req-1","res":{"statusCode":200},"responseTime":0.6606000065803528,"message":"request completed"}
+# {"level":50,"timestamp":"2026-03-22T20:20:34.014Z","service":"api","reqId":"req-1","error":{},"message":"queue health check failed"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.015Z","service":"api","reqId":"req-1","res":{"statusCode":503},"responseTime":0.6301999688148499,"message":"request completed"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.023Z","service":"api","reqId":"req-1","res":{"statusCode":200},"responseTime":0.33969998359680176,"message":"request completed"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.032Z","service":"api","reqId":"req-1","res":{"statusCode":503},"responseTime":0.6800999641418457,"message":"request completed"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.040Z","service":"api","reqId":"req-1","res":{"statusCode":200},"responseTime":0.2426999807357788,"message":"request completed"}
+# {"level":40,"timestamp":"2026-03-22T20:20:34.048Z","service":"api","err":{"type":"Error","message":"Origin not allowed by CORS","stack":"Error: Origin not allowed by CORS\\n    at createStatusCodeError (C:\\\\Users\\\\Zhitn\\\\Desktop\\\\Vcloudrunner\\\\apps\\\\api\\\\src\\\\server\\\\build-server.ts:53:17)\\n    at Object.origin (C:\\\\Users\\\\Zhitn\\\\Desktop\\\\Vcloudrunner\\\\apps\\\\api\\\\src\\\\server\\\\build-server.ts:119:16)\\n    at C:\\\\Users\\\\Zhitn\\\\Desktop\\\\Vcloudrunner\\\\apps\\\\api\\\\node_modules\\\\@fastify\\\\cors\\\\index.js:259:27\\n    at addCorsHeadersHandler (C:\\\\Users\\\\Zhitn\\\\Desktop\\\\Vcloudrunner\\\\apps\\\\api\\\\node_modules\\\\@fastify\\\\cors\\\\index.js:164:3)\\n    at Object.handleCors (C:\\\\Users\\\\Zhitn\\\\Desktop\\\\Vcloudrunner\\\\apps\\\\api\\\\node_modules\\\\@fastify\\\\cors\\\\index.js:64:9)\\n    at hookIterator (C:\\\\Users\\\\Zhitn\\\\Desktop\\\\Vcloudrunner\\\\node_modules\\\\fastify\\\\lib\\\\hooks.js:405:10)\\n    at next (C:\\\\Users\\\\Zhitn\\\\Desktop\\\\Vcloudrunner\\\\node_modules\\\\fastify\\\\lib\\\\hooks.js:239:18)\\n    at hookRunner (C:\\\\Users\\\\Zhitn\\\\Desktop\\\\Vcloudrunner\\\\node_modules\\\\fastify\\\\lib\\\\hooks.js:261:5)\\n    at Object.routeHandler [as handler] (C:\\\\Users\\\\Zhitn\\\\Desktop\\\\Vcloudrunner\\\\node_modules\\\\fastify\\\\lib\\\\route.js:527:7)\\n    at Router.callHandler (C:\\\\Users\\\\Zhitn\\\\Desktop\\\\Vcloudrunner\\\\node_modules\\\\find-my-way\\\\index.js:552:14)","statusCode":403},"statusCode":403,"requestId":"req-1","method":"GET","url":"/health","message":"Origin not allowed by CORS"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.049Z","service":"api","reqId":"req-1","res":{"statusCode":403},"responseTime":1.4348999857902527,"message":"request completed"}
+# {"level":50,"timestamp":"2026-03-22T20:20:34.060Z","service":"api","reqId":"req-1","error":{},"message":"worker health check failed"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.061Z","service":"api","reqId":"req-1","res":{"statusCode":503},"responseTime":0.4496999979019165,"message":"request completed"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.072Z","service":"api","reqId":"req-1","res":{"statusCode":200},"responseTime":0.7836000323295593,"message":"request completed"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.081Z","service":"api","reqId":"req-1","res":{"statusCode":200},"responseTime":0.6233999729156494,"message":"request completed"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.081Z","service":"api","reqId":"req-2","req":{"method":"GET","url":"/health","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"message":"incoming request"}
+# {"level":40,"timestamp":"2026-03-22T20:20:34.081Z","service":"api","err":{"type":"Error","message":"Rate limit exceeded, retry in 1 minute","stack":"Error: Rate limit exceeded, retry in 1 minute\\n    at Object.defaultErrorResponse [as errorResponseBuilder] (C:\\\\Users\\\\Zhitn\\\\Desktop\\\\Vcloudrunner\\\\apps\\\\api\\\\node_modules\\\\@fastify\\\\rate-limit\\\\index.js:30:15)\\n    at Object.<anonymous> (C:\\\\Users\\\\Zhitn\\\\Desktop\\\\Vcloudrunner\\\\apps\\\\api\\\\node_modules\\\\@fastify\\\\rate-limit\\\\index.js:261:18)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","statusCode":429},"statusCode":429,"requestId":"req-2","method":"GET","url":"/health","message":"Rate limit exceeded, retry in 1 minute"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.082Z","service":"api","reqId":"req-2","res":{"statusCode":429},"responseTime":0.5425000190734863,"message":"request completed"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.090Z","service":"api","reqId":"req-1","res":{"statusCode":200},"responseTime":0.21979999542236328,"message":"request completed"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.090Z","service":"api","reqId":"req-2","req":{"method":"GET","url":"/health","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"message":"incoming request"}
+# {"level":40,"timestamp":"2026-03-22T20:20:34.090Z","service":"api","err":{"type":"Error","message":"Rate limit exceeded, retry in 1 minute","stack":"Error: Rate limit exceeded, retry in 1 minute\\n    at Object.defaultErrorResponse [as errorResponseBuilder] (C:\\\\Users\\\\Zhitn\\\\Desktop\\\\Vcloudrunner\\\\apps\\\\api\\\\node_modules\\\\@fastify\\\\rate-limit\\\\index.js:30:15)\\n    at Object.<anonymous> (C:\\\\Users\\\\Zhitn\\\\Desktop\\\\Vcloudrunner\\\\apps\\\\api\\\\node_modules\\\\@fastify\\\\rate-limit\\\\index.js:261:18)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","statusCode":429},"statusCode":429,"requestId":"req-2","method":"GET","url":"/health","message":"Rate limit exceeded, retry in 1 minute"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.090Z","service":"api","reqId":"req-2","res":{"statusCode":429},"responseTime":0.31849998235702515,"message":"request completed"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.099Z","service":"api","reqId":"req-1","res":{"statusCode":200},"responseTime":0.278499960899353,"message":"request completed"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.099Z","service":"api","reqId":"req-2","req":{"method":"GET","url":"/health","hostname":"localhost:80","remoteAddress":"203.0.113.10"},"message":"incoming request"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.099Z","service":"api","reqId":"req-2","res":{"statusCode":200},"responseTime":0.11100000143051147,"message":"request completed"}
+# {"level":50,"timestamp":"2026-03-22T20:20:34.108Z","service":"api","reqId":"req-1","error":{},"message":"queue metrics collection failed"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.108Z","service":"api","reqId":"req-1","res":{"statusCode":503},"responseTime":0.3357999920845032,"message":"request completed"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.118Z","service":"api","reqId":"req-1","res":{"statusCode":200},"responseTime":3.158899962902069,"message":"request completed"}
+# {"level":50,"timestamp":"2026-03-22T20:20:34.124Z","service":"api","reqId":"req-1","error":{},"message":"worker metrics collection failed"}
+# {"level":30,"timestamp":"2026-03-22T20:20:34.124Z","service":"api","reqId":"req-1","res":{"statusCode":503},"responseTime":0.30820000171661377,"message":"request completed"}
+# [vcloudrunner-api] ENABLE_DEV_AUTH is enabled; this bypass is intended for local development only.
+# [vcloudrunner-api] API_TOKENS_JSON static token fallback is enabled; prefer DB-backed tokens for normal operation.
+# Subtest: getQueueMetrics returns the configured queue name and counts
+ok 168 - getQueueMetrics returns the configured queue name and counts
+  ---
+  duration_ms: 3.6492
+  type: 'test'
+  ...
+# Subtest: getWorkerHealth returns unavailable when the heartbeat is missing
+ok 169 - getWorkerHealth returns unavailable when the heartbeat is missing
+  ---
+  duration_ms: 1.187
+  type: 'test'
+  ...
+# Subtest: getWorkerHealth returns unavailable for invalid heartbeat payloads
+ok 170 - getWorkerHealth returns unavailable for invalid heartbeat payloads
+  ---
+  duration_ms: 0.4629
+  type: 'test'
+  ...
+# Subtest: getWorkerHealth returns stale when the heartbeat is older than the configured threshold
+ok 171 - getWorkerHealth returns stale when the heartbeat is older than the configured threshold
+  ---
+  duration_ms: 0.597
+  type: 'test'
+  ...
+# Subtest: sendAlert posts webhook payloads once per cooldown window
+ok 172 - sendAlert posts webhook payloads once per cooldown window
+  ---
+  duration_ms: 48.3583
+  type: 'test'
+  ...
+# Subtest: sendAlert wraps webhook network failures with an actionable message
+ok 173 - sendAlert wraps webhook network failures with an actionable message
+  ---
+  duration_ms: 1.5664
+  type: 'test'
+  ...
+# Subtest: sendAlert normalizes webhook timeout failures with an actionable message
+ok 174 - sendAlert normalizes webhook timeout failures with an actionable message
+  ---
+  duration_ms: 0.7863
+  type: 'test'
+  ...
+# Subtest: evaluateOperationalAlerts emits alerts for degraded worker health and queue threshold breaches
+ok 175 - evaluateOperationalAlerts emits alerts for degraded worker health and queue threshold breaches
+  ---
+  duration_ms: 1.2543
+  type: 'test'
+  ...
+# Subtest: evaluateOperationalAlerts continues delivering later alerts when one alert send fails
+ok 176 - evaluateOperationalAlerts continues delivering later alerts when one alert send fails
+  ---
+  duration_ms: 1.059
+  type: 'test'
+  ...
+# Subtest: evaluateOperationalAlerts still emits queue alerts when worker health lookup throws
+ok 177 - evaluateOperationalAlerts still emits queue alerts when worker health lookup throws
+  ---
+  duration_ms: 1.9944
+  type: 'test'
+  ...
+# Subtest: evaluateOperationalAlerts still emits worker alerts when queue metrics lookup throws
+ok 178 - evaluateOperationalAlerts still emits worker alerts when queue metrics lookup throws
+  ---
+  duration_ms: 2.1786
+  type: 'test'
+  ...
+# Subtest: start is idempotent until stop is called, then schedules again
+ok 179 - start is idempotent until stop is called, then schedules again
+  ---
+  duration_ms: 1.3465
+  type: 'test'
+  ...
+# Subtest: start logs initial and interval evaluation failures without throwing
+ok 180 - start logs initial and interval evaluation failures without throwing
+  ---
+  duration_ms: 0.9115
+  type: 'test'
+  ...
+# Subtest: start skips overlapping alert evaluations until the active run settles
+ok 181 - start skips overlapping alert evaluations until the active run settles
+  ---
+  duration_ms: 0.801
+  type: 'test'
+  ...
+# Subtest: initTelemetry honors strict boolean-style truthy values and only initializes once
+ok 182 - initTelemetry honors strict boolean-style truthy values and only initializes once
+  ---
+  duration_ms: 2.3189
+  type: 'test'
+  ...
+# Subtest: initTelemetry warns on missing deps and remains retryable afterwards
+ok 183 - initTelemetry warns on missing deps and remains retryable afterwards
+  ---
+  duration_ms: 0.9839
+  type: 'test'
+  ...
+1..183
+# tests 183
+# suites 0
+# pass 181
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2133.1228
+node.exe : npm error Lifecy
+cle script `test` failed wi
+th error:
+At C:\Program Files\nodejs\
+npm.ps1:29 char:3
++   & $NODE_EXE $NPM_CLI_JS
+ $args
++   ~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~
+    + CategoryInfo         
+     : NotSpecified: (npm  
+   error Lifec...led wit   
+ h error::String) [], R    
+emoteException
+    + FullyQualifiedErrorI 
+   d : NativeCommandError
+ 
+npm error code 1
+npm error path C:\Users\Zhi
+tn\Desktop\Vcloudrunner\app
+s\api
+npm error workspace @vcloud
+runner/api@0.1.0
+npm error location C:\Users
+\Zhitn\Desktop\Vcloudrunner
+\apps\api
+npm error command failed
+npm error command C:\WINDOW
+S\system32\cmd.exe /d /s /c
+ npm --workspace @vcloudrun
+ner/shared-types run build 
+&& tsx --test "src/**/*.tes
+t.ts"

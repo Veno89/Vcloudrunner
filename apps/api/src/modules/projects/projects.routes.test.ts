@@ -7,10 +7,9 @@ process.env.REDIS_URL = 'redis://localhost:6379';
 process.env.ENCRYPTION_KEY = '12345678901234567890123456789012';
 
 const { env } = await import('../../config/env.js');
-const { db } = await import('../../db/client.js');
 const { authContextPlugin } = await import('../../plugins/auth-context.js');
 const { errorHandlerPlugin } = await import('../../plugins/error-handler.js');
-const { projectsRoutes } = await import('./projects.routes.js');
+const { createProjectsRoutes } = await import('./projects.routes.js');
 const { ProjectsService } = await import('./projects.service.js');
 
 const ownerUserId = '00000000-0000-0000-0000-000000000010';
@@ -65,18 +64,21 @@ async function withProjectsRoutesApp(
     scopes: options.scopes ?? ['projects:read']
   }]);
 
+  const mockDbClient = {
+    select: () => buildSelectResult([]),
+    selectDistinct: () => buildSelectResult([])
+  } as any;
+
   t.mock.method(ProjectsService.prototype, 'createProject', async () => project);
   t.mock.method(ProjectsService.prototype, 'getProjectById', async () => project);
-  t.mock.method(db as { select: (fields: Record<string, unknown>) => unknown }, 'select', (fields: Record<string, unknown>) => {
+  t.mock.method(mockDbClient, 'select', (fields: Record<string, unknown>) => {
     if (Object.prototype.hasOwnProperty.call(fields, 'userId')) {
       return buildSelectResult([]);
     }
 
     return buildSelectResult(options.membershipRows);
   });
-  t.mock.method(db as {
-    selectDistinct: (fields: Record<string, unknown>) => unknown;
-  }, 'selectDistinct', () => ({
+  t.mock.method(mockDbClient, 'selectDistinct', () => ({
     from() {
       return {
         leftJoin() {
@@ -100,8 +102,10 @@ async function withProjectsRoutesApp(
   });
 
   app.register(errorHandlerPlugin);
-  app.register(authContextPlugin);
-  app.register(projectsRoutes, { prefix: '/v1' });
+  app.register(authContextPlugin, { dbClient: mockDbClient });
+  
+  const projectsService = new ProjectsService(mockDbClient);
+  app.register(createProjectsRoutes(projectsService), { prefix: '/v1' });
 
   await app.ready();
   await run(app);

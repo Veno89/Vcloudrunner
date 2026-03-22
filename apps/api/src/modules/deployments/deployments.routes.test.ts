@@ -7,10 +7,9 @@ process.env.REDIS_URL = 'redis://localhost:6379';
 process.env.ENCRYPTION_KEY = '12345678901234567890123456789012';
 
 const { env } = await import('../../config/env.js');
-const { db } = await import('../../db/client.js');
 const { authContextPlugin } = await import('../../plugins/auth-context.js');
 const { errorHandlerPlugin } = await import('../../plugins/error-handler.js');
-const { deploymentsRoutes } = await import('./deployments.routes.js');
+const { createDeploymentsRoutes } = await import('./deployments.routes.js');
 const { ProjectsService } = await import('../projects/projects.service.js');
 const { DeploymentsService } = await import('./deployments.service.js');
 
@@ -83,12 +82,12 @@ async function withDeploymentsRoutesApp(
     scopes: options.scopes
   }]);
 
+  const mockDbClient = {
+    select: () => buildSelectResult(options.membershipRows)
+  } as any;
+
   t.mock.method(ProjectsService.prototype, 'getProjectById', async () => project);
-  t.mock.method(
-    db as { select: (fields: Record<string, unknown>) => unknown },
-    'select',
-    () => buildSelectResult(options.membershipRows)
-  );
+  t.mock.method(mockDbClient, 'select', mockDbClient.select);
   t.mock.method(DeploymentsService.prototype, 'listDeployments', async () => [deploymentRecord]);
   t.mock.method(DeploymentsService.prototype, 'createDeployment', async () => queuedDeploymentResponse);
   t.mock.method(DeploymentsService.prototype, 'cancelDeployment', async () => ({
@@ -105,8 +104,12 @@ async function withDeploymentsRoutesApp(
   });
 
   app.register(errorHandlerPlugin);
-  app.register(authContextPlugin);
-  app.register(deploymentsRoutes, { prefix: '/v1' });
+  app.register(authContextPlugin, { dbClient: mockDbClient });
+  
+  const projectsService = new ProjectsService(mockDbClient);
+  const mockDeploymentQueue = { close: async () => {} } as any;
+  const deploymentsService = new DeploymentsService(mockDbClient, mockDeploymentQueue);
+  app.register(createDeploymentsRoutes(deploymentsService, projectsService), { prefix: '/v1' });
 
   await app.ready();
   await run(app);

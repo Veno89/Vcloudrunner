@@ -1,11 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 
-import { db } from '../../db/client.js';
-import { DeploymentQueue } from '../../queue/deployment-queue.js';
 import { ensureProjectAccess, requireActor, requireScope } from '../auth/auth-utils.js';
-import { ProjectsService } from '../projects/projects.service.js';
-import { DeploymentsService } from './deployments.service.js';
+import type { ProjectsService } from '../projects/projects.service.js';
+import type { DeploymentsService } from './deployments.service.js';
 
 const runtimeSchema = z.object({
   containerPort: z.number().int().min(1).max(65535).optional(),
@@ -29,14 +27,10 @@ const deploymentParamsSchema = z.object({
   deploymentId: z.string().uuid()
 });
 
-export const deploymentsRoutes: FastifyPluginAsync = async (app) => {
-  const deploymentQueue = new DeploymentQueue();
-  const deploymentsService = new DeploymentsService(db, deploymentQueue);
-  const projectsService = new ProjectsService(db);
-
-  app.addHook('onClose', async () => {
-    await deploymentQueue.close().catch(() => undefined);
-  });
+export const createDeploymentsRoutes = (
+  deploymentsService: DeploymentsService,
+  projectsService: ProjectsService
+): FastifyPluginAsync => async (app) => {
 
   app.post('/projects/:projectId/deployments', async (request, reply) => {
     const actor = requireActor(request);

@@ -1,13 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 
-import { db } from '../../db/client.js';
 import { ensureProjectAccess, requireActor, requireScope } from '../auth/auth-utils.js';
-import { ProjectsService } from '../projects/projects.service.js';
-import { EnvironmentService } from './environment.service.js';
-
-const environmentService = new EnvironmentService(db);
-const projectsService = new ProjectsService(db);
+import type { ProjectsService } from '../projects/projects.service.js';
+import type { EnvironmentService } from './environment.service.js';
 
 const projectIdParamsSchema = z.object({
   projectId: z.string().uuid()
@@ -23,7 +19,10 @@ const removeParamsSchema = z.object({
   key: z.string().min(1).max(255)
 });
 
-export const environmentRoutes: FastifyPluginAsync = async (app) => {
+export const createEnvironmentRoutes = (
+  environmentService: EnvironmentService,
+  projectsService: ProjectsService
+): FastifyPluginAsync => async (app) => {
   app.get('/projects/:projectId/environment-variables', async (request) => {
     const actor = requireActor(request);
     const { projectId } = projectIdParamsSchema.parse(request.params);

@@ -1,14 +1,11 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 
-import { db } from '../../db/client.js';
 import { ALL_TOKEN_SCOPES } from '../auth/auth-scopes.js';
 import { ApiTokenNotFoundError } from '../../server/domain-errors.js';
 import { assertUserAccess, requireActor, requireScope } from '../auth/auth-utils.js';
-import { ApiTokensService } from './api-tokens.service.js';
+import type { ApiTokensService } from './api-tokens.service.js';
 import { buildTokenPreview } from './token-utils.js';
-
-const apiTokensService = new ApiTokensService(db);
 
 const userParamsSchema = z.object({
   userId: z.string().uuid()
@@ -26,7 +23,7 @@ const createTokenSchema = z.object({
   expiresAt: z.string().datetime().optional()
 });
 
-export const apiTokensRoutes: FastifyPluginAsync = async (app) => {
+export const createApiTokensRoutes = (apiTokensService: ApiTokensService): FastifyPluginAsync => async (app) => {
   app.get('/users/:userId/api-tokens', async (request) => {
     const actor = requireActor(request);
     const { userId } = userParamsSchema.parse(request.params);
