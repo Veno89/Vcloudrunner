@@ -1,5 +1,4 @@
 import { env } from '../config/env.js';
-import { createDeploymentStateQueryable } from './deployment-state-queryable.factory.js';
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
@@ -56,8 +55,8 @@ export interface DeploymentLogRow {
 export class DeploymentStateRepository {
   private readonly pool: Queryable;
 
-  constructor(pool?: Queryable) {
-    this.pool = pool ?? createDeploymentStateQueryable();
+  constructor(pool: Queryable) {
+    this.pool = pool;
   }
 
   async markBuilding(deploymentId: string) {
