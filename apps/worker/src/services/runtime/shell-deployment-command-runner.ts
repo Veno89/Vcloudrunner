@@ -22,12 +22,13 @@ export class ShellDeploymentCommandRunner implements DeploymentCommandRunner {
 
   async buildImage(input: {
     dockerfilePath: string;
+    buildContextPath: string;
     imageTag: string;
     repoDir: string;
   }): Promise<void> {
     await this.execRunner(
       'docker',
-      ['build', '-f', input.dockerfilePath, '-t', input.imageTag, '.'],
+      ['build', '-f', input.dockerfilePath, '-t', input.imageTag, input.buildContextPath],
       { cwd: input.repoDir }
     );
   }

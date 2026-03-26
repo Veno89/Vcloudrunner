@@ -72,8 +72,8 @@ export function describeDashboardLiveDataFailure(input: {
   hasDemoUserId: boolean;
   hasApiAuthToken: boolean;
 }): string {
-  if (!input.hasDemoUserId) {
-    return 'Set NEXT_PUBLIC_DEMO_USER_ID to enable live dashboard data.';
+  if (!input.hasApiAuthToken && !input.hasDemoUserId) {
+    return 'Live dashboard data requires authenticated API context. Set API_AUTH_TOKEN, or use explicit local dev auth with an optional NEXT_PUBLIC_DEMO_USER_ID override.';
   }
 
   const statusCode = extractApiStatusCode(input.error);
@@ -81,7 +81,7 @@ export function describeDashboardLiveDataFailure(input: {
   if (statusCode === 401) {
     return input.hasApiAuthToken
       ? 'API_AUTH_TOKEN was rejected. Use a valid bearer token, or enable the explicit dev-auth bypass only for local-only testing.'
-      : 'Live dashboard API requests are unauthorized. Set API_AUTH_TOKEN to a valid bearer token, or enable the explicit dev-auth bypass only for local-only testing.';
+      : 'Live dashboard user context could not be resolved. Set API_AUTH_TOKEN to a valid bearer token, or enable the explicit dev-auth bypass only for local-only testing.';
   }
 
   if (statusCode === 403) {

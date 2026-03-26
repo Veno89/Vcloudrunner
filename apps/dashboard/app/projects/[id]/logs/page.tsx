@@ -14,8 +14,8 @@ import { EmptyState } from '@/components/empty-state';
 import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
 import {
   apiAuthToken,
-  demoUserId,
-  fetchProjectsForDemoUser,
+  fetchProjectsForCurrentUser,
+  resolveViewerContext,
   fetchDeploymentsForProject,
   fetchDeploymentLogs,
 } from '@/lib/api';
@@ -39,11 +39,14 @@ interface ProjectLogsPageProps {
 }
 
 export default async function ProjectLogsPage({ params, searchParams }: ProjectLogsPageProps) {
-  if (!demoUserId) {
+  const { viewer, error: viewerContextError } = await resolveViewerContext();
+
+  if (!viewer) {
     return (
       <PageLayout>
         <LiveDataUnavailableState
           description={describeDashboardLiveDataFailure({
+            ...(viewerContextError ? { error: viewerContextError } : {}),
             hasDemoUserId: false,
             hasApiAuthToken: Boolean(apiAuthToken)
           })}
@@ -53,7 +56,7 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
   }
 
   try {
-    const projects = await fetchProjectsForDemoUser();
+    const projects = await fetchProjectsForCurrentUser();
     const project = projects.find((item) => item.id === params.id);
 
     if (!project) {
@@ -68,7 +71,7 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
     } catch (error) {
       deploymentReadErrorMessage = describeDashboardLiveDataFailure({
         error,
-        hasDemoUserId: true,
+        hasDemoUserId: Boolean(viewer.userId),
         hasApiAuthToken: Boolean(apiAuthToken)
       });
     }
@@ -92,7 +95,7 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
       } catch (error) {
         logReadErrorMessage = describeDashboardLiveDataFailure({
           error,
-          hasDemoUserId: true,
+          hasDemoUserId: Boolean(viewer.userId),
           hasApiAuthToken: Boolean(apiAuthToken)
         });
       }
@@ -288,7 +291,7 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
           title="Project logs unavailable"
           description={describeDashboardLiveDataFailure({
             error,
-            hasDemoUserId: true,
+            hasDemoUserId: Boolean(viewer.userId),
             hasApiAuthToken: Boolean(apiAuthToken)
           })}
         />

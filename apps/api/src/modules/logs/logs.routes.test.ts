@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import Fastify, { type FastifyInstance } from 'fastify';
+import { createDefaultProjectServices } from '@vcloudrunner/shared-types';
 
 process.env.DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/vcloudrunner';
 process.env.REDIS_URL = 'redis://localhost:6379';
@@ -25,7 +26,8 @@ const project = {
   name: 'Example Project',
   slug: 'example-project',
   gitRepositoryUrl: 'https://example.com/repo.git',
-  defaultBranch: 'main'
+  defaultBranch: 'main',
+  services: createDefaultProjectServices()
 };
 
 const logEntry = {

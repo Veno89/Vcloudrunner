@@ -12,40 +12,43 @@ test('ConfiguredBuildSystemResolver returns the first matching detector result i
   const resolver = new ConfiguredBuildSystemResolver([
     {
       name: 'first',
-      async detect(repoDir: string) {
-        calls.push(`first:${repoDir}`);
+      async detect(repoDir: string, options) {
+        calls.push(`first:${repoDir}:${options?.sourceRoot ?? '.'}`);
         return null;
       }
     },
     {
       name: 'second',
-      async detect(repoDir: string) {
-        calls.push(`second:${repoDir}`);
+      async detect(repoDir: string, options) {
+        calls.push(`second:${repoDir}:${options?.sourceRoot ?? '.'}`);
         return {
           type: 'dockerfile',
-          buildFilePath: 'services/api/Dockerfile'
+          buildFilePath: 'services/api/Dockerfile',
+          buildContextPath: 'apps/frontend'
         };
       }
     },
     {
       name: 'third',
-      async detect(repoDir: string) {
-        calls.push(`third:${repoDir}`);
+      async detect(repoDir: string, options) {
+        calls.push(`third:${repoDir}:${options?.sourceRoot ?? '.'}`);
         return {
           type: 'dockerfile',
-          buildFilePath: 'ignored/Dockerfile'
+          buildFilePath: 'ignored/Dockerfile',
+          buildContextPath: '.'
         };
       }
     }
   ] satisfies BuildSystemDetector[]);
 
-  const result = await resolver.detect('repo-dir');
+  const result = await resolver.detect('repo-dir', { sourceRoot: 'apps/frontend' });
 
   assert.deepEqual(result, {
     type: 'dockerfile',
-    buildFilePath: 'services/api/Dockerfile'
+    buildFilePath: 'services/api/Dockerfile',
+    buildContextPath: 'apps/frontend'
   });
-  assert.deepEqual(calls, ['first:repo-dir', 'second:repo-dir']);
+  assert.deepEqual(calls, ['first:repo-dir:apps/frontend', 'second:repo-dir:apps/frontend']);
 });
 
 test('ConfiguredBuildSystemResolver returns null when no detector matches', async () => {

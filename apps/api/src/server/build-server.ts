@@ -20,6 +20,8 @@ import { createLogsRoutes } from '../modules/logs/logs.routes.js';
 import { LogsService } from '../modules/logs/logs.service.js';
 import { createProjectsRoutes } from '../modules/projects/projects.routes.js';
 import { ProjectsService } from '../modules/projects/projects.service.js';
+import { createAuthRoutes } from '../modules/auth/auth.routes.js';
+import { AuthService } from '../modules/auth/auth.service.js';
 import { errorHandlerPlugin } from '../plugins/error-handler.js';
 import { redisConnection } from '../queue/redis.js';
 import { AlertMonitorService } from '../services/alert-monitor.service.js';
@@ -92,6 +94,7 @@ export const buildServer = (dependencies: BuildServerDependencies = {}) => {
   const deploymentsService = new DeploymentsService(dbClient, deploymentQueueClient);
   const environmentService = new EnvironmentService(dbClient);
   const logsService = new LogsService(dbClient);
+  const authService = new AuthService(dbClient);
 
   const corsAllowedOrigins = env.CORS_ALLOWED_ORIGINS
     .split(',')
@@ -212,6 +215,7 @@ export const buildServer = (dependencies: BuildServerDependencies = {}) => {
       }
     });
 
+    routeApp.register(createAuthRoutes(authService), { prefix: '/v1' });
     routeApp.register(createProjectsRoutes(projectsService), { prefix: '/v1' });
     routeApp.register(createApiTokensRoutes(apiTokensService), { prefix: '/v1' });
     routeApp.register(createDeploymentsRoutes(deploymentsService, projectsService), { prefix: '/v1' });

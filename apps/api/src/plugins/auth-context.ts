@@ -15,11 +15,17 @@ export interface AuthContextPluginOptions {
 }
 
 export type AuthRole = 'admin' | 'user';
+export type AuthSource =
+  | 'database-token'
+  | 'bootstrap-token'
+  | 'dev-user-header'
+  | 'dev-admin-token';
 
 export interface AuthContext {
   userId: string;
   role: AuthRole;
   scopes: TokenScope[];
+  authSource: AuthSource;
 }
 
 const tokenEntrySchema = z.object({
@@ -65,6 +71,15 @@ function parseDevUserIdHeader(value: string | string[] | undefined): string | nu
   return parsed.success ? parsed.data : null;
 }
 
+function createDevAuthContext(userId: string, authSource: Extract<AuthSource, 'dev-user-header' | 'dev-admin-token'>): AuthContext {
+  return {
+    userId,
+    role: 'admin',
+    scopes: ['*'],
+    authSource
+  };
+}
+
 function buildStaticTokenLookup() {
   const raw = env.API_TOKENS_JSON.trim();
   if (raw.length === 0) {
@@ -90,7 +105,8 @@ function buildStaticTokenLookup() {
     parsed.data.map((entry) => [entry.token, {
       userId: entry.userId,
       role: entry.role,
-      scopes: normalizeTokenScopes(entry.scopes, entry.role)
+      scopes: normalizeTokenScopes(entry.scopes, entry.role),
+      authSource: 'bootstrap-token'
     }])
   );
 }
@@ -125,7 +141,8 @@ const authContextPluginImpl: FastifyPluginAsync<AuthContextPluginOptions> = asyn
     return {
       userId: row.userId,
       role: row.role,
-      scopes: normalizeTokenScopes(row.scopes, row.role)
+      scopes: normalizeTokenScopes(row.scopes, row.role),
+      authSource: 'database-token'
     };
   }
 
@@ -145,21 +162,16 @@ const authContextPluginImpl: FastifyPluginAsync<AuthContextPluginOptions> = asyn
         const devUserId = parseDevUserIdHeader(request.headers['x-user-id'])
           ?? '00000000-0000-0000-0000-000000000001';
 
-        request.auth = {
-          userId: devUserId,
-          role: 'admin',
-          scopes: ['*']
-        };
+        request.auth = createDevAuthContext(devUserId, 'dev-user-header');
       }
       return;
     }
 
     if (env.ENABLE_DEV_AUTH && token === 'dev-admin-token') {
-      request.auth = {
-        userId: '00000000-0000-0000-0000-000000000001',
-        role: 'admin',
-        scopes: ['*']
-      };
+      request.auth = createDevAuthContext(
+        '00000000-0000-0000-0000-000000000001',
+        'dev-admin-token'
+      );
       return;
     }
 
@@ -185,11 +197,7 @@ export function requireAuthContext(request: FastifyRequest): AuthContext {
     const devUserId = parseDevUserIdHeader(request.headers['x-user-id'])
       ?? '00000000-0000-0000-0000-000000000001';
 
-    return {
-      userId: devUserId,
-      role: 'admin',
-      scopes: ['*']
-    };
+    return createDevAuthContext(devUserId, 'dev-user-header');
   }
 
   if (!request.auth) {

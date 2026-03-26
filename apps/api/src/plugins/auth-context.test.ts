@@ -92,7 +92,8 @@ test('auth context falls back to static tokens when the DB lookup misses', async
     assert.deepEqual(JSON.parse(res.body), {
       userId: STATIC_USER_ID,
       role: 'user',
-      scopes: ['projects:read']
+      scopes: ['projects:read'],
+      authSource: 'bootstrap-token'
     });
   });
 });
@@ -123,7 +124,8 @@ test('auth context prefers DB-backed tokens over static token fallback for the s
     assert.deepEqual(JSON.parse(res.body), {
       userId: DB_USER_ID,
       role: 'admin',
-      scopes: ['*']
+      scopes: ['*'],
+      authSource: 'database-token'
     });
   });
 });
@@ -144,7 +146,8 @@ test('auth context accepts dev-admin-token only when explicit dev auth is enable
     assert.deepEqual(JSON.parse(res.body), {
       userId: DEFAULT_DEV_USER_ID,
       role: 'admin',
-      scopes: ['*']
+      scopes: ['*'],
+      authSource: 'dev-admin-token'
     });
   });
 });
@@ -215,7 +218,8 @@ test('auth context uses x-user-id only for v1 requests when explicit dev auth is
     assert.deepEqual(JSON.parse(res.body), {
       userId: HEADER_USER_ID,
       role: 'admin',
-      scopes: ['*']
+      scopes: ['*'],
+      authSource: 'dev-user-header'
     });
   });
 });
@@ -236,7 +240,8 @@ test('requireAuthContext preserves the explicit dev-auth fallback for non-v1 rou
     assert.deepEqual(JSON.parse(res.body), {
       userId: EXTERNAL_ROUTE_USER_ID,
       role: 'admin',
-      scopes: ['*']
+      scopes: ['*'],
+      authSource: 'dev-user-header'
     });
   });
 });

@@ -13,7 +13,11 @@ import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
 import { SettingsSubnav } from '@/components/settings-subnav';
 import { PageLayout } from '@/components/page-layout';
-import { apiAuthToken, fetchApiTokensForUser, demoUserId } from '@/lib/api';
+import {
+  apiAuthToken,
+  fetchApiTokensForUser,
+  resolveViewerContext
+} from '@/lib/api';
 import { describeDashboardLiveDataFailure } from '@/lib/helpers';
 import { createApiTokenAction, revokeApiTokenAction, rotateApiTokenAction } from '@/app/tokens/actions';
 
@@ -70,10 +74,11 @@ export async function TokenManagementPage({ searchParams }: TokenManagementPageP
   }> = [];
   let liveDataErrorMessage: string | null = null;
   let tokenListErrorMessage: string | null = null;
+  const { viewer, error: viewerContextError } = await resolveViewerContext();
 
-  if (demoUserId) {
+  if (viewer) {
     try {
-      const fetched = await fetchApiTokensForUser(demoUserId);
+      const fetched = await fetchApiTokensForUser(viewer.userId);
       apiTokens = fetched.map((token) => ({
         id: token.id,
         label: token.label,
@@ -86,12 +91,13 @@ export async function TokenManagementPage({ searchParams }: TokenManagementPageP
     } catch (error) {
       tokenListErrorMessage = describeDashboardLiveDataFailure({
         error,
-        hasDemoUserId: true,
+        hasDemoUserId: Boolean(viewer.userId),
         hasApiAuthToken: Boolean(apiAuthToken),
       });
     }
   } else {
     liveDataErrorMessage = describeDashboardLiveDataFailure({
+      ...(viewerContextError ? { error: viewerContextError } : {}),
       hasDemoUserId: false,
       hasApiAuthToken: Boolean(apiAuthToken),
     });

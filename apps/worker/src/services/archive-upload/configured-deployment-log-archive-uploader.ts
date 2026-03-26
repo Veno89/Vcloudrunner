@@ -23,26 +23,54 @@ export class ConfiguredDeploymentLogArchiveUploader implements DeploymentLogArch
   }
 
   async uploadWithRetry(input: {
-    targetUrl: string;
+    request: ArchiveUploadRequest;
     payload: Buffer;
-    headers: Record<string, string>;
   }) {
     let lastError: unknown = null;
 
     for (let attempt = 1; attempt <= env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_MAX_ATTEMPTS; attempt += 1) {
       try {
-        const response = await this.outboundHttpClient.request({
-          url: input.targetUrl,
-          timeoutMs: env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS,
-          init: {
-            method: 'PUT',
-            headers: input.headers,
-            body: new Uint8Array(input.payload)
+        if (input.request.transport === 'native') {
+          if (!this.archiveUploadProvider.uploadNative) {
+            throw new Error(`archive upload provider ${input.request.provider} does not support native uploads`);
           }
-        });
 
-        if (!response.ok) {
-          throw new Error(`archive upload failed with status ${response.status}`);
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS);
+
+          try {
+            await this.archiveUploadProvider.uploadNative({
+              request: input.request,
+              payload: input.payload,
+              signal: controller.signal
+            });
+          } catch (error) {
+            if (controller.signal.aborted) {
+              throw new OutboundHttpRequestError({
+                timedOut: true,
+                message: `request timed out after ${env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS}ms`,
+                cause: error
+              });
+            }
+
+            throw error;
+          } finally {
+            clearTimeout(timeoutId);
+          }
+        } else {
+          const response = await this.outboundHttpClient.request({
+            url: input.request.targetUrl,
+            timeoutMs: env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS,
+            init: {
+              method: 'PUT',
+              headers: input.request.headers,
+              body: new Uint8Array(input.payload)
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`archive upload failed with status ${response.status}`);
+          }
         }
 
         return;

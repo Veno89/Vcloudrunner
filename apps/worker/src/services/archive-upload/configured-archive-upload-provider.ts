@@ -1,5 +1,5 @@
 import { env } from '../../config/env.js';
-import type { ArchiveUploadProvider, ArchiveUploadProviders } from './archive-upload-provider.js';
+import type { ArchiveUploadProvider, ArchiveUploadProviders, NativeArchiveUploadRequest } from './archive-upload-provider.js';
 
 export class ConfiguredArchiveUploadProvider implements ArchiveUploadProvider {
   constructor(private readonly providers: ArchiveUploadProviders) {}
@@ -10,5 +10,18 @@ export class ConfiguredArchiveUploadProvider implements ArchiveUploadProvider {
     payload: Buffer;
   }) {
     return this.providers[env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER].createUploadRequest(input);
+  }
+
+  async uploadNative(input: {
+    request: NativeArchiveUploadRequest;
+    payload: Buffer;
+    signal: AbortSignal;
+  }) {
+    const provider = this.providers[input.request.provider];
+    if (!provider.uploadNative) {
+      throw new Error(`archive upload provider ${input.request.provider} does not support native uploads`);
+    }
+
+    await provider.uploadNative(input);
   }
 }

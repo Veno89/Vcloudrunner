@@ -25,6 +25,7 @@ function normalizeActionReturnPath(value: FormDataEntryValue | null): string {
 export async function deployProjectAction(formData: FormData) {
   const projectIdValue = formData.get('projectId');
   const projectNameValue = formData.get('projectName');
+  const serviceNameValue = formData.get('serviceName');
   const returnPath = normalizeActionReturnPath(formData.get('returnPath'));
 
   if (typeof projectIdValue !== 'string' || projectIdValue.length === 0) {
@@ -33,9 +34,15 @@ export async function deployProjectAction(formData: FormData) {
   }
 
   const projectName = normalizeProjectDisplayName(projectNameValue);
+  const serviceName =
+    typeof serviceNameValue === 'string' && serviceNameValue.trim().length > 0
+      ? serviceNameValue.trim()
+      : undefined;
 
   try {
-    const deployment = await createDeployment(projectIdValue);
+    const deployment = await createDeployment(projectIdValue, {
+      ...(serviceName ? { serviceName } : {})
+    });
     revalidatePath('/projects');
     revalidatePath(`/projects/${projectIdValue}`);
     revalidatePath(`/projects/${projectIdValue}/deployments`);

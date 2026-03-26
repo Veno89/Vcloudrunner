@@ -11,6 +11,11 @@ import {
   uuid,
   varchar
 } from 'drizzle-orm/pg-core';
+import {
+  DEFAULT_PROJECT_SERVICE_NAME,
+  createDefaultProjectServices,
+  type ProjectServiceDefinition
+} from '@vcloudrunner/shared-types';
 
 export const deploymentStatus = pgEnum('deployment_status', [
   'queued',
@@ -62,6 +67,7 @@ export const projects = pgTable('projects', {
   slug: varchar('slug', { length: 64 }).notNull(),
   gitRepositoryUrl: text('git_repository_url').notNull(),
   defaultBranch: varchar('default_branch', { length: 255 }).notNull().default('main'),
+  services: jsonb('services').$type<ProjectServiceDefinition[]>().notNull().default(createDefaultProjectServices()),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 }, (table) => ({
@@ -72,6 +78,7 @@ export const projects = pgTable('projects', {
 export const deployments = pgTable('deployments', {
   id: uuid('id').defaultRandom().primaryKey(),
   projectId: uuid('project_id').notNull().references(() => projects.id),
+  serviceName: varchar('service_name', { length: 32 }).notNull().default(DEFAULT_PROJECT_SERVICE_NAME),
   status: deploymentStatus('status').notNull().default('queued'),
   commitSha: varchar('commit_sha', { length: 64 }),
   branch: varchar('branch', { length: 255 }),
@@ -84,6 +91,7 @@ export const deployments = pgTable('deployments', {
   finishedAt: timestamp('finished_at', { withTimezone: true })
 }, (table) => ({
   deploymentsProjectIdIdx: index('deployments_project_id_idx').on(table.projectId),
+  deploymentsProjectServiceNameIdx: index('deployments_project_service_name_idx').on(table.projectId, table.serviceName),
   deploymentsStatusIdx: index('deployments_status_idx').on(table.status)
 }));
 

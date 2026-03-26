@@ -8,8 +8,10 @@ await import('../test/worker-test-env.js');
 
 const { env } = await import('../config/env.js');
 const { logger } = await import('../logger/logger.js');
-const { DeploymentStateService } = await import('./deployment-state.service.js');
+const { createDeploymentStateService } = await import('./deployment-state.service.factory.js');
 type DeploymentLogRow = import('./deployment-state.repository.js').DeploymentLogRow;
+type CreateDeploymentStateServiceDependenciesOptions =
+  import('./deployment-state-service-dependencies.factory.js').CreateDeploymentStateServiceDependenciesOptions;
 
 interface RecordedQuery {
   text: string;
@@ -39,9 +41,13 @@ async function exists(path: string) {
   }
 }
 
+function createService(options: CreateDeploymentStateServiceDependenciesOptions = {}) {
+  return createDeploymentStateService(options);
+}
+
 test('appendLog writes truncated message and enforces per-deployment retention', async () => {
   const pool = new MockPool();
-  const service = new DeploymentStateService(pool);
+  const service = createService({ pool });
   const longMessage = 'x'.repeat(12000);
 
   await service.appendLog('dep-123', longMessage, 'warn');
@@ -56,7 +62,7 @@ test('appendLog writes truncated message and enforces per-deployment retention',
 
 test('markFailed writes failed status, error log, and applies retention cap', async () => {
   const pool = new MockPool();
-  const service = new DeploymentStateService(pool);
+  const service = createService({ pool });
 
   await service.markFailed('dep-456', 'fatal failure');
 
@@ -79,7 +85,7 @@ test('markFailed still succeeds when the failure log insert fails after the stat
       throw new Error('log insert failed');
     }
   });
-  const service = new DeploymentStateService(pool);
+  const service = createService({ pool });
 
   logger.warn = (message, metadata) => {
     warnings.push({ message, metadata });
@@ -108,7 +114,7 @@ test('appendLog still succeeds when retention enforcement fails after the log wr
       throw new Error('retention delete failed');
     }
   });
-  const service = new DeploymentStateService(pool);
+  const service = createService({ pool });
 
   logger.warn = (message, metadata) => {
     warnings.push({ message, metadata });
@@ -136,7 +142,7 @@ test('markStopped still succeeds when retention enforcement fails after the stop
       throw new Error('retention delete failed');
     }
   });
-  const service = new DeploymentStateService(pool);
+  const service = createService({ pool });
 
   logger.warn = (message, metadata) => {
     warnings.push({ message, metadata });
@@ -165,7 +171,7 @@ test('markStopped still succeeds when the stop log insert fails after the status
       throw new Error('log insert failed');
     }
   });
-  const service = new DeploymentStateService(pool);
+  const service = createService({ pool });
 
   logger.warn = (message, metadata) => {
     warnings.push({ message, metadata });
@@ -188,7 +194,7 @@ test('markStopped still succeeds when the stop log insert fails after the status
 
 test('pruneLogsByRetentionWindow deletes old log rows using configured day window', async () => {
   const pool = new MockPool();
-  const service = new DeploymentStateService(pool);
+  const service = createService({ pool });
 
   await service.pruneLogsByRetentionWindow();
 
@@ -200,7 +206,7 @@ test('pruneLogsByRetentionWindow deletes old log rows using configured day windo
 
 test('uploadPendingArchives is a no-op when upload base url is not configured', async () => {
   const pool = new MockPool();
-  const service = new DeploymentStateService(pool);
+  const service = createService({ pool });
 
   const uploadedCount = await service.uploadPendingArchives();
   assert.equal(uploadedCount, 0);
@@ -209,14 +215,14 @@ test('uploadPendingArchives is a no-op when upload base url is not configured', 
 
 test('cleanupArchivedArtifacts returns 0 when archive directory has no files', async () => {
   const pool = new MockPool();
-  const service = new DeploymentStateService(pool);
+  const service = createService({ pool });
 
   const deletedCount = await service.cleanupArchivedArtifacts();
   assert.equal(typeof deletedCount, 'number');
 });
 
 test('recoverStuckDeployments continues after one deployment recovery fails', async () => {
-  const service = new DeploymentStateService(new MockPool()) as unknown as {
+  const service = createService({ pool: new MockPool() }) as unknown as {
     repository: { listStuckDeployments: () => Promise<Array<{ id: string; status: 'queued' | 'building' }>> };
     markFailed: (deploymentId: string, message: string) => Promise<void>;
     recoverStuckDeployments: () => Promise<number>;
@@ -243,14 +249,14 @@ test('recoverStuckDeployments continues after one deployment recovery fails', as
 });
 
 test('reconcileRunningDeployments continues after one container check fails', async () => {
-  const service = new DeploymentStateService(
-    new MockPool(),
-    {
+  const service = createService({
+    pool: new MockPool(),
+    ingressManager: {
       async deleteRoute() {
         return undefined;
       }
     }
-  ) as unknown as {
+  }) as unknown as {
     repository: {
       listRunningDeploymentContainers: () => Promise<Array<{
         deployment_id: string;
@@ -303,14 +309,14 @@ test('reconcileRunningDeployments continues after one container check fails', as
 
 test('reconcileRunningDeployments removes the public route after marking a missing runtime failed', async () => {
   const deletedHosts: string[] = [];
-  const service = new DeploymentStateService(
-    new MockPool(),
-    {
+  const service = createService({
+    pool: new MockPool(),
+    ingressManager: {
       async deleteRoute(input) {
         deletedHosts.push(input.host);
       }
     }
-  ) as unknown as {
+  }) as unknown as {
     repository: {
       listRunningDeploymentContainers: () => Promise<Array<{
         deployment_id: string;
@@ -350,14 +356,14 @@ test('reconcileRunningDeployments removes the public route after marking a missi
 test('reconcileRunningDeployments still counts a deployment reconciled when route cleanup fails', async () => {
   const warnings: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
   const originalWarn = logger.warn;
-  const service = new DeploymentStateService(
-    new MockPool(),
-    {
+  const service = createService({
+    pool: new MockPool(),
+    ingressManager: {
       async deleteRoute() {
         throw new Error('caddy unavailable');
       }
     }
-  ) as unknown as {
+  }) as unknown as {
     repository: {
       listRunningDeploymentContainers: () => Promise<Array<{
         deployment_id: string;
@@ -401,7 +407,7 @@ test('reconcileRunningDeployments still counts a deployment reconciled when rout
 });
 
 test('archiveEligibleDeploymentLogs continues after one archive build fails', async () => {
-  const service = new DeploymentStateService(new MockPool()) as unknown as {
+  const service = createService({ pool: new MockPool() }) as unknown as {
     repository: { listArchivableDeploymentIds: () => Promise<string[]> };
     archiveDeployment: (deploymentId: string) => Promise<boolean>;
     archiveEligibleDeploymentLogs: () => Promise<number>;
@@ -430,11 +436,9 @@ test('archiveEligibleDeploymentLogs delegates archive encoding to the injected a
   const builtArchives: Array<Array<{ id: string; deployment_id: string; level: string; message: string; timestamp: string }>> = [];
   const writtenArchives: Array<{ deploymentId: string; payload: Buffer }> = [];
 
-  const service = new DeploymentStateService(
-    new MockPool(),
-    undefined,
-    undefined,
-    {
+  const service = createService({
+    pool: new MockPool(),
+    archiveStore: {
       async ensureArchiveDir() {},
       async writeArchiveIfMissing(deploymentId: string, payload: Buffer) {
         writtenArchives.push({ deploymentId, payload });
@@ -453,13 +457,13 @@ test('archiveEligibleDeploymentLogs delegates archive encoding to the injected a
       },
       async deleteCleanupCandidate() {}
     } as never,
-    {
+    archiveBuilder: {
       buildArchive(rows: DeploymentLogRow[]) {
         builtArchives.push(rows);
         return Buffer.from('built-archive');
       }
     } as never
-  ) as unknown as {
+  }) as unknown as {
     repository: {
       listArchivableDeploymentIds: () => Promise<string[]>;
       listDeploymentLogsByDeployment: (
@@ -509,28 +513,39 @@ test('uploadPendingArchives continues after one artifact upload fails', async ()
     env.DEPLOYMENT_LOG_ARCHIVE_DIR = fixtureDir;
     env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_BASE_URL = 'https://uploads.example.test';
 
-    const service = new DeploymentStateService(new MockPool()) as unknown as {
+    const service = createService({ pool: new MockPool() }) as unknown as {
       createArchiveUploadRequest: (input: {
         fileName: string;
         baseUrl: string;
         payload: Buffer;
-      }) => Promise<{ targetUrl: string; headers: Record<string, string> }>;
-      uploadArchiveWithRetry: (input: {
+      }) => Promise<{
+        provider: 'http';
+        transport: 'http';
         targetUrl: string;
-        payload: Buffer;
         headers: Record<string, string>;
+      }>;
+      uploadArchiveWithRetry: (input: {
+        request: {
+          provider: 'http';
+          transport: 'http';
+          targetUrl: string;
+          headers: Record<string, string>;
+        };
+        payload: Buffer;
       }) => Promise<void>;
       uploadPendingArchives: () => Promise<number>;
     };
     const attemptedTargets: string[] = [];
 
     service.createArchiveUploadRequest = async ({ fileName, baseUrl }) => ({
+      provider: 'http',
+      transport: 'http',
       targetUrl: `${baseUrl}/${fileName}`,
       headers: { 'content-type': 'application/gzip' }
     });
-    service.uploadArchiveWithRetry = async ({ targetUrl }) => {
-      attemptedTargets.push(targetUrl);
-      if (targetUrl.endsWith('/dep-fail.ndjson.gz')) {
+    service.uploadArchiveWithRetry = async ({ request }) => {
+      attemptedTargets.push(request.targetUrl);
+      if (request.targetUrl.endsWith('/dep-fail.ndjson.gz')) {
         throw new Error('upload failed');
       }
     };
@@ -568,7 +583,7 @@ test('cleanupArchivedArtifacts continues after one artifact cleanup fails', asyn
     await writeFile(goodMarkerPath, 'uploaded');
     await new Promise((resolve) => setTimeout(resolve, 10));
 
-    const service = new DeploymentStateService(new MockPool());
+    const service = createService({ pool: new MockPool() });
     const deletedCount = await service.cleanupArchivedArtifacts();
 
     assert.equal(deletedCount, 1);

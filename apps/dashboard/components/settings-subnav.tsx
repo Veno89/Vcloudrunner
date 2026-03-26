@@ -2,11 +2,12 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 interface SettingsSubnavProps {
-  active: 'overview' | 'tokens';
+  active: 'overview' | 'account' | 'tokens';
 }
 
 const items: Array<{ key: SettingsSubnavProps['active']; label: string; href: string }> = [
   { key: 'overview', label: 'Overview', href: '/settings' },
+  { key: 'account', label: 'Account', href: '/settings/account' },
   { key: 'tokens', label: 'API Tokens', href: '/settings/tokens' },
 ];
 

@@ -1,6 +1,5 @@
-import type { RepositoryFileInspector } from './repository-file-inspector.js';
-import { GitRepositoryFileInspector } from './git-repository-file-inspector.js';
+import { createConfiguredRepositoryFileInspector } from './configured-repository-file-inspector.factory.js';
 
-export function createRepositoryFileInspector(): RepositoryFileInspector {
-  return new GitRepositoryFileInspector();
+export function createRepositoryFileInspector() {
+  return createConfiguredRepositoryFileInspector();
 }

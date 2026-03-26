@@ -4,12 +4,19 @@ import type { DeploymentLogArchiveBuilder } from './archive-build/deployment-log
 import type { ArchiveUploadRequest } from './archive-upload/archive-upload-provider.js';
 import type { DeploymentLogArchiveUploader } from './archive-upload/deployment-log-archive-uploader.js';
 import type { DeploymentLogArchiveStore } from './archive-store/deployment-log-archive-store.js';
-import { createDeploymentStateServiceDependencies } from './deployment-state-service-dependencies.factory.js';
 import type { IngressManager } from './ingress/ingress-manager.js';
-import type { DeploymentStateRepository, Queryable, SuccessInput } from './deployment-state.repository.js';
+import type { DeploymentStateRepository, SuccessInput } from './deployment-state.repository.js';
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
+}
+
+export interface DeploymentStateServiceDependencies {
+  repository: DeploymentStateRepository;
+  ingressManager: Pick<IngressManager, 'deleteRoute'>;
+  archiveUploader: DeploymentLogArchiveUploader;
+  archiveStore: DeploymentLogArchiveStore;
+  archiveBuilder: DeploymentLogArchiveBuilder;
 }
 
 export class DeploymentStateService {
@@ -19,21 +26,7 @@ export class DeploymentStateService {
   private readonly archiveStore: DeploymentLogArchiveStore;
   private readonly archiveBuilder: DeploymentLogArchiveBuilder;
 
-  constructor(
-    pool?: Queryable,
-    ingressManager?: Pick<IngressManager, 'deleteRoute'>,
-    archiveUploader?: DeploymentLogArchiveUploader,
-    archiveStore?: DeploymentLogArchiveStore,
-    archiveBuilder?: DeploymentLogArchiveBuilder
-  ) {
-    const dependencies = createDeploymentStateServiceDependencies({
-      pool,
-      ingressManager,
-      archiveUploader,
-      archiveStore,
-      archiveBuilder
-    });
-
+  constructor(dependencies: DeploymentStateServiceDependencies) {
     this.repository = dependencies.repository;
     this.ingressManager = dependencies.ingressManager;
     this.archiveUploader = dependencies.archiveUploader;
@@ -192,11 +185,7 @@ export class DeploymentStateService {
           payload
         });
 
-        await this.uploadArchiveWithRetry({
-          targetUrl: uploadRequest.targetUrl,
-          payload,
-          headers: uploadRequest.headers
-        });
+        await this.uploadArchiveWithRetry({ request: uploadRequest, payload });
 
         await this.archiveStore.markUploaded(candidate, uploadRequest.targetUrl);
 
@@ -259,7 +248,10 @@ export class DeploymentStateService {
     return this.archiveUploader.createUploadRequest(input);
   }
 
-  private async uploadArchiveWithRetry(input: { targetUrl: string; payload: Buffer; headers: Record<string, string> }) {
+  private async uploadArchiveWithRetry(input: {
+    request: ArchiveUploadRequest;
+    payload: Buffer;
+  }) {
     await this.archiveUploader.uploadWithRetry(input);
   }
 

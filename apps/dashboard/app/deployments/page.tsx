@@ -62,6 +62,7 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
     const queryMatch =
       normalizedQuery.length === 0 ||
       deployment.project.toLowerCase().includes(normalizedQuery) ||
+      (deployment.serviceName?.toLowerCase().includes(normalizedQuery) ?? false) ||
       deployment.id.toLowerCase().includes(normalizedQuery) ||
       deployment.status.toLowerCase().includes(normalizedQuery) ||
       (deployment.cancellationRequested && 'cancelling'.includes(normalizedQuery)) ||
@@ -123,7 +124,7 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
           id="deployment-query"
           name="q"
           defaultValue={selectedQuery}
-          placeholder="Search by project, id, commit, or status"
+          placeholder="Search by project, service, id, commit, or status"
         />
         <Select id="deployment-project-filter" name="projectId" defaultValue={selectedProjectId}>
           <option value="all">All projects</option>
@@ -155,7 +156,7 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
                 ? 'Trigger a deployment from the Projects page to see activity here.'
                 : selectedStatus === 'cancelling'
                   ? 'No queued or building deployments currently have cancellation pending. Try another filter or open Projects to inspect active work.'
-              : 'Try adjusting filters/search or open Projects to trigger a new deployment.'
+              : 'Try adjusting filters/search by project, service, commit, or status, or open Projects to trigger a new deployment.'
           }
           actions={
             <>

@@ -4,6 +4,8 @@ import test from 'node:test';
 await import('../test/worker-test-env.js');
 
 const { QUEUE_NAMES } = await import('@vcloudrunner/shared-types');
+const { env } = await import('../config/env.js');
+const { parseRedisConnectionOptions } = await import('../queue/redis.js');
 const { createDeploymentWorker } = await import('./deployment.worker.factory.js');
 
 test('createDeploymentWorker wires the deployment queue, processor, and worker options', () => {
@@ -30,5 +32,29 @@ test('createDeploymentWorker wires the deployment queue, processor, and worker o
   assert.deepEqual(worker.options, {
     connection,
     concurrency: 4
+  });
+});
+
+test('createDeploymentWorker uses the configured Redis connection when no override is provided', () => {
+  const processor = async () => undefined;
+
+  class FakeWorker {
+    constructor(
+      public readonly name: string,
+      public readonly handler: typeof processor,
+      public readonly options: { connection: unknown; concurrency: number }
+    ) {}
+  }
+
+  const worker = createDeploymentWorker({
+    WorkerClass: FakeWorker as never,
+    processor
+  }) as unknown as FakeWorker;
+
+  assert.equal(worker.name, QUEUE_NAMES.deployment);
+  assert.equal(worker.handler, processor);
+  assert.deepEqual(worker.options, {
+    connection: parseRedisConnectionOptions(env.REDIS_URL),
+    concurrency: 2
   });
 });

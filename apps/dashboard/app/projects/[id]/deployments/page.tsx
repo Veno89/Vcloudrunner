@@ -12,8 +12,8 @@ import { FormSubmitButton } from '@/components/form-submit-button';
 import { ActionToast } from '@/components/action-toast';
 import {
   apiAuthToken,
-  demoUserId,
-  fetchProjectsForDemoUser,
+  fetchProjectsForCurrentUser,
+  resolveViewerContext,
   fetchDeploymentsForProject,
 } from '@/lib/api';
 import {
@@ -34,11 +34,14 @@ interface ProjectDeploymentsPageProps {
   };
 }
 export default async function ProjectDeploymentsPage({ params, searchParams }: ProjectDeploymentsPageProps) {
-  if (!demoUserId) {
+  const { viewer, error: viewerContextError } = await resolveViewerContext();
+
+  if (!viewer) {
     return (
       <PageLayout>
         <LiveDataUnavailableState
           description={describeDashboardLiveDataFailure({
+            ...(viewerContextError ? { error: viewerContextError } : {}),
             hasDemoUserId: false,
             hasApiAuthToken: Boolean(apiAuthToken)
           })}
@@ -48,7 +51,7 @@ export default async function ProjectDeploymentsPage({ params, searchParams }: P
   }
 
   try {
-    const projects = await fetchProjectsForDemoUser();
+    const projects = await fetchProjectsForCurrentUser();
     const project = projects.find((item) => item.id === params.id);
 
     if (!project) {
@@ -63,7 +66,7 @@ export default async function ProjectDeploymentsPage({ params, searchParams }: P
     } catch (error) {
       deploymentReadErrorMessage = describeDashboardLiveDataFailure({
         error,
-        hasDemoUserId: true,
+        hasDemoUserId: Boolean(viewer.userId),
         hasApiAuthToken: Boolean(apiAuthToken)
       });
     }
@@ -174,7 +177,7 @@ export default async function ProjectDeploymentsPage({ params, searchParams }: P
           title="Project deployments unavailable"
           description={describeDashboardLiveDataFailure({
             error,
-            hasDemoUserId: true,
+            hasDemoUserId: Boolean(viewer.userId),
             hasApiAuthToken: Boolean(apiAuthToken)
           })}
         />

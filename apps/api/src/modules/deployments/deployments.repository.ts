@@ -5,6 +5,7 @@ import { deploymentLogs, deployments, projects } from '../../db/schema.js';
 
 export interface CreateDeploymentInput {
   projectId: string;
+  serviceName?: string;
   commitSha?: string;
   branch?: string;
   runtime?: {
@@ -15,10 +16,14 @@ export interface CreateDeploymentInput {
   metadata?: Record<string, unknown>;
 }
 
+type ResolvedCreateDeploymentInput = CreateDeploymentInput & {
+  serviceName: string;
+};
+
 export class DeploymentsRepository {
   constructor(private readonly db: DbClient) {}
 
-  async createIfNoActiveDeployment(input: CreateDeploymentInput) {
+  async createIfNoActiveDeployment(input: ResolvedCreateDeploymentInput) {
     return this.db.transaction(async (tx) => {
       await tx.execute(sql`
         select ${projects.id}
@@ -30,6 +35,7 @@ export class DeploymentsRepository {
       const activeDeployment = await tx.query.deployments.findFirst({
         where: and(
           eq(deployments.projectId, input.projectId),
+          eq(deployments.serviceName, input.serviceName),
           inArray(deployments.status, ['queued', 'building', 'running'])
         ),
         orderBy: [desc(deployments.createdAt)]
@@ -41,6 +47,7 @@ export class DeploymentsRepository {
 
       const [record] = await tx.insert(deployments).values({
         projectId: input.projectId,
+        serviceName: input.serviceName,
         status: 'queued',
         commitSha: input.commitSha,
         branch: input.branch,

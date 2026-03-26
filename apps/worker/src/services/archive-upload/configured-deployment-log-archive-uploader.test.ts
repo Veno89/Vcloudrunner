@@ -28,6 +28,8 @@ test('ConfiguredDeploymentLogArchiveUploader delegates upload-request creation t
         assert.equal(input.baseUrl, 'https://uploads.example.test');
         assert.equal(input.payload.toString(), 'fixture');
         return {
+          provider: 'http',
+          transport: 'http',
           targetUrl: 'https://uploads.example.test/dep-123.ndjson.gz',
           headers: { authorization: 'Bearer token' }
         };
@@ -47,6 +49,8 @@ test('ConfiguredDeploymentLogArchiveUploader delegates upload-request creation t
   });
 
   assert.deepEqual(request, {
+    provider: 'http',
+    transport: 'http',
     targetUrl: 'https://uploads.example.test/dep-123.ndjson.gz',
     headers: { authorization: 'Bearer token' }
   });
@@ -77,12 +81,16 @@ test('ConfiguredDeploymentLogArchiveUploader uploads archive payloads with the p
   );
 
   await uploader.uploadWithRetry({
-    targetUrl: 'https://uploads.example.test/dep-123.ndjson.gz',
+    request: {
+      provider: 'http',
+      transport: 'http',
+      targetUrl: 'https://uploads.example.test/dep-123.ndjson.gz',
+      headers: {
+        authorization: 'Bearer token',
+        'content-type': 'application/gzip'
+      }
+    },
     payload: Buffer.from('fixture'),
-    headers: {
-      authorization: 'Bearer token',
-      'content-type': 'application/gzip'
-    }
   });
 
   assert.equal(requests.length, 1);
@@ -115,14 +123,66 @@ test('ConfiguredDeploymentLogArchiveUploader retries and normalizes final reques
 
   await assert.rejects(
     uploader.uploadWithRetry({
-      targetUrl: 'https://uploads.example.test/dep-123.ndjson.gz',
+      request: {
+        provider: 'http',
+        transport: 'http',
+        targetUrl: 'https://uploads.example.test/dep-123.ndjson.gz',
+        headers: {
+          'content-type': 'application/gzip'
+        }
+      },
       payload: Buffer.from('fixture'),
-      headers: {
-        'content-type': 'application/gzip'
-      }
     }),
     /archive upload failed after retries: archive upload request failed: socket hang up/
   );
 
   assert.equal(attempts, 2);
+});
+
+test('ConfiguredDeploymentLogArchiveUploader delegates native uploads to the provider adapter', async () => {
+  const nativeCalls: Array<{
+    request: {
+      provider: 's3';
+      transport: 'native';
+      targetUrl: string;
+      headers: Record<string, string>;
+      bucket: string;
+      key: string;
+      endpoint: string;
+    };
+    payload: Buffer;
+    signal: AbortSignal;
+  }> = [];
+
+  const uploader = new ConfiguredDeploymentLogArchiveUploader(
+    {
+      async createUploadRequest() {
+        throw new Error('createUploadRequest should not be called by uploadWithRetry');
+      },
+      async uploadNative(input) {
+        nativeCalls.push(input as never);
+      }
+    },
+    {
+      async request() {
+        throw new Error('request should not be called for native uploads');
+      }
+    }
+  );
+
+  await uploader.uploadWithRetry({
+    request: {
+      provider: 's3',
+      transport: 'native',
+      targetUrl: 'https://uploads.example.test/my-bucket/archive.ndjson.gz',
+      headers: { 'content-type': 'application/gzip' },
+      bucket: 'my-bucket',
+      key: 'archive.ndjson.gz',
+      endpoint: 'https://uploads.example.test'
+    },
+    payload: Buffer.from('fixture')
+  });
+
+  assert.equal(nativeCalls.length, 1);
+  assert.equal(nativeCalls[0]?.request.bucket, 'my-bucket');
 });

@@ -37,6 +37,11 @@ function createDockerClientStub() {
       User: string;
       Env: string[];
       ExposedPorts: Record<string, Record<string, never>>;
+      NetworkingConfig?: {
+        EndpointsConfig: Record<string, {
+          Aliases?: string[];
+        }>;
+      };
       HostConfig: {
         PublishAllPorts: boolean;
         Memory: number;
@@ -116,6 +121,11 @@ test('startContainer creates, starts, and inspects the runtime container', async
         User: string;
         Env: string[];
         ExposedPorts: Record<string, Record<string, never>>;
+        NetworkingConfig?: {
+          EndpointsConfig: Record<string, {
+            Aliases?: string[];
+          }>;
+        };
         HostConfig: {
           PublishAllPorts: boolean;
           Memory: number;
@@ -136,6 +146,11 @@ test('startContainer creates, starts, and inspects the runtime container', async
     User: string;
     Env: string[];
     ExposedPorts: Record<string, Record<string, never>>;
+    NetworkingConfig?: {
+      EndpointsConfig: Record<string, {
+        Aliases?: string[];
+      }>;
+    };
     HostConfig: {
       PublishAllPorts: boolean;
       Memory: number;
@@ -172,7 +187,9 @@ test('startContainer creates, starts, and inspects the runtime container', async
     imageTag: 'vcloudrunner/project:dep-123',
     env: { NODE_ENV: 'production', PORT: '3000' },
     networkName: 'vcloudrunner-deployments',
+    networkAliases: ['svc-demo-project-frontend'],
     containerPort: 3000,
+    publishPort: true,
     memoryMb: 512,
     cpuMillicores: 500
   });
@@ -184,6 +201,13 @@ test('startContainer creates, starts, and inspects the runtime container', async
     User: '1000:1000',
     Env: ['NODE_ENV=production', 'PORT=3000'],
     ExposedPorts: { '3000/tcp': {} },
+    NetworkingConfig: {
+      EndpointsConfig: {
+        'vcloudrunner-deployments': {
+          Aliases: ['svc-demo-project-frontend']
+        }
+      }
+    },
     HostConfig: {
       PublishAllPorts: true,
       Memory: 512 * 1024 * 1024,
@@ -197,5 +221,97 @@ test('startContainer creates, starts, and inspects the runtime container', async
   assert.deepEqual(result, {
     containerId: 'container-123',
     hostPort: 49152
+  });
+});
+
+test('startContainer can keep internal services off the host port map', async () => {
+  let createInput:
+    | {
+        NetworkingConfig?: {
+          EndpointsConfig: Record<string, {
+            Aliases?: string[];
+          }>;
+        };
+        HostConfig: {
+          PublishAllPorts: boolean;
+        };
+      }
+    | undefined;
+
+  const dockerClient = createDockerClientStub();
+  dockerClient.createContainer = async (input: {
+    name: string;
+    Image: string;
+    User: string;
+    Env: string[];
+    ExposedPorts: Record<string, Record<string, never>>;
+    NetworkingConfig?: {
+      EndpointsConfig: Record<string, {
+        Aliases?: string[];
+      }>;
+    };
+    HostConfig: {
+      PublishAllPorts: boolean;
+      Memory: number;
+      NanoCpus: number;
+      PidsLimit: number;
+      ReadonlyRootfs: boolean;
+      RestartPolicy: { Name: string };
+      NetworkMode: string;
+    };
+  }) => {
+    createInput = {
+      NetworkingConfig: input.NetworkingConfig,
+      HostConfig: {
+        PublishAllPorts: input.HostConfig.PublishAllPorts
+      }
+    };
+
+    return {
+      async start() {
+        return undefined;
+      },
+      async inspect() {
+        return {
+          Id: 'container-internal',
+          NetworkSettings: {
+            Ports: {
+              '3000/tcp': undefined
+            }
+          }
+        };
+      }
+    };
+  };
+
+  const runtimeManager = new DockerContainerRuntimeManager(dockerClient);
+
+  const result = await runtimeManager.startContainer({
+    name: 'vcloudrunner-project-internal',
+    imageTag: 'vcloudrunner/project:dep-internal',
+    env: { NODE_ENV: 'production' },
+    networkName: 'vcloudrunner-deployments',
+    networkAliases: ['svc-demo-project-worker'],
+    containerPort: 3000,
+    publishPort: false,
+    memoryMb: 512,
+    cpuMillicores: 500
+  });
+
+  assert.deepEqual(createInput, {
+    NetworkingConfig: {
+      EndpointsConfig: {
+        'vcloudrunner-deployments': {
+          Aliases: ['svc-demo-project-worker']
+        }
+      }
+    },
+    HostConfig: {
+      PublishAllPorts: false
+    }
+  });
+  assert.deepEqual(result, {
+    containerId: 'container-internal',
+    hostPort: null
   });
 });

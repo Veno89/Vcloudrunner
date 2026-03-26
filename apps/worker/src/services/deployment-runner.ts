@@ -1,7 +1,12 @@
-import type { DeploymentJobPayload } from '@vcloudrunner/shared-types';
+import {
+  buildProjectServiceInternalHostname,
+  isPublicWebServiceTarget,
+  type DeploymentJobPayload
+} from '@vcloudrunner/shared-types';
 
 import { env } from '../config/env.js';
 import { logger } from '../logger/logger.js';
+import { normalizeDeploymentSourceRoot } from './deployment-source-root.js';
 import type { ContainerRuntimeManager } from './runtime/container-runtime-manager.js';
 import type { DeploymentImageBuilder } from './runtime/deployment-image-builder.js';
 import type {
@@ -56,8 +61,11 @@ export class DeploymentRunner {
     await this.imageBuilder.removeImage(imageTag);
   }
 
-  private async prepareWorkspace(deploymentId: string): Promise<PreparedDeploymentWorkspace> {
-    return this.workspaceManager.prepareWorkspace(deploymentId);
+  private async prepareWorkspace(
+    deploymentId: string,
+    sourceRoot?: string | null
+  ): Promise<PreparedDeploymentWorkspace> {
+    return this.workspaceManager.prepareWorkspace(deploymentId, { sourceRoot });
   }
 
   private async removeWorkspace(workspaceDir: string) {
@@ -109,9 +117,18 @@ export class DeploymentRunner {
   }
 
   async run(job: DeploymentJobPayload) {
-    const workspace = await this.prepareWorkspace(job.deploymentId);
+    const sourceRoot = normalizeDeploymentSourceRoot(job.serviceSourceRoot);
+    const shouldPublishPort = isPublicWebServiceTarget({
+      kind: job.serviceKind,
+      exposure: job.serviceExposure
+    });
+    const workspace = await this.prepareWorkspace(job.deploymentId, sourceRoot);
     const imageTag = `vcloudrunner/${job.projectSlug}:${job.deploymentId}`;
     const containerName = `vcloudrunner-${job.projectSlug}-${job.deploymentId.slice(0, 8)}`;
+    const serviceHostname = buildProjectServiceInternalHostname(
+      job.projectSlug,
+      job.serviceName ?? 'app'
+    );
 
     const containerPort = job.runtime?.containerPort ?? env.DEPLOYMENT_DEFAULT_CONTAINER_PORT;
     const memoryMb = job.runtime?.memoryMb ?? env.DEPLOYMENT_DEFAULT_MEMORY_MB;
@@ -129,10 +146,18 @@ export class DeploymentRunner {
         branch: job.branch,
         repoDir: workspace.repoDir,
         imageTag,
+        sourceRoot
       });
       imageBuilt = true;
 
-      logger.info('starting container', { containerName, containerPort, memoryMb, cpuMillicores });
+      logger.info('starting container', {
+        containerName,
+        containerPort,
+        memoryMb,
+        cpuMillicores,
+        serviceName: job.serviceName ?? null,
+        serviceSourceRoot: sourceRoot
+      });
 
       const networkName = await this.ensureDeploymentNetwork();
       const startResult = await this.runtimeManager.startContainer({
@@ -140,7 +165,9 @@ export class DeploymentRunner {
         imageTag,
         env: job.env,
         networkName,
+        networkAliases: [serviceHostname],
         containerPort,
+        publishPort: shouldPublishPort,
         memoryMb,
         cpuMillicores
       });
@@ -151,7 +178,10 @@ export class DeploymentRunner {
         containerName,
         imageTag,
         hostPort: startResult.hostPort,
-        runtimeUrl: startResult.hostPort ? `http://${job.projectSlug}.${env.PLATFORM_DOMAIN}` : null,
+        runtimeUrl:
+          shouldPublishPort && startResult.hostPort
+            ? `http://${job.projectSlug}.${env.PLATFORM_DOMAIN}`
+            : null,
         internalPort: containerPort,
         projectPath: workspace.projectPath
       };

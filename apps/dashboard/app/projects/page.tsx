@@ -28,7 +28,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     <PageLayout>
       <PageHeader
         title="Projects"
-        description="Manage your projects and trigger deployments."
+        description="Manage your projects, service layouts, and deployments."
       />
 
       <ActionToast
@@ -40,10 +40,10 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
               ? encodeURIComponent('Invalid project input. Ensure name/repository URL are valid.')
               : searchParams?.reason === 'auth_required'
                 ? encodeURIComponent('Project creation is unauthorized. Check API_AUTH_TOKEN or the explicit local dev-auth bypass.')
-                : searchParams?.reason === 'access_denied'
+              : searchParams?.reason === 'access_denied'
                   ? encodeURIComponent('Project creation is authenticated but lacks the required project write access.')
                   : searchParams?.reason === 'user_context_missing'
-                    ? encodeURIComponent('Project creation requires NEXT_PUBLIC_DEMO_USER_ID and a live dashboard user context.')
+                    ? encodeURIComponent('Project creation requires a live dashboard user context. Check API_AUTH_TOKEN or the explicit local dev-auth setup.')
               : searchParams?.message
         }
         fallbackErrorMessage="Operation failed. Check API availability and try again."
@@ -81,9 +81,10 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
                 name={project.name}
                 repo={project.repo}
                 domain={project.domain}
+                serviceSummary={project.serviceSummary}
+                serviceStatusSummary={project.serviceStatusSummary}
                 status={project.status}
-                deploymentStatus={project.deploymentStatus}
-                cancellationRequested={project.cancellationRequested}
+                statusVariant={project.statusVariant}
               />
               {data.usingLiveData && (
                 <Button asChild variant="ghost" size="sm" className="w-full justify-start">

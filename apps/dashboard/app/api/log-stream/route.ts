@@ -1,5 +1,9 @@
 import { type NextRequest } from 'next/server';
 import {
+  buildDashboardAuthHeaders,
+  demoUserId
+} from '@/lib/api';
+import {
   createDashboardProxyTimeoutMessage,
   createDashboardProxyUnavailableMessage,
   describeDashboardProxyFailure
@@ -10,7 +14,7 @@ const apiAuthToken = process.env.API_AUTH_TOKEN;
 const DASHBOARD_PROXY_TIMEOUT_MS = 10_000;
 
 export async function GET(request: NextRequest) {
-  if (!apiAuthToken) {
+  if (!apiAuthToken && !demoUserId) {
     return new Response(
       describeDashboardProxyFailure({
         feature: 'live log streaming',
@@ -43,9 +47,7 @@ export async function GET(request: NextRequest) {
     upstream = await fetch(
       `${apiBaseUrl}/v1/projects/${projectId}/deployments/${deploymentId}/logs/stream?${query.toString()}`,
       {
-        headers: {
-          authorization: `Bearer ${apiAuthToken}`
-        },
+        headers: buildDashboardAuthHeaders(),
         cache: 'no-store',
         signal: controller.signal
       }
@@ -66,7 +68,7 @@ export async function GET(request: NextRequest) {
     return new Response(
       describeDashboardProxyFailure({
         feature: 'live log streaming',
-        hasApiAuthToken: true,
+        hasApiAuthToken: Boolean(apiAuthToken),
         statusCode: upstream.status,
         upstreamMessage: message,
       }),

@@ -38,6 +38,11 @@ interface DockerClientLike {
     User: string;
     Env: string[];
     ExposedPorts: Record<string, Record<string, never>>;
+    NetworkingConfig?: {
+      EndpointsConfig: Record<string, {
+        Aliases?: string[];
+      }>;
+    };
     HostConfig: {
       PublishAllPorts: boolean;
       Memory: number;
@@ -98,8 +103,19 @@ export class DockerContainerRuntimeManager implements ContainerRuntimeManager {
       User: '1000:1000',
       Env: Object.entries(input.env).map(([key, value]) => `${key}=${value}`),
       ExposedPorts: { [exposedPort]: {} },
+      ...(input.networkAliases && input.networkAliases.length > 0
+        ? {
+            NetworkingConfig: {
+              EndpointsConfig: {
+                [input.networkName]: {
+                  Aliases: input.networkAliases
+                }
+              }
+            }
+          }
+        : {}),
       HostConfig: {
-        PublishAllPorts: true,
+        PublishAllPorts: input.publishPort,
         Memory: input.memoryMb * 1024 * 1024,
         NanoCpus: input.cpuMillicores * 1_000_000,
         PidsLimit: 256,

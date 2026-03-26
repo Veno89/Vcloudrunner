@@ -6,6 +6,7 @@ import Link from 'next/link';
 interface DeploymentItem {
   id: string;
   project: string;
+  serviceName?: string | null;
   status: DeploymentStatus;
   cancellationRequested?: boolean;
   commitSha: string;
@@ -20,6 +21,7 @@ export function DeploymentTable({ deployments }: { deployments: DeploymentItem[]
           <tr>
             <th className="px-3 py-2">Deployment</th>
             <th className="px-3 py-2">Project</th>
+            <th className="px-3 py-2">Service</th>
             <th className="px-3 py-2">Status</th>
             <th className="px-3 py-2">Commit</th>
             <th className="px-3 py-2">Created</th>
@@ -37,6 +39,9 @@ export function DeploymentTable({ deployments }: { deployments: DeploymentItem[]
                 </Link>
               </td>
               <td className="px-3 py-2">{item.project}</td>
+              <td className="px-3 py-2 text-xs text-muted-foreground">
+                {item.serviceName ?? 'app'}
+              </td>
               <td className="px-3 py-2">
                 <DeploymentStatusBadges
                   status={item.status}

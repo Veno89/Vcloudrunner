@@ -39,19 +39,22 @@ function buildProjectsService(project: ProjectRecord | null, hasMembership = fal
 const ownerActor: ActorContext = {
   userId: 'owner-user',
   role: 'user',
-  scopes: ['projects:read', 'deployments:read']
+  scopes: ['projects:read', 'deployments:read'],
+  authSource: 'database-token'
 };
 
 const memberActor: ActorContext = {
   userId: 'member-user',
   role: 'user',
-  scopes: ['projects:read']
+  scopes: ['projects:read'],
+  authSource: 'database-token'
 };
 
 const adminActor: ActorContext = {
   userId: 'admin-user',
   role: 'admin',
-  scopes: []
+  scopes: [],
+  authSource: 'database-token'
 };
 
 const project: ProjectRecord = {

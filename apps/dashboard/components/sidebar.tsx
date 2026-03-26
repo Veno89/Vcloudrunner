@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Box, Layers, Settings, FolderGit2, ScrollText, Key, Activity, Menu, X } from 'lucide-react';
+import { Box, Layers, Settings, FolderGit2, ScrollText, Key, Activity, Menu, User, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -17,6 +17,7 @@ const navItems = [
 
 const settingsItems = [
   { href: '/settings', label: 'Overview', icon: Settings },
+  { href: '/settings/account', label: 'Account', icon: User },
   { href: '/settings/tokens', label: 'API Tokens', icon: Key },
 ];
 

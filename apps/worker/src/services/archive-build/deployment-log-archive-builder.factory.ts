@@ -1,5 +1,10 @@
-import { GzipNdjsonDeploymentLogArchiveBuilder } from './gzip-ndjson-deployment-log-archive-builder.js';
+import {
+  createConfiguredDeploymentLogArchiveBuilder,
+  type CreateConfiguredDeploymentLogArchiveBuilderOptions
+} from './configured-deployment-log-archive-builder.factory.js';
 
-export function createDeploymentLogArchiveBuilder() {
-  return new GzipNdjsonDeploymentLogArchiveBuilder();
+export function createDeploymentLogArchiveBuilder(
+  options: CreateConfiguredDeploymentLogArchiveBuilderOptions = {}
+) {
+  return createConfiguredDeploymentLogArchiveBuilder(options);
 }

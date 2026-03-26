@@ -12,8 +12,8 @@ import { LiveDataUnavailableState } from '@/components/live-data-unavailable-sta
 import Link from 'next/link';
 import {
   apiAuthToken,
-  demoUserId,
-  fetchProjectsForDemoUser,
+  fetchProjectsForCurrentUser,
+  resolveViewerContext,
   fetchDeploymentsForProject,
   fetchDeploymentLogs,
 } from '@/lib/api';
@@ -56,10 +56,11 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
   const logsAutoRefreshEnabled = searchParams?.logsAutoRefresh === '1';
   const currentLogsPage = Math.max(1, Number.parseInt(searchParams?.logsPage ?? '1', 10) || 1);
   const refreshedAt = new Date().toISOString();
+  const { viewer, error: viewerContextError } = await resolveViewerContext();
 
-  if (demoUserId) {
+  if (viewer) {
     try {
-      const apiProjects = await fetchProjectsForDemoUser();
+      const apiProjects = await fetchProjectsForCurrentUser();
       const groupResults = await Promise.allSettled(
         apiProjects.map(async (project) => {
           const items = await fetchDeploymentsForProject(project.id);
@@ -69,7 +70,7 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
       const groups = groupResults
         .filter((result): result is PromiseFulfilledResult<Array<{
           deployment: Awaited<ReturnType<typeof fetchDeploymentsForProject>>[number];
-          project: Awaited<ReturnType<typeof fetchProjectsForDemoUser>>[number];
+          project: Awaited<ReturnType<typeof fetchProjectsForCurrentUser>>[number];
         }>> => result.status === 'fulfilled')
         .map((result) => result.value);
       const groupFailures = groupResults
@@ -80,7 +81,7 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
           error: groupFailures[0]?.reason,
           failedProjectCount: groupFailures.length,
           totalProjectCount: apiProjects.length,
-          hasDemoUserId: true,
+          hasDemoUserId: Boolean(viewer.userId),
           hasApiAuthToken: Boolean(apiAuthToken)
         });
       }
@@ -140,7 +141,7 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
         } catch (error) {
           logReadErrorMessage = describeDashboardLiveDataFailure({
             error,
-            hasDemoUserId: true,
+            hasDemoUserId: Boolean(viewer.userId),
             hasApiAuthToken: Boolean(apiAuthToken)
           });
         }
@@ -148,12 +149,13 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
     } catch (error) {
       liveDataErrorMessage = describeDashboardLiveDataFailure({
         error,
-        hasDemoUserId: true,
+        hasDemoUserId: Boolean(viewer.userId),
         hasApiAuthToken: Boolean(apiAuthToken)
       });
     }
   } else {
     liveDataErrorMessage = describeDashboardLiveDataFailure({
+      ...(viewerContextError ? { error: viewerContextError } : {}),
       hasDemoUserId: false,
       hasApiAuthToken: Boolean(apiAuthToken)
     });

@@ -1,6 +1,11 @@
-import { createCaddyService } from '../caddy.service.factory.js';
+import {
+  createConfiguredIngressManager,
+  type CreateConfiguredIngressManagerOptions
+} from './configured-ingress-manager.factory.js';
 import type { IngressManager } from './ingress-manager.js';
 
-export function createIngressManager(): IngressManager {
-  return createCaddyService();
+export function createIngressManager(
+  options: CreateConfiguredIngressManagerOptions = {}
+): IngressManager {
+  return createConfiguredIngressManager(options);
 }

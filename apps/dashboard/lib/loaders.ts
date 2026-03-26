@@ -1,10 +1,11 @@
 import type { DeploymentStatus } from '@vcloudrunner/shared-types';
+import { getPrimaryProjectService } from '@vcloudrunner/shared-types';
 
 import {
   apiAuthToken,
-  demoUserId,
   fetchApiHealth,
-  fetchProjectsForDemoUser,
+  fetchProjectsForCurrentUser,
+  resolveViewerContext,
   fetchDeploymentsForProject,
   fetchQueueHealth,
   fetchWorkerHealth,
@@ -15,24 +16,31 @@ import {
   deriveDomain,
   describeDashboardLiveDataFailure,
   describePartialDashboardDeploymentFailure,
-  formatDeploymentStatusText,
-  hasRequestedCancellation,
+  hasRequestedCancellation
 } from './helpers';
+import {
+  type DashboardStatusBadgeVariant,
+  composeProjectStatus,
+  createProjectServiceStatuses,
+  formatProjectServiceStatusSummary
+} from './project-service-status';
 
 export interface MappedProject {
   id: string;
   name: string;
   repo: string;
   domain: string;
+  serviceSummary: string;
+  serviceStatusSummary?: string;
   status: string;
-  deploymentStatus?: DeploymentStatus;
-  cancellationRequested?: boolean;
+  statusVariant: DashboardStatusBadgeVariant;
 }
 
 export interface MappedDeployment {
   id: string;
   project: string;
   projectId: string;
+  serviceName?: string | null;
   status: DeploymentStatus;
   cancellationRequested?: boolean;
   commitSha: string;
@@ -114,11 +122,14 @@ export async function loadDashboardData(): Promise<DashboardData> {
 
   const health = await loadPlatformHealth().catch(() => createFallbackHealth());
 
-  if (!demoUserId) {
+  const { viewer, error: viewerContextError } = await resolveViewerContext();
+
+  if (!viewer) {
     return {
       ...fallback,
       health,
       liveDataErrorMessage: describeDashboardLiveDataFailure({
+        ...(viewerContextError ? { error: viewerContextError } : {}),
         hasDemoUserId: false,
         hasApiAuthToken: Boolean(apiAuthToken)
       })
@@ -126,7 +137,7 @@ export async function loadDashboardData(): Promise<DashboardData> {
   }
 
   try {
-    const apiProjects = await fetchProjectsForDemoUser();
+    const apiProjects = await fetchProjectsForCurrentUser();
 
     const deploymentGroupsResult = await Promise.allSettled(
       apiProjects.map(async (project) => {
@@ -145,7 +156,7 @@ export async function loadDashboardData(): Promise<DashboardData> {
             error: deploymentFailures[0]?.reason,
             failedProjectCount: deploymentFailures.length,
             totalProjectCount: apiProjects.length,
-            hasDemoUserId: true,
+            hasDemoUserId: Boolean(viewer.userId),
             hasApiAuthToken: Boolean(apiAuthToken)
           })
         : null;
@@ -158,6 +169,12 @@ export async function loadDashboardData(): Promise<DashboardData> {
     );
 
     const projects = apiProjects.map((project) => {
+      const publicService = getPrimaryProjectService(project.services);
+      const serviceSummary =
+        project.services.length === 1
+          ? `1 service · public: ${publicService.name}`
+          : `${project.services.length} services · public: ${publicService.name}`;
+
       const projectDeploymentResult = deploymentGroupResultsByProjectId.get(project.id);
       if (!projectDeploymentResult || projectDeploymentResult.status === 'rejected') {
         return {
@@ -165,35 +182,28 @@ export async function loadDashboardData(): Promise<DashboardData> {
           name: project.name,
           repo: project.gitRepositoryUrl,
           domain: deriveDomain(project),
+          serviceSummary,
           status: 'history unavailable',
+          statusVariant: 'warning' as const,
         };
       }
 
-      const latestDeployment = projectDeploymentResult.value
-        .slice()
-        .sort((a, b) => Date.parse(b.deployment.createdAt) - Date.parse(a.deployment.createdAt))[0]
-        ?.deployment;
-
-      if (!latestDeployment) {
-        return {
-          id: project.id,
-          name: project.name,
-          repo: project.gitRepositoryUrl,
-          domain: deriveDomain(project),
-          status: 'no deployments',
-        };
-      }
-
-      const cancellationRequested = hasRequestedCancellation(latestDeployment.metadata);
+      const projectDeployments = projectDeploymentResult.value.map((item) => item.deployment);
+      const projectServiceStatuses = createProjectServiceStatuses(
+        project.services,
+        projectDeployments
+      );
+      const composedProjectStatus = composeProjectStatus(projectServiceStatuses);
 
       return {
         id: project.id,
         name: project.name,
         repo: project.gitRepositoryUrl,
         domain: deriveDomain(project),
-        status: formatDeploymentStatusText(latestDeployment.status, cancellationRequested),
-        deploymentStatus: latestDeployment.status,
-        cancellationRequested,
+        serviceSummary,
+        serviceStatusSummary: formatProjectServiceStatusSummary(projectServiceStatuses),
+        status: composedProjectStatus.label,
+        statusVariant: composedProjectStatus.variant,
       };
     });
 
@@ -201,6 +211,7 @@ export async function loadDashboardData(): Promise<DashboardData> {
       id: deployment.id,
       project: project.name,
       projectId: project.id,
+      serviceName: deployment.serviceName ?? null,
       status: deployment.status,
       cancellationRequested: hasRequestedCancellation(deployment.metadata),
       commitSha: deployment.commitSha ?? 'unknown',
@@ -231,11 +242,11 @@ export async function loadDashboardData(): Promise<DashboardData> {
     return {
       ...fallback,
       health,
-      liveDataErrorMessage: describeDashboardLiveDataFailure({
-        error,
-        hasDemoUserId: true,
-        hasApiAuthToken: Boolean(apiAuthToken)
-      }),
+        liveDataErrorMessage: describeDashboardLiveDataFailure({
+          error,
+          hasDemoUserId: Boolean(viewer.userId),
+          hasApiAuthToken: Boolean(apiAuthToken)
+        }),
     };
   }
 }

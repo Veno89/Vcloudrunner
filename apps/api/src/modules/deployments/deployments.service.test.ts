@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {
+  buildProjectServiceInternalHostname,
+  createDefaultProjectServices
+} from '@vcloudrunner/shared-types';
 
 import {
   DeploymentAlreadyActiveError,
   DeploymentCancellationNotAllowedError,
   DeploymentNotFoundError,
   DeploymentQueueUnavailableError,
+  InvalidProjectServiceError,
   ProjectNotFoundError
 } from '../../server/domain-errors.js';
 
@@ -19,7 +24,8 @@ const project = {
   id: '00000000-0000-0000-0000-000000000001',
   slug: 'demo-project',
   gitRepositoryUrl: 'https://example.com/repo.git',
-  defaultBranch: 'main'
+  defaultBranch: 'main',
+  services: createDefaultProjectServices()
 };
 
 const createdDeployment = {
@@ -36,6 +42,8 @@ function buildService(overrides?: {
   enqueueError?: Error;
   markFailedError?: Error;
   onMarkFailed?: (deploymentId: string, message: string) => void;
+  onEnqueue?: (payload: Record<string, unknown>) => void;
+  onCreateDeployment?: (input: Record<string, unknown>) => void;
   deploymentByIdResult?: { id: string; status: 'queued' | 'building' | 'running' | 'failed' | 'stopped'; metadata?: unknown } | null;
   cancelQueuedResult?: boolean;
   cancelQueuedError?: Error;
@@ -46,11 +54,12 @@ function buildService(overrides?: {
   onMarkCancellationRequested?: (input: { deploymentId: string; metadata: Record<string, unknown>; requestedByCorrelationId: string }) => void;
 }) {
   const queue = {
-    enqueue: async () => {
+    enqueue: async (payload: Record<string, unknown>) => {
       if (overrides?.enqueueError) {
         throw overrides.enqueueError;
       }
 
+      overrides?.onEnqueue?.(payload);
       return { id: 'job-1' };
     },
     cancelQueuedDeployment: async () => {
@@ -69,10 +78,12 @@ function buildService(overrides?: {
         : project
     } as never,
     deploymentsRepository: {
-      createIfNoActiveDeployment: async () => {
+      createIfNoActiveDeployment: async (input: Record<string, unknown>) => {
         if (overrides?.createError) {
           throw overrides.createError;
         }
+
+        overrides?.onCreateDeployment?.(input);
 
         if (Object.prototype.hasOwnProperty.call(overrides ?? {}, 'createResult')) {
           return overrides?.createResult ?? null;
@@ -157,7 +168,7 @@ test('createDeployment throws DeploymentAlreadyActiveError when insert is skippe
 
 test('createDeployment maps unique constraint violations to DeploymentAlreadyActiveError', async () => {
   const service = buildService({
-    createError: { code: '23505', constraint: 'deployments_project_single_active_idx', table: 'deployments' }
+    createError: { code: '23505', constraint: 'deployments_project_service_single_active_idx', table: 'deployments' }
   });
 
   await assert.rejects(
@@ -171,7 +182,7 @@ test('createDeployment maps unique constraint violations to DeploymentAlreadyAct
 
 test('createDeployment maps index violation without table metadata to DeploymentAlreadyActiveError', async () => {
   const service = buildService({
-    createError: { code: '23505', constraint: 'deployments_project_single_active_idx' }
+    createError: { code: '23505', constraint: 'deployments_project_service_single_active_idx' }
   });
 
   await assert.rejects(
@@ -202,7 +213,7 @@ test('createDeployment rethrows unrelated unique violations', async () => {
 
 test('createDeployment rethrows index violation for non-deployments table', async () => {
   const service = buildService({
-    createError: { code: '23505', constraint: 'deployments_project_single_active_idx', table: 'projects' }
+    createError: { code: '23505', constraint: 'deployments_project_service_single_active_idx', table: 'projects' }
   });
 
   await assert.rejects(
@@ -212,7 +223,7 @@ test('createDeployment rethrows index violation for non-deployments table', asyn
     }),
     (error: unknown) => {
       const e = error as { code?: unknown; constraint?: unknown; table?: unknown };
-      return e.code === '23505' && e.constraint === 'deployments_project_single_active_idx' && e.table === 'projects';
+      return e.code === '23505' && e.constraint === 'deployments_project_service_single_active_idx' && e.table === 'projects';
     }
   );
 });
@@ -360,6 +371,325 @@ test('createDeployment still rethrows the original env error when markFailed bes
     }),
     decryptError
   );
+});
+
+test('createDeployment uses the primary public service runtime defaults and queue metadata', async () => {
+  let createInput: Record<string, unknown> | null = null;
+  let enqueuePayload: Record<string, unknown> | null = null;
+
+  const service = buildService({
+    projectResult: {
+      ...project,
+      services: [
+        {
+          name: 'worker',
+          kind: 'worker',
+          sourceRoot: 'apps/worker',
+          exposure: 'internal',
+          runtime: {
+            memoryMb: 768
+          }
+        },
+        {
+          name: 'frontend',
+          kind: 'web',
+          sourceRoot: 'apps/frontend',
+          exposure: 'public',
+          runtime: {
+            containerPort: 8080,
+            memoryMb: 1024
+          }
+        }
+      ]
+    },
+    onCreateDeployment: (input) => {
+      createInput = input;
+    },
+    onEnqueue: (payload) => {
+      enqueuePayload = payload;
+    }
+  });
+
+  await service.createDeployment({
+    projectId: project.id,
+    correlationId: 'corr-services-1'
+  });
+
+  assert.ok(createInput);
+  assert.equal((createInput as { serviceName: string }).serviceName, 'frontend');
+  assert.deepEqual((createInput as { metadata: unknown }).metadata, {
+    runtime: {
+      containerPort: 8080,
+      memoryMb: 1024,
+      cpuMillicores: 500
+    },
+    service: {
+      name: 'frontend',
+      kind: 'web',
+      sourceRoot: 'apps/frontend',
+      exposure: 'public'
+    },
+    services: [
+      {
+        name: 'worker',
+        kind: 'worker',
+        sourceRoot: 'apps/worker',
+        exposure: 'internal',
+        runtime: {
+          memoryMb: 768
+        }
+      },
+      {
+        name: 'frontend',
+        kind: 'web',
+        sourceRoot: 'apps/frontend',
+        exposure: 'public',
+        runtime: {
+          containerPort: 8080,
+          memoryMb: 1024
+        }
+      }
+    ]
+  });
+
+  assert.ok(enqueuePayload);
+  const queuedFrontendPayload = enqueuePayload as Record<string, unknown> & {
+    env: Record<string, string>;
+    runtime: unknown;
+  };
+  assert.equal(queuedFrontendPayload.deploymentId, createdDeployment.id);
+  assert.equal(queuedFrontendPayload.projectId, project.id);
+  assert.equal(queuedFrontendPayload.projectSlug, project.slug);
+  assert.equal(queuedFrontendPayload.correlationId, 'corr-services-1');
+  assert.equal(queuedFrontendPayload.gitRepositoryUrl, project.gitRepositoryUrl);
+  assert.equal(queuedFrontendPayload.branch, project.defaultBranch);
+  assert.equal(queuedFrontendPayload.commitSha, undefined);
+  assert.equal(queuedFrontendPayload.serviceName, 'frontend');
+  assert.equal(queuedFrontendPayload.serviceKind, 'web');
+  assert.equal(queuedFrontendPayload.serviceSourceRoot, 'apps/frontend');
+  assert.equal(queuedFrontendPayload.serviceExposure, 'public');
+  assert.deepEqual(queuedFrontendPayload.runtime, {
+    containerPort: 8080,
+    memoryMb: 1024,
+    cpuMillicores: 500
+  });
+  assert.deepEqual(queuedFrontendPayload.env, {
+    VCLOUDRUNNER_PROJECT_SLUG: 'demo-project',
+    VCLOUDRUNNER_PROJECT_SERVICE_NAMES: 'worker,frontend',
+    VCLOUDRUNNER_SERVICE_NAME: 'frontend',
+    VCLOUDRUNNER_SERVICE_KIND: 'web',
+    VCLOUDRUNNER_SERVICE_EXPOSURE: 'public',
+    VCLOUDRUNNER_SERVICE_SOURCE_ROOT: 'apps/frontend',
+    VCLOUDRUNNER_SERVICE_HOST: buildProjectServiceInternalHostname('demo-project', 'frontend'),
+    VCLOUDRUNNER_SERVICE_PORT: '8080',
+    VCLOUDRUNNER_SERVICE_ADDRESS: `${buildProjectServiceInternalHostname('demo-project', 'frontend')}:8080`,
+    VCLOUDRUNNER_SERVICE_WORKER_NAME: 'worker',
+    VCLOUDRUNNER_SERVICE_WORKER_KIND: 'worker',
+    VCLOUDRUNNER_SERVICE_WORKER_EXPOSURE: 'internal',
+    VCLOUDRUNNER_SERVICE_WORKER_SOURCE_ROOT: 'apps/worker',
+    VCLOUDRUNNER_SERVICE_WORKER_HOST: buildProjectServiceInternalHostname('demo-project', 'worker'),
+    VCLOUDRUNNER_SERVICE_WORKER_PORT: '3000',
+    VCLOUDRUNNER_SERVICE_WORKER_ADDRESS: `${buildProjectServiceInternalHostname('demo-project', 'worker')}:3000`,
+    VCLOUDRUNNER_SERVICE_FRONTEND_NAME: 'frontend',
+    VCLOUDRUNNER_SERVICE_FRONTEND_KIND: 'web',
+    VCLOUDRUNNER_SERVICE_FRONTEND_EXPOSURE: 'public',
+    VCLOUDRUNNER_SERVICE_FRONTEND_SOURCE_ROOT: 'apps/frontend',
+    VCLOUDRUNNER_SERVICE_FRONTEND_HOST: buildProjectServiceInternalHostname('demo-project', 'frontend'),
+    VCLOUDRUNNER_SERVICE_FRONTEND_PORT: '8080',
+    VCLOUDRUNNER_SERVICE_FRONTEND_ADDRESS: `${buildProjectServiceInternalHostname('demo-project', 'frontend')}:8080`
+  });
+});
+
+test('createDeployment uses an explicitly requested named service and its runtime defaults', async () => {
+  let createInput: Record<string, unknown> | null = null;
+  let enqueuePayload: Record<string, unknown> | null = null;
+
+  const service = buildService({
+    projectResult: {
+      ...project,
+      services: [
+        {
+          name: 'frontend',
+          kind: 'web',
+          sourceRoot: 'apps/frontend',
+          exposure: 'public',
+          runtime: {
+            containerPort: 8080,
+            memoryMb: 1024
+          }
+        },
+        {
+          name: 'worker',
+          kind: 'worker',
+          sourceRoot: 'apps/worker',
+          exposure: 'internal',
+          runtime: {
+            memoryMb: 768,
+            cpuMillicores: 700
+          }
+        }
+      ]
+    },
+    envVarsResult: [
+      {
+        key: 'DATABASE_URL',
+        encryptedValue: 'postgres://internal-db'
+      }
+    ],
+    onCreateDeployment: (input) => {
+      createInput = input;
+    },
+    onEnqueue: (payload) => {
+      enqueuePayload = payload;
+    }
+  });
+
+  await service.createDeployment({
+    projectId: project.id,
+    correlationId: 'corr-services-explicit-1',
+    serviceName: 'worker'
+  });
+
+  assert.ok(createInput);
+  assert.equal((createInput as { serviceName: string }).serviceName, 'worker');
+  assert.deepEqual((createInput as { metadata: unknown }).metadata, {
+    runtime: {
+      containerPort: 3000,
+      memoryMb: 768,
+      cpuMillicores: 700
+    },
+    service: {
+      name: 'worker',
+      kind: 'worker',
+      sourceRoot: 'apps/worker',
+      exposure: 'internal'
+    },
+    services: [
+      {
+        name: 'frontend',
+        kind: 'web',
+        sourceRoot: 'apps/frontend',
+        exposure: 'public',
+        runtime: {
+          containerPort: 8080,
+          memoryMb: 1024
+        }
+      },
+      {
+        name: 'worker',
+        kind: 'worker',
+        sourceRoot: 'apps/worker',
+        exposure: 'internal',
+        runtime: {
+          memoryMb: 768,
+          cpuMillicores: 700
+        }
+      }
+    ]
+  });
+
+  assert.ok(enqueuePayload);
+  const queuedWorkerPayload = enqueuePayload as Record<string, unknown> & {
+    env: Record<string, string>;
+    runtime: unknown;
+  };
+  assert.equal(queuedWorkerPayload.deploymentId, createdDeployment.id);
+  assert.equal(queuedWorkerPayload.projectId, project.id);
+  assert.equal(queuedWorkerPayload.projectSlug, project.slug);
+  assert.equal(queuedWorkerPayload.correlationId, 'corr-services-explicit-1');
+  assert.equal(queuedWorkerPayload.gitRepositoryUrl, project.gitRepositoryUrl);
+  assert.equal(queuedWorkerPayload.branch, project.defaultBranch);
+  assert.equal(queuedWorkerPayload.commitSha, undefined);
+  assert.equal(queuedWorkerPayload.serviceName, 'worker');
+  assert.equal(queuedWorkerPayload.serviceKind, 'worker');
+  assert.equal(queuedWorkerPayload.serviceSourceRoot, 'apps/worker');
+  assert.equal(queuedWorkerPayload.serviceExposure, 'internal');
+  assert.deepEqual(queuedWorkerPayload.runtime, {
+    containerPort: 3000,
+    memoryMb: 768,
+    cpuMillicores: 700
+  });
+  assert.deepEqual(queuedWorkerPayload.env, {
+    DATABASE_URL: 'postgres://internal-db',
+    VCLOUDRUNNER_PROJECT_SLUG: 'demo-project',
+    VCLOUDRUNNER_PROJECT_SERVICE_NAMES: 'frontend,worker',
+    VCLOUDRUNNER_SERVICE_NAME: 'worker',
+    VCLOUDRUNNER_SERVICE_KIND: 'worker',
+    VCLOUDRUNNER_SERVICE_EXPOSURE: 'internal',
+    VCLOUDRUNNER_SERVICE_SOURCE_ROOT: 'apps/worker',
+    VCLOUDRUNNER_SERVICE_HOST: buildProjectServiceInternalHostname('demo-project', 'worker'),
+    VCLOUDRUNNER_SERVICE_PORT: '3000',
+    VCLOUDRUNNER_SERVICE_ADDRESS: `${buildProjectServiceInternalHostname('demo-project', 'worker')}:3000`,
+    VCLOUDRUNNER_SERVICE_FRONTEND_NAME: 'frontend',
+    VCLOUDRUNNER_SERVICE_FRONTEND_KIND: 'web',
+    VCLOUDRUNNER_SERVICE_FRONTEND_EXPOSURE: 'public',
+    VCLOUDRUNNER_SERVICE_FRONTEND_SOURCE_ROOT: 'apps/frontend',
+    VCLOUDRUNNER_SERVICE_FRONTEND_HOST: buildProjectServiceInternalHostname('demo-project', 'frontend'),
+    VCLOUDRUNNER_SERVICE_FRONTEND_PORT: '8080',
+    VCLOUDRUNNER_SERVICE_FRONTEND_ADDRESS: `${buildProjectServiceInternalHostname('demo-project', 'frontend')}:8080`,
+    VCLOUDRUNNER_SERVICE_WORKER_NAME: 'worker',
+    VCLOUDRUNNER_SERVICE_WORKER_KIND: 'worker',
+    VCLOUDRUNNER_SERVICE_WORKER_EXPOSURE: 'internal',
+    VCLOUDRUNNER_SERVICE_WORKER_SOURCE_ROOT: 'apps/worker',
+    VCLOUDRUNNER_SERVICE_WORKER_HOST: buildProjectServiceInternalHostname('demo-project', 'worker'),
+    VCLOUDRUNNER_SERVICE_WORKER_PORT: '3000',
+    VCLOUDRUNNER_SERVICE_WORKER_ADDRESS: `${buildProjectServiceInternalHostname('demo-project', 'worker')}:3000`
+  });
+});
+
+test('createDeployment throws InvalidProjectServiceError when the requested service does not exist', async () => {
+  const service = buildService();
+
+  await assert.rejects(
+    service.createDeployment({
+      projectId: project.id,
+      correlationId: 'corr-services-invalid-1',
+      serviceName: 'missing-service'
+    }),
+    InvalidProjectServiceError
+  );
+});
+
+test('createDeployment lets explicit deployment runtime override the primary service defaults', async () => {
+  let enqueuePayload: Record<string, unknown> | null = null;
+
+  const service = buildService({
+    projectResult: {
+      ...project,
+      services: [
+        {
+          name: 'frontend',
+          kind: 'web',
+          sourceRoot: 'apps/frontend',
+          exposure: 'public',
+          runtime: {
+            containerPort: 8080,
+            memoryMb: 1024,
+            cpuMillicores: 750
+          }
+        }
+      ]
+    },
+    onEnqueue: (payload) => {
+      enqueuePayload = payload;
+    }
+  });
+
+  await service.createDeployment({
+    projectId: project.id,
+    correlationId: 'corr-services-2',
+    runtime: {
+      containerPort: 3001,
+      cpuMillicores: 900
+    }
+  });
+
+  assert.ok(enqueuePayload);
+  assert.deepEqual((enqueuePayload as { runtime: unknown }).runtime, {
+    containerPort: 3001,
+    memoryMb: 1024,
+    cpuMillicores: 900
+  });
 });
 
 

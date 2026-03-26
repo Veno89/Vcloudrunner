@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { createApiToken, revokeApiToken, rotateApiToken, demoUserId } from '@/lib/api';
+import { createApiToken, revokeApiToken, rotateApiToken, resolveViewerContext } from '@/lib/api';
 import { extractApiStatusCode } from '@/lib/helpers';
 
 function createTokenActionErrorMessage(action: 'create' | 'revoke' | 'rotate', error: unknown): string {
@@ -33,7 +33,9 @@ function createTokenActionErrorMessage(action: 'create' | 'revoke' | 'rotate', e
 }
 
 export async function createApiTokenAction(formData: FormData) {
-  if (!demoUserId) {
+  const { viewer } = await resolveViewerContext();
+
+  if (!viewer) {
     redirect('/settings/tokens?status=error&message=No+user+context');
     return;
   }
@@ -56,7 +58,7 @@ export async function createApiTokenAction(formData: FormData) {
 
   try {
     const created = await createApiToken({
-      userId: demoUserId,
+      userId: viewer.userId,
       role: roleValue,
       scopes: scopes.length > 0 ? scopes : undefined,
       label: label.length > 0 ? label : undefined,
@@ -81,7 +83,9 @@ export async function createApiTokenAction(formData: FormData) {
 }
 
 export async function revokeApiTokenAction(formData: FormData) {
-  if (!demoUserId) {
+  const { viewer } = await resolveViewerContext();
+
+  if (!viewer) {
     redirect('/settings/tokens?status=error&message=No+user+context');
     return;
   }
@@ -93,7 +97,7 @@ export async function revokeApiTokenAction(formData: FormData) {
   }
 
   try {
-    await revokeApiToken(demoUserId, tokenIdValue);
+    await revokeApiToken(viewer.userId, tokenIdValue);
     revalidatePath('/settings/tokens');
     revalidatePath('/tokens');
     redirect('/settings/tokens?status=success&message=Token+revoked');
@@ -103,7 +107,9 @@ export async function revokeApiTokenAction(formData: FormData) {
 }
 
 export async function rotateApiTokenAction(formData: FormData) {
-  if (!demoUserId) {
+  const { viewer } = await resolveViewerContext();
+
+  if (!viewer) {
     redirect('/settings/tokens?status=error&message=No+user+context');
     return;
   }
@@ -115,7 +121,7 @@ export async function rotateApiTokenAction(formData: FormData) {
   }
 
   try {
-    const rotated = await rotateApiToken(demoUserId, tokenIdValue);
+    const rotated = await rotateApiToken(viewer.userId, tokenIdValue);
     revalidatePath('/settings/tokens');
     revalidatePath('/tokens');
     cookies().set('__token_plaintext', rotated.token, {

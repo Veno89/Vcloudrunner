@@ -12,17 +12,20 @@
     "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1016.0",
+    "@azure/storage-blob": "^12.31.0",
     "@vcloudrunner/shared-types": "0.1.0",
     "bullmq": "^5.16.0",
     "dockerode": "^4.0.2",
     "dotenv": "^16.4.5",
+    "google-auth-library": "^10.6.2",
     "ioredis": "^5.4.1",
-    "zod": "^3.23.8",
-    "pg": "^8.12.0"
+    "pg": "^8.12.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^22.7.4",
-    "typescript": "^5.6.2",
-    "tsx": "^4.19.1"
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2"
   }
 }

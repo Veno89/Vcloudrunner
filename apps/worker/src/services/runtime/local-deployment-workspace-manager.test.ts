@@ -24,7 +24,23 @@ test('prepareWorkspace clears stale deployment contents and returns workspace pa
     await access(prepared.workspaceDir);
     assert.equal(prepared.workspaceDir, staleDir);
     assert.equal(prepared.repoDir, join(staleDir, 'repo'));
-    assert.equal(prepared.projectPath, 'repo');
+    assert.equal(prepared.projectPath, join(staleDir, 'repo'));
+  } finally {
+    await rm(workDir, { recursive: true, force: true });
+  }
+});
+
+test('prepareWorkspace returns the selected service path inside the cloned repository', async () => {
+  const workDir = await mkdtemp(join(tmpdir(), 'vcloudrunner-workspaces-'));
+  const workspaceManager = new LocalDeploymentWorkspaceManager(workDir);
+
+  try {
+    const prepared = await workspaceManager.prepareWorkspace('dep-789', {
+      sourceRoot: 'apps/frontend'
+    });
+
+    assert.equal(prepared.repoDir, join(workDir, 'dep-789', 'repo'));
+    assert.equal(prepared.projectPath, join(workDir, 'dep-789', 'repo', 'apps', 'frontend'));
   } finally {
     await rm(workDir, { recursive: true, force: true });
   }

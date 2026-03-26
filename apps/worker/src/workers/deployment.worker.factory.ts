@@ -1,7 +1,7 @@
 import { Worker, type WorkerOptions } from 'bullmq';
 import { QUEUE_NAMES, type DeploymentJobPayload } from '@vcloudrunner/shared-types';
 
-import { redisConnection } from '../queue/redis.js';
+import { createRedisConnection } from '../queue/redis-connection.factory.js';
 import { createDeploymentJobProcessor } from './deployment-job-processor.js';
 
 type DeploymentWorkerProcessor = ReturnType<typeof createDeploymentJobProcessor>;
@@ -25,7 +25,7 @@ export function createDeploymentWorker(options: CreateDeploymentWorkerOptions = 
   const {
     WorkerClass = Worker as unknown as DeploymentWorkerConstructor,
     processor,
-    connection = redisConnection,
+    connection,
     concurrency = 2
   } = options;
 
@@ -34,7 +34,7 @@ export function createDeploymentWorker(options: CreateDeploymentWorkerOptions = 
   }
 
   return new WorkerClass(QUEUE_NAMES.deployment, processor, {
-    connection,
+    connection: connection ?? createRedisConnection(),
     concurrency
   });
 }

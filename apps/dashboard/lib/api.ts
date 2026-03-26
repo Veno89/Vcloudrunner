@@ -1,4 +1,9 @@
-import type { DeploymentStatus } from '@vcloudrunner/shared-types';
+import { cache } from 'react';
+
+import type {
+  DeploymentStatus,
+  ProjectServiceDefinition
+} from '@vcloudrunner/shared-types';
 
 export interface ApiProject {
   id: string;
@@ -6,11 +11,13 @@ export interface ApiProject {
   slug: string;
   gitRepositoryUrl: string;
   defaultBranch: string;
+  services: ProjectServiceDefinition[];
 }
 
 export interface ApiDeployment {
   id: string;
   projectId: string;
+  serviceName?: string | null;
   status: DeploymentStatus;
   commitSha: string | null;
   createdAt: string;
@@ -94,6 +101,25 @@ export interface CreatedApiTokenRecord {
   createdAt: string;
   updatedAt: string;
   token: string;
+}
+
+export type ApiViewerAuthSource =
+  | 'database-token'
+  | 'bootstrap-token'
+  | 'dev-user-header'
+  | 'dev-admin-token';
+
+export interface ApiViewerContext {
+  userId: string;
+  role: 'admin' | 'user';
+  scopes: string[];
+  authSource: ApiViewerAuthSource;
+  authMode: 'token' | 'development';
+  user: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
 }
 
 interface ApiDataResponse<T> {
@@ -193,6 +219,12 @@ function buildAuthHeaders(extra?: Record<string, string>): Record<string, string
   return headers;
 }
 
+export function buildDashboardAuthHeaders(
+  extra?: Record<string, string>
+): Record<string, string> {
+  return buildAuthHeaders(extra);
+}
+
 async function requestApi(path: string, init?: RequestInit): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
@@ -269,18 +301,6 @@ async function deleteRequest(path: string): Promise<void> {
   }
 }
 
-export async function fetchProjectsForDemoUser(): Promise<ApiProject[]> {
-  if (!demoUserId) {
-    return [];
-  }
-
-  const response = await fetchJson<ApiDataResponse<ApiProject[]>>(
-    `/v1/users/${demoUserId}/projects`
-  );
-
-  return response.data;
-}
-
 export async function fetchDeploymentsForProject(projectId: string): Promise<ApiDeployment[]> {
   const response = await fetchJson<ApiDataResponse<ApiDeployment[]>>(
     `/v1/projects/${projectId}/deployments`
@@ -289,10 +309,66 @@ export async function fetchDeploymentsForProject(projectId: string): Promise<Api
   return response.data;
 }
 
-export async function createDeployment(projectId: string): Promise<ApiDeployment> {
+interface CreateDeploymentInput {
+  serviceName?: string;
+}
+
+export async function createDeployment(
+  projectId: string,
+  input: CreateDeploymentInput = {}
+): Promise<ApiDeployment> {
   const response = await postJson<ApiDataResponse<ApiDeployment>>(
     `/v1/projects/${projectId}/deployments`,
-    {}
+    {
+      ...(input.serviceName ? { serviceName: input.serviceName } : {})
+    }
+  );
+
+  return response.data;
+}
+
+export const fetchViewerContext = cache(async (): Promise<ApiViewerContext | null> => {
+  const response = await requestApi('/v1/auth/me', {
+    headers: buildAuthHeaders()
+  });
+
+  if (response.status === 401) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`API_REQUEST_FAILED ${response.status}`);
+  }
+
+  const payload = await response.json() as ApiDataResponse<ApiViewerContext>;
+  return payload.data;
+});
+
+export async function resolveViewerContext(): Promise<{
+  viewer: ApiViewerContext | null;
+  error: unknown | null;
+}> {
+  try {
+    return {
+      viewer: await fetchViewerContext(),
+      error: null
+    };
+  } catch (error) {
+    return {
+      viewer: null,
+      error
+    };
+  }
+}
+
+export async function fetchProjectsForCurrentUser(): Promise<ApiProject[]> {
+  const viewer = await fetchViewerContext();
+  if (!viewer) {
+    return [];
+  }
+
+  const response = await fetchJson<ApiDataResponse<ApiProject[]>>(
+    `/v1/users/${viewer.userId}/projects`
   );
 
   return response.data;
@@ -304,6 +380,7 @@ interface CreateProjectInput {
   slug: string;
   gitRepositoryUrl: string;
   defaultBranch?: string;
+  services?: ProjectServiceDefinition[];
 }
 
 export async function createProject(input: CreateProjectInput): Promise<ApiProject> {

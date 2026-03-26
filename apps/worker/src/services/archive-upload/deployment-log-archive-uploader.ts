@@ -7,8 +7,7 @@ export interface DeploymentLogArchiveUploader {
     payload: Buffer;
   }): Promise<ArchiveUploadRequest>;
   uploadWithRetry(input: {
-    targetUrl: string;
+    request: ArchiveUploadRequest;
     payload: Buffer;
-    headers: Record<string, string>;
   }): Promise<void>;
 }

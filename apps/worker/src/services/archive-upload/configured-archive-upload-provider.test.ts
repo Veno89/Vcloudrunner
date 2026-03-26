@@ -8,15 +8,49 @@ const { ConfiguredArchiveUploadProvider } = await import('./configured-archive-u
 
 class MockArchiveUploadProvider {
   calls: Array<{ fileName: string; baseUrl: string; payload: Buffer }> = [];
+  nativeCalls: Array<{
+    request: {
+      provider: 's3' | 'azure';
+      transport: 'native';
+      targetUrl: string;
+      headers: Record<string, string>;
+    };
+    payload: Buffer;
+    signal: AbortSignal;
+  }> = [];
 
   constructor(private readonly label: string) {}
 
-  async createUploadRequest(input: { fileName: string; baseUrl: string; payload: Buffer }) {
+  async createUploadRequest(input: {
+    fileName: string;
+    baseUrl: string;
+    payload: Buffer;
+  }): Promise<{
+    provider: 'http';
+    transport: 'http';
+    targetUrl: string;
+    headers: { provider: string };
+  }> {
     this.calls.push(input);
     return {
+      provider: 'http',
+      transport: 'http',
       targetUrl: `${input.baseUrl}/${this.label}/${input.fileName}`,
       headers: { provider: this.label }
     };
+  }
+
+  async uploadNative(input: {
+    request: {
+      provider: 's3' | 'azure';
+      transport: 'native';
+      targetUrl: string;
+      headers: Record<string, string>;
+    };
+    payload: Buffer;
+    signal: AbortSignal;
+  }) {
+    this.nativeCalls.push(input);
   }
 }
 
@@ -51,4 +85,35 @@ test('ConfiguredArchiveUploadProvider delegates to the provider matching the con
   } finally {
     env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER = originalProvider;
   }
+});
+
+test('ConfiguredArchiveUploadProvider delegates native uploads using the request provider key', async () => {
+  const http = new MockArchiveUploadProvider('http');
+  const s3 = new MockArchiveUploadProvider('s3');
+  const gcs = new MockArchiveUploadProvider('gcs');
+  const azure = new MockArchiveUploadProvider('azure');
+
+  const provider = new ConfiguredArchiveUploadProvider({
+    http,
+    s3,
+    gcs,
+    azure
+  });
+
+  await provider.uploadNative?.({
+    request: {
+      provider: 's3',
+      transport: 'native',
+      targetUrl: 'https://uploads.example.com/my-bucket/archive.ndjson.gz',
+      headers: { 'content-type': 'application/gzip' },
+      bucket: 'my-bucket',
+      key: 'archive.ndjson.gz',
+      endpoint: 'https://uploads.example.com'
+    },
+    payload: Buffer.from('payload'),
+    signal: new AbortController().signal
+  });
+
+  assert.equal(s3.nativeCalls.length, 1);
+  assert.equal(azure.nativeCalls.length, 0);
 });

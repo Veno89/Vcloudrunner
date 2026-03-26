@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import Fastify, { type FastifyInstance } from 'fastify';
+import { createDefaultProjectServices } from '@vcloudrunner/shared-types';
 
 process.env.DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/vcloudrunner';
 process.env.REDIS_URL = 'redis://localhost:6379';
@@ -24,7 +25,8 @@ const project = {
   name: 'Example Project',
   slug: 'example-project',
   gitRepositoryUrl: 'https://example.com/repo.git',
-  defaultBranch: 'main'
+  defaultBranch: 'main',
+  services: createDefaultProjectServices()
 };
 
 function buildSelectResult(rows: unknown[]) {
@@ -50,6 +52,7 @@ async function withProjectsRoutesApp(
     scopes?: string[];
     membershipRows: Array<{ role: string }>;
     accessibleProjects?: typeof project[];
+    onCreateProjectInput?: (input: Record<string, unknown>) => void;
   },
   run: (app: FastifyInstance) => Promise<void>
 ) {
@@ -69,7 +72,13 @@ async function withProjectsRoutesApp(
     selectDistinct: () => buildSelectResult([])
   } as any;
 
-  t.mock.method(ProjectsService.prototype, 'createProject', async () => project);
+  t.mock.method(ProjectsService.prototype, 'createProject', async (input: Record<string, unknown>) => {
+    options.onCreateProjectInput?.(input as Record<string, unknown>);
+    return {
+      ...project,
+      ...(input && typeof input === 'object' && 'services' in input ? { services: (input as { services?: typeof project.services }).services ?? project.services } : {})
+    };
+  });
   t.mock.method(ProjectsService.prototype, 'getProjectById', async () => project);
   t.mock.method(mockDbClient, 'select', (fields: Record<string, unknown>) => {
     if (Object.prototype.hasOwnProperty.call(fields, 'userId')) {
@@ -190,6 +199,105 @@ test('create project rejects non-admin access to another user resource', async (
 
     assert.equal(res.statusCode, 403);
     assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_USER_ACCESS');
+  });
+});
+
+test('create project accepts a valid multi-service composition', async (t) => {
+  let capturedInput: Record<string, unknown> | null = null;
+
+  await withProjectsRoutesApp(t, {
+    token: 'owner-create-project-services-token-123',
+    actorUserId: ownerUserId,
+    scopes: ['projects:write'],
+    membershipRows: [],
+    onCreateProjectInput: (input) => {
+      capturedInput = input;
+    }
+  }, async (app) => {
+    const services = [
+      {
+        name: 'frontend',
+        kind: 'web',
+        sourceRoot: 'apps/frontend',
+        exposure: 'public',
+        runtime: {
+          containerPort: 3000
+        }
+      },
+      {
+        name: 'api',
+        kind: 'web',
+        sourceRoot: 'apps/api',
+        exposure: 'internal',
+        runtime: {
+          containerPort: 4000
+        }
+      }
+    ];
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/projects',
+      headers: {
+        authorization: 'Bearer owner-create-project-services-token-123'
+      },
+      payload: {
+        userId: ownerUserId,
+        name: project.name,
+        slug: project.slug,
+        gitRepositoryUrl: project.gitRepositoryUrl,
+        defaultBranch: project.defaultBranch,
+        services
+      }
+    });
+
+    assert.equal(res.statusCode, 201);
+    assert.deepEqual(capturedInput?.services, services);
+    assert.deepEqual(JSON.parse(res.body), {
+      data: {
+        ...project,
+        services
+      }
+    });
+  });
+});
+
+test('create project rejects service compositions without exactly one public service', async (t) => {
+  await withProjectsRoutesApp(t, {
+    token: 'owner-create-project-invalid-services-token-123',
+    actorUserId: ownerUserId,
+    scopes: ['projects:write'],
+    membershipRows: []
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/projects',
+      headers: {
+        authorization: 'Bearer owner-create-project-invalid-services-token-123'
+      },
+      payload: {
+        userId: ownerUserId,
+        name: project.name,
+        slug: project.slug,
+        gitRepositoryUrl: project.gitRepositoryUrl,
+        services: [
+          {
+            name: 'frontend',
+            kind: 'web',
+            sourceRoot: 'apps/frontend',
+            exposure: 'public'
+          },
+          {
+            name: 'marketing',
+            kind: 'web',
+            sourceRoot: 'apps/marketing',
+            exposure: 'public'
+          }
+        ]
+      }
+    });
+
+    assert.equal(res.statusCode, 400);
   });
 });
 

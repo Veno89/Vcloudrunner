@@ -1,4 +1,9 @@
-import type { DeploymentJobPayload, DeploymentRuntimeConfig } from '@vcloudrunner/shared-types';
+import {
+  normalizeProjectServices,
+  resolveProjectService,
+  type DeploymentJobPayload,
+  type DeploymentRuntimeConfig
+} from '@vcloudrunner/shared-types';
 
 import { env } from '../../config/env.js';
 import type { DbClient } from '../../db/client.js';
@@ -8,15 +13,17 @@ import {
   DeploymentCancellationNotAllowedError,
   DeploymentNotFoundError,
   DeploymentQueueUnavailableError,
+  InvalidProjectServiceError,
   ProjectNotFoundError
 } from '../../server/domain-errors.js';
 import { CryptoService } from '../../services/crypto.service.js';
 import { EnvironmentRepository } from '../environment/environment.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { DeploymentsRepository, type CreateDeploymentInput } from './deployments.repository.js';
+import { createProjectServiceDiscoveryEnv } from './service-discovery-env.js';
 
 
-const SINGLE_ACTIVE_DEPLOYMENT_INDEX = 'deployments_project_single_active_idx';
+const SINGLE_ACTIVE_DEPLOYMENT_INDEX = 'deployments_project_service_single_active_idx';
 
 const DEPLOYMENTS_PROJECT_FK_CONSTRAINT = 'deployments_project_id_projects_id_fk';
 
@@ -86,24 +93,47 @@ export class DeploymentsService {
       throw new ProjectNotFoundError();
     }
 
+    const services = normalizeProjectServices(project.services);
+    const selectedService = resolveProjectService(services, input.serviceName);
+    if (!selectedService) {
+      throw new InvalidProjectServiceError(input.serviceName ?? 'unknown');
+    }
+
     const runtime: DeploymentRuntimeConfig = {
-      containerPort: input.runtime?.containerPort ?? env.DEPLOYMENT_DEFAULT_CONTAINER_PORT,
-      memoryMb: input.runtime?.memoryMb ?? env.DEPLOYMENT_DEFAULT_MEMORY_MB,
-      cpuMillicores: input.runtime?.cpuMillicores ?? env.DEPLOYMENT_DEFAULT_CPU_MILLICORES
+      containerPort:
+        input.runtime?.containerPort
+        ?? selectedService.runtime?.containerPort
+        ?? env.DEPLOYMENT_DEFAULT_CONTAINER_PORT,
+      memoryMb:
+        input.runtime?.memoryMb
+        ?? selectedService.runtime?.memoryMb
+        ?? env.DEPLOYMENT_DEFAULT_MEMORY_MB,
+      cpuMillicores:
+        input.runtime?.cpuMillicores
+        ?? selectedService.runtime?.cpuMillicores
+        ?? env.DEPLOYMENT_DEFAULT_CPU_MILLICORES
     };
 
     let deployment;
     try {
       deployment = await this.deploymentsRepository.createIfNoActiveDeployment({
         ...input,
+        serviceName: selectedService.name,
         metadata: {
           ...(input.metadata ?? {}),
-          runtime
+          runtime,
+          service: {
+            name: selectedService.name,
+            kind: selectedService.kind,
+            sourceRoot: selectedService.sourceRoot,
+            exposure: selectedService.exposure
+          },
+          services
         }
       });
     } catch (error) {
       if (isSingleActiveDeploymentUniqueViolation(error)) {
-        throw new DeploymentAlreadyActiveError();
+        throw new DeploymentAlreadyActiveError(selectedService.name);
       }
 
       if (isProjectForeignKeyViolation(error)) {
@@ -114,12 +144,21 @@ export class DeploymentsService {
     }
 
     if (!deployment) {
-      throw new DeploymentAlreadyActiveError();
+      throw new DeploymentAlreadyActiveError(selectedService.name);
     }
 
     let payload: DeploymentJobPayload;
     try {
       const envVars = await this.environmentRepository.listByProject(project.id);
+      const decryptedEnv = Object.fromEntries(
+        envVars.map((item) => [item.key, this.cryptoService.decrypt(item.encryptedValue)])
+      );
+      const discoveryEnv = createProjectServiceDiscoveryEnv({
+        projectSlug: project.slug,
+        services,
+        selectedService,
+        defaultContainerPort: env.DEPLOYMENT_DEFAULT_CONTAINER_PORT
+      });
 
       payload = {
         deploymentId: deployment.id,
@@ -129,9 +168,14 @@ export class DeploymentsService {
         gitRepositoryUrl: project.gitRepositoryUrl,
         branch: input.branch ?? project.defaultBranch,
         commitSha: input.commitSha,
-        env: Object.fromEntries(
-          envVars.map((item) => [item.key, this.cryptoService.decrypt(item.encryptedValue)])
-        ),
+        serviceName: selectedService.name,
+        serviceKind: selectedService.kind,
+        serviceSourceRoot: selectedService.sourceRoot,
+        serviceExposure: selectedService.exposure,
+        env: {
+          ...decryptedEnv,
+          ...discoveryEnv
+        },
         runtime
       };
     } catch (error) {

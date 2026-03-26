@@ -1,4 +1,5 @@
 import type { DbClient } from '../../db/client.js';
+import { normalizeProjectServices } from '@vcloudrunner/shared-types';
 import { ProjectSlugTakenError } from '../../server/domain-errors.js';
 
 interface PostgresError {
@@ -16,7 +17,10 @@ export class ProjectsService {
 
   async createProject(input: CreateProjectInput) {
     try {
-      return await this.repository.create(input);
+      return await this.repository.create({
+        ...input,
+        services: normalizeProjectServices(input.services)
+      });
     } catch (error) {
       const pgError = error as PostgresError;
       if (pgError.code === '23505' && pgError.constraint === 'projects_slug_unique') {

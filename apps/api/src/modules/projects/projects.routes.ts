@@ -4,12 +4,73 @@ import { z } from 'zod';
 import { assertUserAccess, ensureProjectAccess, requireActor, requireScope } from '../auth/auth-utils.js';
 import type { ProjectsService } from './projects.service.js';
 
+function isValidServiceSourceRoot(value: string) {
+  return (
+    value.length > 0
+    && !value.startsWith('/')
+    && !value.includes('\\')
+    && !value.split('/').some((segment) => segment === '..')
+  );
+}
+
+const projectServiceRuntimeSchema = z.object({
+  containerPort: z.number().int().min(1).max(65535).optional(),
+  memoryMb: z.number().int().min(1).max(262144).optional(),
+  cpuMillicores: z.number().int().min(1).max(256000).optional()
+}).optional();
+
+const projectServicesSchema = z.array(z.object({
+  name: z.string().min(1).max(32).regex(/^[a-z][a-z0-9-]*$/),
+  kind: z.enum(['web', 'worker']),
+  sourceRoot: z.string().min(1).max(255).refine(
+    isValidServiceSourceRoot,
+    'sourceRoot must be a repo-relative POSIX path and cannot escape the repository root'
+  ),
+  exposure: z.enum(['public', 'internal']),
+  runtime: projectServiceRuntimeSchema
+})).min(1).max(12).superRefine((services, ctx) => {
+  const seenNames = new Set<string>();
+  let publicServiceCount = 0;
+
+  for (const [index, service] of services.entries()) {
+    if (seenNames.has(service.name)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [index, 'name'],
+        message: 'service names must be unique within a project'
+      });
+    }
+
+    seenNames.add(service.name);
+
+    if (service.exposure === 'public') {
+      publicServiceCount += 1;
+
+      if (service.kind !== 'web') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, 'kind'],
+          message: 'public services must currently use the web kind'
+        });
+      }
+    }
+  }
+
+  if (publicServiceCount !== 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'projects must currently define exactly one public service'
+    });
+  }
+});
+
 const createProjectSchema = z.object({
   userId: z.string().uuid(),
   name: z.string().min(3).max(64),
   slug: z.string().min(3).max(64).regex(/^[a-z0-9-]+$/),
   gitRepositoryUrl: z.string().url(),
-  defaultBranch: z.string().min(1).max(255).optional()
+  defaultBranch: z.string().min(1).max(255).optional(),
+  services: projectServicesSchema.optional()
 });
 
 const userProjectsParamsSchema = z.object({

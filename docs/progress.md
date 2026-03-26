@@ -1,6 +1,6 @@
 # Vcloudrunner MVP Progress Tracker
 
-Last updated: 2026-03-22 (Phase 4 worker deployment event bus composition)
+Last updated: 2026-03-26 (Phase 4 account/session surface and API-backed auth-source visibility)
 
 ## Legend
 
@@ -10,7 +10,7 @@ Last updated: 2026-03-22 (Phase 4 worker deployment event bus composition)
 
 
 
-## Phase Status Snapshot (2026-03-22)
+## Phase Status Snapshot (2026-03-26)
 
 - **Phase 1: Critical stabilization** — ~99% complete
   - done: deployment concurrency invariant (service + DB), queue enqueue failure mapping/state correction, deployment-create env-resolution failure correction so decrypt/read failures no longer strand active deployments, queued-cancel race/idempotency hardening, safer compose defaults, production dev-auth startup guard, stricter bootstrap token startup validation, strict env-boolean parsing for auth/ingress and worker archive-lifecycle flags, strict numeric env parsing for API/worker runtime settings so blank strings no longer coerce to `0`, telemetry startup that now honors the same boolean env semantics as the validated config layer, explicit rejection of invalid credentials during dev-auth fallback flows, root auth/error plugin inheritance fix, host-run worker `.env` loading that now matches the documented app-local override flow, cwd-independent repo-root env resolution for API/worker startup and API `drizzle-kit` commands, aligned `drizzle-kit` env loading/fail-fast behavior with the API runtime, pinned compose API dev auth off independently from local host-run `.env` settings, stricter Redis queue URL parsing so explicit database paths must be integer indexes instead of silently coercing invalid values, broader API auth/deployment regression coverage, fuller api-token route access coverage, and clearer dashboard auth/config failure states
@@ -21,11 +21,401 @@ Last updated: 2026-03-22 (Phase 4 worker deployment event bus composition)
 - **Phase 3: UI/UX trust and polish** — ~100% complete
   - done: route architecture, loading/error boundaries, action feedback helpers, clearer deployment error messages, stopped-status consistency, in-context failure handling, live-data unavailable/degraded states across the dashboard, platform-health visibility even when project-scoped live data is unavailable, clearer status-page behavior under partial outages, more truthful platform-health badge semantics, preserved worker stale/unavailable distinctions, more accurate demo-mode/live-data messaging on top-level pages, timeout-bounded dashboard live-data/log-proxy fetching so hung upstream calls degrade into explicit timeout states instead of hanging route rendering, overlap-safe client-side queue-health polling for operational widgets, pending-aware/visibility-aware auto-refresh loops for deployment and log views, visibility-aware live log streaming with replay-safe resume behavior plus in-panel reconnect recovery, terminal-state-aware log streaming so stopped/failed deployments now keep historical logs visible without pretending to be actively streaming, terminal-state-aware log auto-refresh so stopped/failed deployments no longer keep polling the route while saying no new live logs are expected, partial-outage-aware global deployment/history loaders so one failing project no longer blanks top-level dashboard views, partial-outage-aware project detail panels so deployment or environment read failures no longer take down the full project page, project-scoped deployment/environment/log routes that now stay usable when their secondary live-data reads fail, a global environment shortcut that now stays live when the selected project’s variable read fails, deployment detail routing that no longer turns partial-outage misses into false not-found states, token settings that now keep creation available when the token inventory read fails, deployment detail pages that now explicitly disclose surrounding history outages when the current deployment remains available, status-page outcome summaries that now stay terminal-only, truthful operational-card labeling for running-deployment recency, and cancellation-requested deployment states that now show an explicit `cancelling` cue plus updated queued/building/stopped guidance across detail, summary, log-selector, project-overview, operational-metric, global-filter, and plain-text detail surfaces instead of masquerading as normal in-progress work
   - left (~0%): core UI/UX trust and polish goals are complete; only optional future polish remains
-- **Phase 4: Extensibility and platform maturity** — ~65% complete
-  - done: API route and service composition (removing module-level singletons in favor of injected factories in fastify plugins), runtime and deployment lifecycle seams exist, basic domain boundaries are in place, worker runtime execution plus runtime-health inspection now share an adapter/factory seam instead of hard-wiring bootstrap reconciliation to Docker, worker ingress management now also goes through an explicit seam instead of naming `CaddyService` directly, lifecycle event emission now depends on an event-sink seam instead of a raw webhook-emitter function, archive upload request/auth logic now goes through a dedicated provider seam instead of living inside deployment state management, that archive upload request/auth layer is now further split into provider-specific `http`/`s3`/`gcs`/`azure` adapters behind a registry-driven selector instead of one branching class, deployment-log archive encoding/compression now also goes through a dedicated archive-builder seam instead of living inline inside the state service, worker outbound HTTP transport now also goes through a shared client seam instead of letting Caddy route updates, lifecycle webhooks, archive uploads, and GCS token exchange each hand-roll their own timeout and fetch logic, worker archive-upload composition now also goes through dedicated factories instead of letting the configured provider, GCS auth adapter, and configured uploader self-compose registries or HTTP clients inline, worker shell command execution now goes through a deployment-command-runner seam instead of living inline inside runtime orchestration, worker container/network lifecycle now also goes through a runtime-manager seam instead of binding `DeploymentRunner` straight to `dockerode`, worker Caddy service plus Docker runtime executor/inspector/manager composition now also goes through dedicated adapter-specific factories instead of letting those concrete infrastructure adapters self-compose outbound HTTP, deployment-runner, or Docker-client dependencies inside their constructors, worker workspace preparation/cleanup now goes through a workspace-manager seam instead of living inline inside runtime orchestration, build-file repository inspection now goes through a repository-file-inspector seam instead of letting Dockerfile detection shell out to git directly, build-system resolver, Dockerfile detector, and configured image-builder composition now also go through dedicated factories instead of self-composing detector lists, repository inspectors, command runners, or resolvers inside their constructors, local archive file handling now also goes through a deployment-log-archive-store seam instead of living inline inside deployment state management, build-system resolution now also goes through a dedicated resolver seam instead of letting `DeploymentRunner` call a static detector registry directly, the default build-detector list now also goes through a dedicated detector factory instead of being hard-wired inline inside the configured resolver, raw process-launch behavior for repository inspection and shell deployment commands now also goes through a shared exec-file runner seam instead of naming `execFile` separately inside each adapter, repository clone plus image-build orchestration now also goes through a deployment-image-builder seam instead of living inline inside `DeploymentRunner`, archive upload transport/retry behavior now also goes through a deployment-log-archive-uploader seam instead of living inline inside deployment state management, worker deployment-state construction now also goes through a factory seam instead of being named directly in the job processor and bootstrap composition roots, BullMQ deployment-worker construction now also goes through a dedicated factory seam instead of being hard-wired inline at the worker module boundary, deployment-worker default processor composition now also goes through a dedicated configured factory instead of letting the general worker factory self-compose a processor inline, worker bootstrap lifecycle composition now also goes through a dedicated configured factory instead of being wired inline in `index.ts`, worker background-scheduler plus heartbeat-Redis construction now also goes through a dedicated factory seam instead of being wired inline in the bootstrap entrypoint, deployment-state repository construction now also goes through a dedicated factory seam instead of being named directly inside state-service composition, deployment-state repository default queryable composition now also goes through a dedicated configured factory instead of letting the repository self-compose its database pool inside the constructor, deployment-state database-queryable / `pg` pool construction now also goes through a dedicated factory seam instead of living inline inside the repository, deployment-runner construction now also goes through a dedicated factory seam instead of being named directly inside the Docker runtime executor, deployment-runner default workspace/image/runtime collaborator composition now also goes through a dedicated configured factory instead of letting the runner self-compose those defaults inside its constructor, deployment-job-processor default dependency wiring now also goes through a dedicated factory seam instead of naming runtime/state/ingress/event/logger defaults inline inside the processor module, deployment-state-service default repository/ingress/archive collaborator wiring now also goes through a dedicated factory seam instead of being named inline inside the service constructor, Docker client construction now also goes through a shared factory seam instead of being named directly inside the Docker-backed runtime manager and inspector adapters, and duplicated worker runtime-family selection now also goes through a shared resolver seam instead of being repeated inline across the runtime executor, runtime inspector, and container-runtime-manager factories
-  - left (~38%): broader auth/user model evolution, runtime adapter expansion, advanced day-2 operational tooling
+- **Phase 4: Extensibility and platform maturity** — ~94% complete
+  - done: API route and service composition (removing module-level singletons in favor of injected factories in fastify plugins), runtime and deployment lifecycle seams exist, basic domain boundaries are in place, worker runtime execution plus runtime-health inspection now share an adapter/factory seam instead of hard-wiring bootstrap reconciliation to Docker, worker ingress management now also goes through an explicit seam instead of naming `CaddyService` directly, lifecycle event emission now depends on an event-sink seam instead of a raw webhook-emitter function, archive upload request/auth logic now goes through a dedicated provider seam instead of living inside deployment state management, that archive upload request/auth layer is now further split into provider-specific `http`/`s3`/`gcs`/`azure` adapters behind a registry-driven selector instead of one branching class, deployment-log archive encoding/compression now also goes through a dedicated archive-builder seam instead of living inline inside the state service, worker outbound HTTP transport now also goes through a shared client seam instead of letting Caddy route updates, lifecycle webhooks, archive uploads, and GCS token exchange each hand-roll their own timeout and fetch logic, worker archive-upload composition now also goes through dedicated factories instead of letting the configured provider, GCS auth adapter, and configured uploader self-compose registries or HTTP clients inline, worker shell command execution now goes through a deployment-command-runner seam instead of living inline inside runtime orchestration, worker container/network lifecycle now also goes through a runtime-manager seam instead of binding `DeploymentRunner` straight to `dockerode`, worker Caddy service plus Docker runtime executor/inspector/manager composition now also goes through dedicated adapter-specific factories instead of letting those concrete infrastructure adapters self-compose outbound HTTP, deployment-runner, or Docker-client dependencies inside their constructors, worker workspace preparation/cleanup now goes through a workspace-manager seam instead of living inline inside runtime orchestration, build-file repository inspection now goes through a repository-file-inspector seam instead of letting Dockerfile detection shell out to git directly, build-system resolver, Dockerfile detector, and configured image-builder composition now also go through dedicated factories instead of self-composing detector lists, repository inspectors, command runners, or resolvers inside their constructors, local archive file handling now also goes through a deployment-log-archive-store seam instead of living inline inside deployment state management, build-system resolution now also goes through a dedicated resolver seam instead of letting `DeploymentRunner` call a static detector registry directly, the default build-detector list now also goes through a dedicated detector factory instead of being hard-wired inline inside the configured resolver, raw process-launch behavior for repository inspection and shell deployment commands now also goes through a shared exec-file runner seam instead of naming `execFile` separately inside each adapter, repository clone plus image-build orchestration now also goes through a deployment-image-builder seam instead of living inline inside `DeploymentRunner`, archive upload transport/retry behavior now also goes through a deployment-log-archive-uploader seam instead of living inline inside deployment state management, worker deployment-state construction now also goes through a factory seam instead of being named directly in the job processor and bootstrap composition roots, BullMQ deployment-worker construction now also goes through a dedicated factory seam instead of being hard-wired inline at the worker module boundary, deployment-worker default processor composition now also goes through a dedicated configured factory instead of letting the general worker factory self-compose a processor inline, worker bootstrap lifecycle composition now also goes through a dedicated configured factory instead of being wired inline in `index.ts`, worker background-scheduler plus heartbeat-Redis construction now also goes through a dedicated factory seam instead of being wired inline in the bootstrap entrypoint, deployment-state repository construction now also goes through a dedicated factory seam instead of being named directly inside state-service composition, deployment-state repository default queryable composition now also goes through a dedicated configured factory instead of letting the repository self-compose its database pool inside the constructor, deployment-state database-queryable / `pg` pool construction now also goes through a dedicated factory seam instead of living inline inside the repository, deployment-runner construction now also goes through a dedicated factory seam instead of being named directly inside the Docker runtime executor, deployment-runner default workspace/image/runtime collaborator composition now also goes through a dedicated configured factory instead of letting the runner self-compose those defaults inside its constructor, deployment-job-processor default dependency wiring now also goes through a dedicated factory seam instead of naming runtime/state/ingress/event/logger defaults inline inside the processor module, deployment-state-service default repository/ingress/archive collaborator wiring now also goes through a dedicated factory seam instead of being named inline inside the service constructor, Docker client construction now also goes through a shared factory seam instead of being named directly inside the Docker-backed runtime manager and inspector adapters, and duplicated worker runtime-family selection now also goes through a shared resolver seam instead of being repeated inline across the runtime executor, runtime inspector, and container-runtime-manager factories, while archive providers now use provider-native AWS/Azure SDK upload adapters plus `google-auth-library`-backed GCS token resolution instead of hand-rolled signing/token flows, and deployment-state service construction now also lives in a dedicated configured factory so the class itself no longer self-composes default collaborators, while heartbeat Redis, repository-file-inspector, deployment-state-queryable, Docker-client, outbound HTTP, Caddy service, webhook listener, ingress manager, deployment-log archive builder/store, and HTTP archive-provider default construction now also live behind dedicated configured or adapter-specific factories instead of being instantiated inline around the worker service graph, and worker queue Redis connection defaults now also go through dedicated configured and override-friendly factory seams instead of living as a module-level boundary constant
+  - done recently: projects now carry explicit service-definition contracts with one primary public service plus internal-only services, the worker build/runtime path honors the selected service root for workspace preparation, Dockerfile detection, Docker build context, and runtime project paths, deployments can now explicitly target named services with a per-project/per-service active-deployment invariant instead of a project-wide active lock, the API now generates `VCLOUDRUNNER_SERVICE_*` discovery env vars plus stable internal hostnames for each project service, the worker runtime now attaches matching Docker network aliases for those generated service hosts, runtime/ingress behavior now only exposes public web services, the dashboard now composes project status from per-service deployment state while surfacing each service's current deployment status, latest deployment, and internal host through project and deployment views, the dashboard now resolves its live user context through an authenticated `/v1/auth/me` API path instead of treating `NEXT_PUBLIC_DEMO_USER_ID` as the primary identity source, the authenticated actor payload now reports auth source plus persisted user profile details when available, and Settings now includes a dedicated account/session surface instead of keeping auth state only in the overview
+  - left (~6%): broader auth/user model evolution, runtime adapter expansion, advanced day-2 operational tooling
 
 ## Implementation Log
+
+### Phase: Phase 4 account/session surface follow-through (2026-03-26, API-backed auth source and viewer profile visibility)
+
+- what was built:
+  - added an API-side auth service behind `/v1/auth/me` so the authenticated viewer payload now includes the auth source (`database-token`, `bootstrap-token`, `dev-user-header`, or `dev-admin-token`), derived auth mode, and persisted user profile details when a matching user record exists
+  - extended the API auth context to preserve source metadata across DB-backed tokens, bootstrap tokens, and explicit local dev-auth paths so account/session state no longer has to be guessed purely from dashboard environment variables
+  - added a dedicated `/settings/account` dashboard surface plus settings navigation/sidebar entries to show the resolved actor, stored name/email when present, effective scopes, live session source, and current dashboard request transport
+  - simplified the main Settings overview into launcher-style cards for account/session and token management so the detailed auth/session state now has a first-class home instead of living only as overview diagnostics
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/src/plugins/auth-context.ts`
+  - `apps/api/src/plugins/auth-context.test.ts`
+  - `apps/api/src/modules/auth/auth.service.ts`
+  - `apps/api/src/modules/auth/auth.service.test.ts`
+  - `apps/api/src/modules/auth/auth.routes.ts`
+  - `apps/api/src/modules/auth/auth.routes.test.ts`
+  - `apps/api/src/modules/auth/auth-utils.ts`
+  - `apps/api/src/modules/auth/auth-utils.test.ts`
+  - `apps/api/src/server/build-server.ts`
+  - `apps/api/src/server/api-routes.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/viewer-auth.ts`
+  - `apps/dashboard/app/settings/page.tsx`
+  - `apps/dashboard/app/settings/account/page.tsx`
+  - `apps/dashboard/components/settings-subnav.tsx`
+  - `apps/dashboard/components/sidebar.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - the product now has a real account/session visibility surface, but it still lacks an interactive sign-in/sign-out flow, per-user dashboard sessions, and broader team/invitation workflows beyond token-backed actor resolution
+- next recommended step:
+  - continue Phase 4 by introducing the first interactive dashboard auth workflow: let operators sign in with a DB-backed API token into a per-user server-side session/cookie, resolve viewer context from that session instead of a shared server env token, and add explicit sign-out/session lifecycle UI
+
+### Phase: Phase 4 settings auth visibility follow-through (2026-03-26, current actor and auth-source diagnostics)
+
+- what was built:
+  - updated the dashboard Settings overview to resolve the authenticated viewer through the existing viewer-context path and surface the current actor's user id, role, and effective scopes directly in the UI
+  - added explicit auth diagnostics to the Settings overview so operators can see whether dashboard API calls are currently using bearer-token auth, local dev-auth header hints, or an unconfigured auth path
+  - exposed the active API base URL, viewer endpoint, and optional dev-auth user hint in the Settings overview so the viewer-context behavior is inspectable without reading environment variables or source code
+  - updated the settings token card copy so it now reflects viewer-scoped token management instead of the older implicit demo-user model
+  - verified the slice with `npm --workspace @vcloudrunner/dashboard run typecheck` and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/dashboard/app/settings/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - the dashboard now exposes the resolved viewer and auth path in Settings, but the product still lacks a broader in-UI account/session surface and any first-class team membership or invitation workflows beyond token-backed actor resolution
+- next recommended step:
+  - continue Phase 4 by promoting the resolved viewer context into a dedicated account/session surface beyond the Settings overview, then begin the first real user/session workflow slice so login and account state stop being inferred purely from token-backed diagnostics
+
+### Phase: Phase 4 authenticated dashboard viewer-context follow-through (2026-03-26, API-backed current actor resolution)
+
+- what was built:
+  - added an authenticated `/v1/auth/me` API route so the platform can expose the current actor's user id, role, and scopes without requiring a user-id path parameter just to discover who the caller is
+  - added dashboard-side viewer-context resolution helpers so pages and server actions can resolve the current authenticated actor first and then target the right user-scoped project/token APIs from that live context
+  - rewired dashboard project loading, project detail pages, global environment/log views, and token management flows to use the resolved viewer context instead of hard-gating on `NEXT_PUBLIC_DEMO_USER_ID`
+  - kept `NEXT_PUBLIC_DEMO_USER_ID` as an optional local dev-auth header hint rather than the dashboard's primary identity source, and aligned log proxy routes with the shared dashboard auth-header builder so proxy auth matches the rest of the dashboard
+  - updated dashboard messaging and README guidance to reflect the new viewer-context-first auth model
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/src/modules/auth/auth.routes.ts`
+  - `apps/api/src/modules/auth/auth.routes.test.ts`
+  - `apps/api/src/server/build-server.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/helpers.ts`
+  - `apps/dashboard/lib/loaders.ts`
+  - `apps/dashboard/app/projects/actions.ts`
+  - `apps/dashboard/app/tokens/actions.ts`
+  - `apps/dashboard/components/token-management-page.tsx`
+  - `apps/dashboard/app/environment/page.tsx`
+  - `apps/dashboard/app/logs/page.tsx`
+  - `apps/dashboard/app/projects/[id]/page.tsx`
+  - `apps/dashboard/app/projects/[id]/environment/page.tsx`
+  - `apps/dashboard/app/projects/[id]/deployments/page.tsx`
+  - `apps/dashboard/app/projects/[id]/logs/page.tsx`
+  - `apps/dashboard/app/projects/page.tsx`
+  - `apps/dashboard/app/api/log-stream/route.ts`
+  - `apps/dashboard/app/api/log-export/route.ts`
+  - `apps/dashboard/README.md`
+  - `docs/progress.md`
+- what is still missing:
+  - the dashboard can now resolve and act as the authenticated viewer without a hardcoded demo-user identity, but the product still lacks a first-class in-UI account/session surface and broader team/session workflows beyond token-backed actor resolution
+- next recommended step:
+  - continue Phase 4 by surfacing the current authenticated actor in the Settings overview with role/scope visibility and clearer auth-source diagnostics, then use that foundation to shape the next login/session and team-permission steps without reintroducing hidden identity assumptions
+
+### Phase: Phase 4 project-composition service status follow-through (2026-03-26, composed per-service dashboard visibility)
+
+- what was built:
+  - added a dedicated dashboard-side project service-status composition helper so multi-service project state is derived per service instead of collapsing to whichever deployment happened most recently
+  - updated project list loading to derive composed project health labels such as `healthy`, `deploying`, `degraded`, and `partial` from the latest deployment recorded for each service rather than the single latest deployment in the project
+  - updated the projects list cards to show a compact service-status summary line so multi-service projects expose a per-service state breakdown directly from the overview page
+  - updated the project detail page to show a composed service-status summary card plus per-service status badges, latest deployment timing, latest deployment links, and public runtime URLs when available
+  - verified the slice with `npm --workspace @vcloudrunner/dashboard run typecheck` and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/dashboard/lib/project-service-status.ts`
+  - `apps/dashboard/lib/loaders.ts`
+  - `apps/dashboard/components/project-card.tsx`
+  - `apps/dashboard/app/projects/page.tsx`
+  - `apps/dashboard/app/projects/[id]/page.tsx`
+  - `apps/dashboard/lib/mock-data.ts`
+  - `docs/progress.md`
+- what is still missing:
+  - project health is now composed from service deployment state, but the dashboard still depends on the demo-user bootstrap path and service visibility is still deployment-derived rather than driven by first-class health checks or broader auth-aware operator workflows
+- next recommended step:
+  - continue Phase 4 by starting the broader auth/user-model evolution, beginning with reducing the dashboard's `NEXT_PUBLIC_DEMO_USER_ID` coupling in favor of first-class authenticated user context and project access flows before layering on larger team/session UX
+
+### Phase: Phase 4 project-composition service discovery follow-through (2026-03-26, generated service env + internal service addressing)
+
+- what was built:
+  - added shared service-discovery helpers so project services now resolve to stable, Docker-safe internal hostnames and consistent env-token naming across the API, worker, and dashboard
+  - added API-side generated `VCLOUDRUNNER_SERVICE_*` discovery env output for the selected deployment service and every configured project service, including service name, kind, exposure, source root, host, port, and combined address values
+  - merged those generated discovery vars into queued deployment payload env so services receive a consistent reserved platform-level service map without relying on manually curated project env entries
+  - updated the worker runtime path to attach the selected service's generated internal hostname as a Docker network alias so cross-service communication can use the same hostname surfaced through the generated env contract
+  - surfaced each generated internal host on the dashboard project detail page so the internal addressing convention is visible alongside service role, exposure, and source-root metadata
+  - verified the slice with `npm --workspace @vcloudrunner/shared-types run build`, `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, `npm --workspace @vcloudrunner/worker run typecheck`, and `npm --workspace @vcloudrunner/worker test`
+- files created or changed:
+  - `packages/shared-types/src/index.ts`
+  - `apps/api/src/modules/deployments/service-discovery-env.ts`
+  - `apps/api/src/modules/deployments/service-discovery-env.test.ts`
+  - `apps/api/src/modules/deployments/deployments.service.ts`
+  - `apps/api/src/modules/deployments/deployments.service.test.ts`
+  - `apps/worker/src/services/runtime/container-runtime-manager.ts`
+  - `apps/worker/src/services/runtime/docker-container-runtime-manager.ts`
+  - `apps/worker/src/services/runtime/docker-container-runtime-manager.test.ts`
+  - `apps/worker/src/services/deployment-runner.ts`
+  - `apps/worker/src/services/deployment-runner.test.ts`
+  - `apps/dashboard/app/projects/[id]/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - services can now discover each other through stable generated env and internal hostnames, but the platform still collapses project operational state to deployment-centric views instead of showing a composed per-service health and status picture
+- next recommended step:
+  - continue the project-composition model by surfacing composed per-service health/status in the dashboard and project-level loaders so internal services become operationally first-class in day-to-day visibility, not just deploy targeting and runtime wiring
+
+### Phase: Phase 4 project-composition service targeting follow-through (2026-03-26, named-service deploy selection + service-scoped active concurrency)
+
+- what was built:
+  - made the selected deployment service first-class on deployment records instead of metadata-only by adding a persisted `service_name` field plus a migration that backfills existing rows from stored service metadata or the default `app` service
+  - replaced the project-wide single-active deployment invariant with a per-project/per-service active-deployment invariant so different services in the same project can now queue/build/run independently while still preventing overlapping deployments of the same service
+  - updated deployment creation to persist the resolved service name alongside service metadata and to return service-specific conflict errors when a target service already has queued/building/running work
+  - surfaced the selected service through dashboard deployment list/detail/project-history views so targeted service deploys are visible without relying purely on metadata inference
+  - verified the slice with `npm --workspace @vcloudrunner/shared-types run build`, `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, `npm --workspace @vcloudrunner/worker run typecheck`, and `npm --workspace @vcloudrunner/worker test`
+- files created or changed:
+  - `apps/api/drizzle/0007_deployment_service_name.sql`
+  - `apps/api/drizzle/meta/_journal.json`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/modules/deployments/deployments.repository.ts`
+  - `apps/api/src/modules/deployments/deployments.service.ts`
+  - `apps/api/src/modules/deployments/deployments.service.test.ts`
+  - `apps/api/src/server/domain-errors.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/loaders.ts`
+  - `apps/dashboard/components/deployment-table.tsx`
+  - `apps/dashboard/app/deployments/page.tsx`
+  - `apps/dashboard/app/deployments/[id]/page.tsx`
+  - `apps/dashboard/app/projects/[id]/page.tsx`
+  - `apps/dashboard/lib/mock-data.ts`
+  - `docs/progress.md`
+- what is still missing:
+  - multi-service projects can now target and deploy services independently, but service-to-service wiring is still manual through project-level env vars and project-level health/status views still lean on the latest deployment rather than a composed per-service picture
+- next recommended step:
+  - continue the project-composition model by defining service-to-service internal addressing and service-aware env conventions, then surface composed per-service health/status in the dashboard so internal services become operationally first-class instead of just independently deployable
+
+### Phase: Phase 4 project-composition runtime follow-through (2026-03-26, `serviceSourceRoot`-aware worker build path)
+
+- what was built:
+  - threaded the selected project-service `serviceSourceRoot` through worker workspace preparation, image-build orchestration, and runtime execution so deployments no longer assume the repository root is the only build target
+  - added worker-side normalization and validation for service source roots so malformed or escaping paths fail as deployment-configuration errors instead of silently escaping the prepared workspace
+  - updated Dockerfile detection and Docker build command composition to scope candidate search, fallback tree scans, and Docker build context to the selected service subtree rather than the whole repository
+  - updated the prepared workspace contract to return the selected service path inside the cloned repository so runtime execution metadata reflects the actual deployed service root
+  - verified the slice with `npm --workspace @vcloudrunner/worker run typecheck` and `npm --workspace @vcloudrunner/worker test`
+- files created or changed:
+  - `apps/worker/src/services/deployment-source-root.ts`
+  - `apps/worker/src/services/deployment-source-root.test.ts`
+  - `apps/worker/src/services/deployment-runner.ts`
+  - `apps/worker/src/services/deployment-runner.test.ts`
+  - `apps/worker/src/services/build-detection/build-system-detector.ts`
+  - `apps/worker/src/services/build-detection/build-system-resolver.ts`
+  - `apps/worker/src/services/build-detection/configured-build-system-resolver.ts`
+  - `apps/worker/src/services/build-detection/configured-build-system-resolver.test.ts`
+  - `apps/worker/src/services/build-detection/dockerfile-detector.ts`
+  - `apps/worker/src/services/build-detection/dockerfile-detector.test.ts`
+  - `apps/worker/src/services/runtime/deployment-workspace-manager.ts`
+  - `apps/worker/src/services/runtime/local-deployment-workspace-manager.ts`
+  - `apps/worker/src/services/runtime/local-deployment-workspace-manager.test.ts`
+  - `apps/worker/src/services/runtime/deployment-image-builder.ts`
+  - `apps/worker/src/services/runtime/configured-deployment-image-builder.ts`
+  - `apps/worker/src/services/runtime/configured-deployment-image-builder.test.ts`
+  - `apps/worker/src/services/runtime/deployment-command-runner.ts`
+  - `apps/worker/src/services/runtime/shell-deployment-command-runner.ts`
+  - `apps/worker/src/services/runtime/shell-deployment-command-runner.test.ts`
+  - `docs/progress.md`
+- what is still missing:
+  - deployments still always resolve to the primary public service, so service kind/exposure semantics and internal-service orchestration remain metadata rather than executable runtime behavior
+- next recommended step:
+  - continue the project-composition model by letting deployments target a named project service and by carrying `serviceKind` / `serviceExposure` into ingress and runtime decisions so internal services stop assuming public web behavior
+
+### Phase: Phase 4 project-composition groundwork (2026-03-26, project service-definition contract)
+
+- what was built:
+  - added an explicit project `services` contract in shared types and API persistence with a safe default single-service shape so existing projects still resolve to one public `app` service rooted at `.`
+  - added API validation and normalization for multi-service project definitions, including unique service names, exactly one public service, and repo-relative `sourceRoot` validation
+  - updated deployment creation to resolve the primary public service from the project contract, merge its runtime defaults into deployment runtime selection, and include the chosen service metadata in the queued job payload
+  - updated the dashboard project list and project detail views to surface service counts, the primary public service, and each configured service's role, exposure, source root, and runtime defaults
+  - verified the slice with `npm --workspace @vcloudrunner/shared-types run build`, `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, `npm --workspace @vcloudrunner/worker run typecheck`, and `npm --workspace @vcloudrunner/worker test`
+- files created or changed:
+  - `packages/shared-types/src/index.ts`
+  - `apps/api/drizzle/0006_project_services.sql`
+  - `apps/api/drizzle/meta/_journal.json`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/modules/projects/projects.routes.ts`
+  - `apps/api/src/modules/projects/projects.routes.test.ts`
+  - `apps/api/src/modules/deployments/deployments.service.ts`
+  - `apps/api/src/modules/deployments/deployments.service.test.ts`
+  - `apps/api/src/modules/deployments/deployments.routes.test.ts`
+  - `apps/api/src/modules/environment/environment.routes.test.ts`
+  - `apps/api/src/modules/logs/logs.routes.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/loaders.ts`
+  - `apps/dashboard/lib/mock-data.ts`
+  - `apps/dashboard/components/project-card.tsx`
+  - `apps/dashboard/components/project-create-form.tsx`
+  - `apps/dashboard/components/project-create-panel.tsx`
+  - `apps/dashboard/app/projects/page.tsx`
+  - `apps/dashboard/app/projects/[id]/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - the platform can now describe multi-service projects, but the worker/runtime path still largely assumes a root-level single build target once a deployment starts executing
+- next recommended step:
+  - continue the project-composition model by making build detection, workspace preparation, and runtime execution honor `serviceSourceRoot` from the selected project service so non-root services can actually deploy
+
+### Phase: Phase 4 worker simple-adapter composition closeout (2026-03-26, configured HTTP/ingress/archive seams)
+
+- what was built:
+  - extracted dedicated configured factories for the worker outbound HTTP client, Caddy service, webhook deployment-event listener, ingress manager, deployment-log archive builder, and deployment-log archive store so those remaining simple adapters no longer instantiate their concrete defaults inline at the surrounding service boundaries
+  - rewired the existing top-level factories for those services to delegate through the new configured seams while preserving straightforward override hooks for focused tests
+  - added an explicit HTTP archive upload provider factory and rewired the archive upload provider registry to compose every provider through adapter-specific factories instead of constructing the HTTP provider inline
+  - added focused coverage for the new configured factory seams and re-verified the worker package with `npm --workspace @vcloudrunner/worker run typecheck` and `npm --workspace @vcloudrunner/worker test`
+- files created or changed:
+  - `apps/worker/src/services/http/configured-outbound-http-client.factory.ts`
+  - `apps/worker/src/services/http/configured-outbound-http-client.factory.test.ts`
+  - `apps/worker/src/services/http/outbound-http-client.factory.ts`
+  - `apps/worker/src/services/configured-caddy.service.factory.ts`
+  - `apps/worker/src/services/configured-caddy.service.factory.test.ts`
+  - `apps/worker/src/services/caddy.service.factory.ts`
+  - `apps/worker/src/services/configured-webhook-deployment-event-listener.factory.ts`
+  - `apps/worker/src/services/configured-webhook-deployment-event-listener.factory.test.ts`
+  - `apps/worker/src/services/webhook-deployment-event-listener.factory.ts`
+  - `apps/worker/src/services/ingress/configured-ingress-manager.factory.ts`
+  - `apps/worker/src/services/ingress/configured-ingress-manager.factory.test.ts`
+  - `apps/worker/src/services/ingress/ingress-manager.factory.ts`
+  - `apps/worker/src/services/archive-build/configured-deployment-log-archive-builder.factory.ts`
+  - `apps/worker/src/services/archive-build/configured-deployment-log-archive-builder.factory.test.ts`
+  - `apps/worker/src/services/archive-build/deployment-log-archive-builder.factory.ts`
+  - `apps/worker/src/services/archive-store/configured-deployment-log-archive-store.factory.ts`
+  - `apps/worker/src/services/archive-store/configured-deployment-log-archive-store.factory.test.ts`
+  - `apps/worker/src/services/archive-store/deployment-log-archive-store.factory.ts`
+  - `apps/worker/src/services/archive-upload/http-archive-upload-provider.factory.ts`
+  - `apps/worker/src/services/archive-upload/http-archive-upload-provider.factory.test.ts`
+  - `apps/worker/src/services/archive-upload/archive-upload-provider.registry.ts`
+  - `docs/progress.md`
+- what is still missing:
+  - the worker service graph is now much more uniformly factory-driven, so the next meaningful extensibility work should shift from small composition cleanup to the first multi-service project-composition slice
+- next recommended step:
+  - begin the first project-composition model slice by introducing multi-service project definitions and shared service-level env/runtime wiring for one public service plus internal-only services
+
+### Phase: Phase 4 worker queue/connection composition follow-through (2026-03-26, BullMQ Redis connection factory seam)
+
+- what was built:
+  - removed the remaining module-level BullMQ Redis connection default from the worker path so queue connection parsing/composition is no longer hard-wired in the shared `redis.ts` module
+  - added dedicated configured and override-friendly Redis connection factories so production wiring can resolve `env.REDIS_URL` through a proper seam while tests and adjacent composition can still inject explicit URLs or connections
+  - updated `createDeploymentWorker()` to delegate its default connection through the new factory seam while preserving explicit connection overrides for focused tests
+  - added focused coverage around configured/default Redis connection creation plus deployment-worker default wiring and verified the worker package with `npm --workspace @vcloudrunner/worker run typecheck` and `npm --workspace @vcloudrunner/worker test`
+- files created or changed:
+  - `apps/worker/src/queue/redis.ts`
+  - `apps/worker/src/queue/configured-redis-connection.factory.ts`
+  - `apps/worker/src/queue/configured-redis-connection.factory.test.ts`
+  - `apps/worker/src/queue/redis-connection.factory.ts`
+  - `apps/worker/src/queue/redis-connection.factory.test.ts`
+  - `apps/worker/src/workers/deployment.worker.factory.ts`
+  - `apps/worker/src/workers/deployment.worker.factory.test.ts`
+  - `docs/progress.md`
+- what is still missing:
+  - the worker queue/bootstrap graph is now consistently factory-driven, but Phase 4 still needs a final closeout pass to confirm the remaining composition edges are clean before shifting focus to the project-composition model
+- next recommended step:
+  - finish the Phase 4 closeout audit around remaining composition seams, then begin the first project-composition model slice so one project can describe multiple named services
+
+### Phase: Phase 4 worker infrastructure adapter factory follow-through (2026-03-26, heartbeat Redis + simple configured adapters)
+
+- what was built:
+  - extracted heartbeat Redis construction out of `background-scheduler.factory.ts` into a dedicated `createHeartbeatRedis()` seam and added a configured background-scheduler factory so scheduler composition no longer directly instantiates Redis inline
+  - added dedicated configured factories for the repository file inspector, deployment-state queryable, and Docker client so those remaining simple infrastructure adapters now follow the same top-level-factory plus configured-factory pattern as the rest of the worker graph
+  - updated the top-level scheduler, repository-inspector, deployment-state-queryable, and Docker-client factories to delegate default production composition through those new configured seams while preserving explicit override hooks for focused tests
+  - refreshed factory coverage around heartbeat Redis wiring plus the new configured scheduler/queryable/repository-inspector/Docker-client seams
+  - verified the worker package with `npm --workspace @vcloudrunner/worker run typecheck` and `npm --workspace @vcloudrunner/worker test`
+- files created or changed:
+  - `apps/worker/src/services/heartbeat-redis.factory.ts`
+  - `apps/worker/src/services/heartbeat-redis.factory.test.ts`
+  - `apps/worker/src/services/configured-background-scheduler.factory.ts`
+  - `apps/worker/src/services/configured-background-scheduler.factory.test.ts`
+  - `apps/worker/src/services/background-scheduler.factory.ts`
+  - `apps/worker/src/services/background-scheduler.factory.test.ts`
+  - `apps/worker/src/services/build-detection/configured-repository-file-inspector.factory.ts`
+  - `apps/worker/src/services/build-detection/configured-repository-file-inspector.factory.test.ts`
+  - `apps/worker/src/services/build-detection/repository-file-inspector.factory.ts`
+  - `apps/worker/src/services/configured-deployment-state-queryable.factory.ts`
+  - `apps/worker/src/services/configured-deployment-state-queryable.factory.test.ts`
+  - `apps/worker/src/services/deployment-state-queryable.factory.ts`
+  - `apps/worker/src/services/runtime/configured-docker-client.factory.ts`
+  - `apps/worker/src/services/runtime/configured-docker-client.factory.test.ts`
+  - `apps/worker/src/services/runtime/docker-client.factory.ts`
+  - `docs/progress.md`
+- what is still missing:
+  - the worker factory graph is much more consistently configured now, but the queue/worker path still has a small amount of default BullMQ/Redis connection wiring left to push behind the same style of seam before Phase 4 closeout feels complete
+- next recommended step:
+  - continue Phase 4 by extracting the default BullMQ/Redis connection wiring out of the deployment-worker path so queue/worker construction is as factory-driven as the rest of the worker bootstrap graph
+
+### Phase: Phase 4 worker state-service composition follow-through (2026-03-26, configured deployment state service factory)
+
+- what was built:
+  - removed the remaining default collaborator composition from `DeploymentStateService`, so the class now accepts fully resolved dependencies instead of self-composing its own repository/ingress/archive defaults
+  - added a dedicated `createConfiguredDeploymentStateService()` seam so default worker state-service wiring now lives in a proper configured factory alongside the rest of the Phase 4 worker composition graph
+  - updated the top-level `createDeploymentStateService()` factory to preserve ergonomic override-based construction for tests and adjacent worker wiring while delegating default production composition through the new configured seam
+  - refreshed the deployment-state service, archive auth/upload, and factory test suites so they build the service through explicit dependency options instead of relying on constructor-owned default wiring
+  - verified the worker package with `npm --workspace @vcloudrunner/worker run typecheck` and `npm --workspace @vcloudrunner/worker test`
+- files created or changed:
+  - `apps/worker/src/services/configured-deployment-state.service.factory.ts`
+  - `apps/worker/src/services/configured-deployment-state.service.factory.test.ts`
+  - `apps/worker/src/services/deployment-state.service.ts`
+  - `apps/worker/src/services/deployment-state.service.factory.ts`
+  - `apps/worker/src/services/deployment-state.service.factory.test.ts`
+  - `apps/worker/src/services/deployment-state-service-dependencies.factory.ts`
+  - `apps/worker/src/services/deployment-state.archive-auth.test.ts`
+  - `apps/worker/src/services/deployment-state.archive-upload.integration.test.ts`
+  - `apps/worker/src/services/deployment-state.service.test.ts`
+  - `docs/progress.md`
+- what is still missing:
+  - the state-service path is now aligned with the rest of the worker composition model, but a few infrastructure-oriented worker factories still directly instantiate their concrete adapters
+- next recommended step:
+  - continue Phase 4 by extracting the remaining direct infrastructure adapter construction from worker factories, starting with the heartbeat Redis wiring in `background-scheduler.factory.ts` and the last simple concrete adapter seams
+
+### Phase: Phase 4 worker archive provider-native integration follow-through (2026-03-25, SDK-backed S3/Azure + Google Auth GCS)
+
+- what was built:
+  - replaced the manual SigV4 S3 upload path with an AWS SDK-backed archive upload client behind a dedicated provider/client factory seam
+  - replaced the manual Azure SharedKey signing path with an Azure Blob SDK-backed archive upload client behind a dedicated provider/client factory seam
+  - replaced the hand-rolled GCS service-account JWT/token exchange path with a `google-auth-library`-backed access-token resolver while preserving the existing static-token fallback
+  - expanded the archive upload request/uploader contract so provider-specific adapters can choose HTTP or native SDK transports behind the same configured archive upload seam
+  - refreshed unit and integration coverage around configured archive upload delegation, GCS auth resolution, provider factories, and end-to-end archive upload behavior for S3/GCS/Azure
+  - verified the worker package with `npm --workspace @vcloudrunner/worker run typecheck` and `npm --workspace @vcloudrunner/worker test`
+- files created or changed:
+  - `apps/worker/package.json`
+  - `package-lock.json`
+  - `apps/worker/src/services/archive-upload/archive-upload-provider.ts`
+  - `apps/worker/src/services/archive-upload/archive-upload-provider.registry.ts`
+  - `apps/worker/src/services/archive-upload/configured-archive-upload-provider.ts`
+  - `apps/worker/src/services/archive-upload/configured-archive-upload-provider.test.ts`
+  - `apps/worker/src/services/archive-upload/deployment-log-archive-uploader.ts`
+  - `apps/worker/src/services/archive-upload/configured-deployment-log-archive-uploader.ts`
+  - `apps/worker/src/services/archive-upload/configured-deployment-log-archive-uploader.test.ts`
+  - `apps/worker/src/services/archive-upload/s3-archive-upload-client.ts`
+  - `apps/worker/src/services/archive-upload/s3-archive-upload-client.factory.ts`
+  - `apps/worker/src/services/archive-upload/aws-sdk-s3-archive-upload-client.ts`
+  - `apps/worker/src/services/archive-upload/s3-archive-upload-provider.ts`
+  - `apps/worker/src/services/archive-upload/s3-archive-upload-provider.factory.ts`
+  - `apps/worker/src/services/archive-upload/s3-archive-upload-provider.factory.test.ts`
+  - `apps/worker/src/services/archive-upload/azure-archive-upload-client.ts`
+  - `apps/worker/src/services/archive-upload/azure-archive-upload-client.factory.ts`
+  - `apps/worker/src/services/archive-upload/azure-blob-archive-upload-client.ts`
+  - `apps/worker/src/services/archive-upload/azure-archive-upload-provider.ts`
+  - `apps/worker/src/services/archive-upload/azure-archive-upload-provider.factory.ts`
+  - `apps/worker/src/services/archive-upload/azure-archive-upload-provider.factory.test.ts`
+  - `apps/worker/src/services/archive-upload/gcs-access-token-resolver.ts`
+  - `apps/worker/src/services/archive-upload/gcs-access-token-resolver.factory.ts`
+  - `apps/worker/src/services/archive-upload/gcs-access-token-resolver.factory.test.ts`
+  - `apps/worker/src/services/archive-upload/google-auth-gcs-access-token-resolver.ts`
+  - `apps/worker/src/services/archive-upload/google-auth-gcs-access-token-resolver.test.ts`
+  - `apps/worker/src/services/archive-upload/gcs-archive-upload-provider.ts`
+  - `apps/worker/src/services/archive-upload/gcs-archive-upload-provider.factory.ts`
+  - `apps/worker/src/services/deployment-state.service.ts`
+  - `apps/worker/src/services/deployment-state.archive-auth.test.ts`
+  - `apps/worker/src/services/deployment-state.archive-upload.integration.test.ts`
+  - `apps/worker/src/services/deployment-state.service.test.ts`
+  - `apps/worker/src/services/deployment-state-service-dependencies.factory.test.ts`
+  - `docs/progress.md`
+- what is still missing:
+  - archive upload providers are now on stable provider-native SDK/auth seams, but the worker still has a few remaining constructor/default-composition paths to finish before Phase 4 can be considered complete
+- next recommended step:
+  - continue Phase 4 by pulling the remaining default collaborator composition out of `DeploymentStateService` and adjacent worker service constructors so the runtime/state path is consistently factory-driven
 
 ### Phase: Phase 4 API service composition (2026-03-22)
 
@@ -1724,12 +2114,12 @@ Last updated: 2026-03-22 (Phase 4 worker deployment event bus composition)
 
 ## 9) Testing Status
 
-- [~] Static checks attempted in current environment
+- [~] Static checks attempted in current environment (shared-types `build`, API `typecheck`/`test`, dashboard `typecheck`, and worker `typecheck`/`test` passing as of 2026-03-26 after the service-source-root runtime follow-through; broader workspace validation still partial)
 - [ ] End-to-end compose validation (blocked by missing Docker CLI in this environment)
-- [ ] Typecheck/test execution with installed dependencies (blocked by npm registry restrictions in this environment)
+- [~] Typecheck/test execution with installed dependencies (shared-types, API, dashboard typecheck, and worker package verified; broader workspace install/validation still environment-dependent)
 
 ---
 
 ## Immediate Next Recommended Steps
 
-1. Add provider-native SDK/signing integrations for S3/GCS/Azure.
+1. Continue Phase 4 auth/user-model work by introducing the first interactive dashboard session flow, replacing the current server-env-only dashboard auth path with per-user sign-in, session persistence, and sign-out behavior.

@@ -4,7 +4,14 @@ export interface PreparedDeploymentWorkspace {
   projectPath: string;
 }
 
+export interface PrepareDeploymentWorkspaceOptions {
+  sourceRoot?: string | null;
+}
+
 export interface DeploymentWorkspaceManager {
-  prepareWorkspace(deploymentId: string): Promise<PreparedDeploymentWorkspace>;
+  prepareWorkspace(
+    deploymentId: string,
+    options?: PrepareDeploymentWorkspaceOptions
+  ): Promise<PreparedDeploymentWorkspace>;
   cleanupWorkspace(workspaceDir: string): Promise<void>;
 }

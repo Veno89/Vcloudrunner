@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { createProject, createDeployment, demoUserId } from '@/lib/api';
+import { createProject, createDeployment, resolveViewerContext } from '@/lib/api';
 import {
   slugifyProjectName,
   extractApiStatusCode,
@@ -12,7 +12,9 @@ import {
 } from '@/lib/helpers';
 
 export async function createProjectAction(formData: FormData) {
-  if (!demoUserId) {
+  const { viewer } = await resolveViewerContext();
+
+  if (!viewer) {
     redirect('/projects?status=error&reason=user_context_missing');
     return;
   }
@@ -38,7 +40,7 @@ export async function createProjectAction(formData: FormData) {
 
   try {
     await createProject({
-      userId: demoUserId,
+      userId: viewer.userId,
       name,
       slug,
       gitRepositoryUrl,
@@ -57,6 +59,7 @@ export async function createProjectAction(formData: FormData) {
 export async function triggerDeploymentAction(formData: FormData) {
   const projectIdValue = formData.get('projectId');
   const projectNameValue = formData.get('projectName');
+  const serviceNameValue = formData.get('serviceName');
 
   if (typeof projectIdValue !== 'string' || projectIdValue.length === 0) {
     redirect('/projects?status=error&message=Deploy+failed');
@@ -65,9 +68,15 @@ export async function triggerDeploymentAction(formData: FormData) {
 
   const projectId = projectIdValue;
   const projectName = normalizeProjectDisplayName(projectNameValue);
+  const serviceName =
+    typeof serviceNameValue === 'string' && serviceNameValue.trim().length > 0
+      ? serviceNameValue.trim()
+      : undefined;
 
   try {
-    const deployment = await createDeployment(projectId);
+    const deployment = await createDeployment(projectId, {
+      ...(serviceName ? { serviceName } : {})
+    });
     revalidatePath('/projects');
     revalidatePath('/deployments');
     redirect(`/deployments/${deployment.id}`);

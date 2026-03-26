@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage } from 'node:http';
-import { generateKeyPairSync } from 'node:crypto';
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,12 +9,16 @@ await import('../test/worker-test-env.js');
 
 const { env } = await import('../config/env.js');
 const { logger } = await import('../logger/logger.js');
-const { DeploymentStateService } = await import('./deployment-state.service.js');
+const { createDeploymentStateService } = await import('./deployment-state.service.factory.js');
 
 class MockPool {
   async query() {
     return { rows: [] };
   }
+}
+
+function createService() {
+  return createDeploymentStateService({ pool: new MockPool() });
 }
 
 interface CapturedRequest {
@@ -40,6 +43,17 @@ async function startCaptureServer() {
       headers: req.headers,
       body: Buffer.concat(chunks)
     });
+
+    if (req.headers['x-ms-blob-type']) {
+      // Mimic the minimum Blob Storage success shape expected by the SDK.
+      res.statusCode = 201;
+      res.setHeader('etag', '"fixture-etag"');
+      res.setHeader('last-modified', new Date().toUTCString());
+      res.setHeader('x-ms-request-id', 'fixture-request-id');
+      res.setHeader('x-ms-version', '2023-11-03');
+      res.end();
+      return;
+    }
 
     res.statusCode = 200;
     res.end('ok');
@@ -157,14 +171,14 @@ test('uploadPendingArchives sends signed/authenticated S3 request to configured 
     env.DEPLOYMENT_LOG_ARCHIVE_S3_SECRET_ACCESS_KEY = 'secret-example';
     env.DEPLOYMENT_LOG_ARCHIVE_S3_SESSION_TOKEN = 'session-token-example';
 
-    const service = new DeploymentStateService(new MockPool());
+    const service = createService();
     const uploaded = await service.uploadPendingArchives();
 
     assert.equal(uploaded, 1);
     assert.equal(server.requests.length, 1);
     const [request] = server.requests;
     assert.equal(request.method, 'PUT');
-    assert.equal(request.url, `/my-bucket/archives/${fixture.fileName}`);
+    assert.match(String(request.url), new RegExp(`^/my-bucket/archives/${fixture.fileName}(?:\\?.*)?$`));
     assert.equal(request.headers['content-type'], 'application/gzip');
     assert.match(String(request.headers.authorization), /^AWS4-HMAC-SHA256 Credential=/);
     assert.equal(request.headers['x-amz-security-token'], 'session-token-example');
@@ -189,7 +203,7 @@ test('uploadPendingArchives sends bearer-authenticated GCS request with static t
     env.DEPLOYMENT_LOG_ARCHIVE_GCS_PREFIX = 'archives';
     env.DEPLOYMENT_LOG_ARCHIVE_GCS_ACCESS_TOKEN = 'gcs-static-token';
 
-    const service = new DeploymentStateService(new MockPool());
+    const service = createService();
     const uploaded = await service.uploadPendingArchives();
 
     assert.equal(uploaded, 1);
@@ -220,17 +234,17 @@ test('uploadPendingArchives sends shared-key signed Azure request', async () => 
     env.DEPLOYMENT_LOG_ARCHIVE_AZURE_ACCOUNT_NAME = 'devstoreaccount1';
     env.DEPLOYMENT_LOG_ARCHIVE_AZURE_ACCOUNT_KEY = Buffer.from('local-secret').toString('base64');
 
-    const service = new DeploymentStateService(new MockPool());
+    const service = createService();
     const uploaded = await service.uploadPendingArchives();
 
     assert.equal(uploaded, 1);
     assert.equal(server.requests.length, 1);
     const [request] = server.requests;
     assert.equal(request.method, 'PUT');
-    assert.equal(request.url, `/logs/archives/${fixture.fileName}`);
+    assert.match(String(request.url), new RegExp(`^/logs/archives/${fixture.fileName}(?:\\?.*)?$`));
     assert.match(String(request.headers.authorization), /^SharedKey devstoreaccount1:/);
     assert.equal(request.headers['x-ms-blob-type'], 'BlockBlob');
-    assert.equal(request.headers['content-type'], 'application/gzip');
+    assert.equal(request.headers['x-ms-blob-content-type'] ?? request.headers['content-type'], 'application/gzip');
   } finally {
     await server.close();
     await fixture.cleanup();
@@ -252,7 +266,7 @@ test('uploadPendingArchives is idempotent after marker is written', async () => 
     env.DEPLOYMENT_LOG_ARCHIVE_GCS_PREFIX = 'archives';
     env.DEPLOYMENT_LOG_ARCHIVE_GCS_ACCESS_TOKEN = 'gcs-static-token';
 
-    const service = new DeploymentStateService(new MockPool());
+    const service = createService();
     const first = await service.uploadPendingArchives();
     const second = await service.uploadPendingArchives();
 
@@ -281,7 +295,7 @@ test('uploadPendingArchives skips uploads when the marker already exists as a di
 
     await mkdir(join(fixture.dir, `${fixture.fileName}.uploaded`));
 
-    const service = new DeploymentStateService(new MockPool());
+    const service = createService();
     const uploaded = await service.uploadPendingArchives();
 
     assert.equal(uploaded, 0);
@@ -308,7 +322,7 @@ test('uploadPendingArchives removes local archive when delete-local-after-upload
     env.DEPLOYMENT_LOG_ARCHIVE_AZURE_ACCOUNT_NAME = 'devstoreaccount1';
     env.DEPLOYMENT_LOG_ARCHIVE_AZURE_ACCOUNT_KEY = Buffer.from('local-secret').toString('base64');
 
-    const service = new DeploymentStateService(new MockPool());
+    const service = createService();
     const uploaded = await service.uploadPendingArchives();
 
     assert.equal(uploaded, 1);
@@ -343,20 +357,28 @@ test('uploadPendingArchives keeps successful uploads when local delete fails aft
     env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS = 2_000;
     env.DEPLOYMENT_LOG_ARCHIVE_DELETE_LOCAL_AFTER_UPLOAD = true;
 
-    const service = new DeploymentStateService(new MockPool()) as unknown as {
+    const service = createService() as unknown as {
       uploadArchiveWithRetry: (input: {
-        targetUrl: string;
+        request: {
+          provider: string;
+          transport: string;
+          targetUrl: string;
+          headers: Record<string, string>;
+        };
         payload: Buffer;
-        headers: Record<string, string>;
       }) => Promise<void>;
       uploadPendingArchives: () => Promise<number>;
     };
     const originalUploadArchiveWithRetry = service.uploadArchiveWithRetry.bind(service);
 
     service.uploadArchiveWithRetry = async (input: {
-      targetUrl: string;
+      request: {
+        provider: string;
+        transport: string;
+        targetUrl: string;
+        headers: Record<string, string>;
+      };
       payload: Buffer;
-      headers: Record<string, string>;
     }) => {
       await originalUploadArchiveWithRetry(input);
       await rm(archivePath, { force: true });
@@ -378,159 +400,6 @@ test('uploadPendingArchives keeps successful uploads when local delete fails aft
   }
 });
 
-test('createArchiveUploadRequest wraps GCS token fetch network failures with a stable message', async (t) => {
-  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 1024 });
-
-  env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER = 'gcs';
-  env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS = 2_000;
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_BUCKET = 'gcs-bucket';
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_PREFIX = 'archives';
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_ACCESS_TOKEN = '';
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_SERVICE_ACCOUNT_EMAIL = 'worker@example.test';
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_PRIVATE_KEY = privateKey.export({
-    type: 'pkcs8',
-    format: 'pem'
-  }).toString();
-
-  t.mock.method(globalThis, 'fetch', async () => {
-    throw new Error('socket hang up');
-  });
-
-  const service = new DeploymentStateService(new MockPool());
-
-  await assert.rejects(
-    service.createArchiveUploadRequest({
-      fileName: 'dep-fixture.ndjson.gz',
-      baseUrl: 'https://storage.googleapis.com/upload/storage/v1/b',
-      payload: Buffer.from('fixture')
-    }),
-    /failed to obtain GCS access token: request failed: socket hang up/
-  );
-});
-
-test('createArchiveUploadRequest wraps GCS token fetch timeout failures with a stable message', async (t) => {
-  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 1024 });
-
-  env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER = 'gcs';
-  env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS = 2_000;
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_BUCKET = 'gcs-bucket';
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_PREFIX = 'archives';
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_ACCESS_TOKEN = '';
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_SERVICE_ACCOUNT_EMAIL = 'worker@example.test';
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_PRIVATE_KEY = privateKey.export({
-    type: 'pkcs8',
-    format: 'pem'
-  }).toString();
-
-  const timeoutHandle = { timeout: true } as unknown as ReturnType<typeof setTimeout>;
-  t.mock.method(globalThis, 'setTimeout', (((handler: () => void) => {
-    handler();
-    return timeoutHandle;
-  }) as unknown) as typeof setTimeout);
-  t.mock.method(globalThis, 'clearTimeout', (() => undefined) as typeof clearTimeout);
-  t.mock.method(
-    globalThis,
-    'fetch',
-    async (_url: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
-      if ((init?.signal as AbortSignal | undefined)?.aborted) {
-        throw new Error('aborted by signal');
-      }
-
-      throw new Error('expected timeout abort');
-    }
-  );
-
-  const service = new DeploymentStateService(new MockPool());
-
-  await assert.rejects(
-    service.createArchiveUploadRequest({
-      fileName: 'dep-fixture.ndjson.gz',
-      baseUrl: 'https://storage.googleapis.com/upload/storage/v1/b',
-      payload: Buffer.from('fixture')
-    }),
-    /failed to obtain GCS access token: request timed out after 2000ms/
-  );
-});
-
-test('createArchiveUploadRequest wraps invalid GCS token JSON responses with a stable message', async (t) => {
-  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 1024 });
-
-  env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER = 'gcs';
-  env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS = 2_000;
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_BUCKET = 'gcs-bucket';
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_PREFIX = 'archives';
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_ACCESS_TOKEN = '';
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_SERVICE_ACCOUNT_EMAIL = 'worker@example.test';
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_PRIVATE_KEY = privateKey.export({
-    type: 'pkcs8',
-    format: 'pem'
-  }).toString();
-
-  t.mock.method(
-    globalThis,
-    'fetch',
-    async () => new Response('not-json', { status: 200, headers: { 'content-type': 'application/json' } })
-  );
-
-  const service = new DeploymentStateService(new MockPool());
-
-  await assert.rejects(
-    service.createArchiveUploadRequest({
-      fileName: 'dep-fixture.ndjson.gz',
-      baseUrl: 'https://storage.googleapis.com/upload/storage/v1/b',
-      payload: Buffer.from('fixture')
-    }),
-    /failed to obtain GCS access token: invalid JSON response/
-  );
-});
-
-test('createArchiveUploadRequest falls back to the default GCS token TTL when expires_in is invalid', async (t) => {
-  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 1024 });
-
-  env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER = 'gcs';
-  env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_TIMEOUT_MS = 2_000;
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_BUCKET = 'gcs-bucket';
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_PREFIX = 'archives';
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_ACCESS_TOKEN = '';
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_SERVICE_ACCOUNT_EMAIL = 'worker@example.test';
-  env.DEPLOYMENT_LOG_ARCHIVE_GCS_PRIVATE_KEY = privateKey.export({
-    type: 'pkcs8',
-    format: 'pem'
-  }).toString();
-
-  let fetchCalls = 0;
-  t.mock.method(globalThis, 'fetch', async () => {
-    fetchCalls += 1;
-    return new Response(
-      JSON.stringify({
-        access_token: 'gcs-cached-token',
-        expires_in: 'not-a-number'
-      }),
-      {
-        status: 200,
-        headers: { 'content-type': 'application/json' }
-      }
-    );
-  });
-
-  const service = new DeploymentStateService(new MockPool());
-
-  const first = await service.createArchiveUploadRequest({
-    fileName: 'dep-fixture.ndjson.gz',
-    baseUrl: 'https://storage.googleapis.com/upload/storage/v1/b',
-    payload: Buffer.from('fixture')
-  });
-  const second = await service.createArchiveUploadRequest({
-    fileName: 'dep-fixture.ndjson.gz',
-    baseUrl: 'https://storage.googleapis.com/upload/storage/v1/b',
-    payload: Buffer.from('fixture')
-  });
-
-  assert.equal(first.headers.authorization, 'Bearer gcs-cached-token');
-  assert.equal(second.headers.authorization, 'Bearer gcs-cached-token');
-  assert.equal(fetchCalls, 1);
-});
-
 test('uploadPendingArchives continues after repeated network failures on one artifact', async (t) => {
   const fixture = await withArchiveFixture('network-failure');
 
@@ -546,7 +415,7 @@ test('uploadPendingArchives continues after repeated network failures on one art
       throw new Error('socket hang up');
     });
 
-    const service = new DeploymentStateService(new MockPool());
+    const service = createService();
     const uploaded = await service.uploadPendingArchives();
 
     assert.equal(uploaded, 0);
@@ -574,7 +443,7 @@ test('uploadPendingArchives continues after one archive entry cannot be read', a
     await access(join(fixture.dir, fixture.fileName));
     await mkdir(unreadableEntryPath);
 
-    const service = new DeploymentStateService(new MockPool());
+    const service = createService();
     const uploaded = await service.uploadPendingArchives();
 
     assert.equal(uploaded, 1);

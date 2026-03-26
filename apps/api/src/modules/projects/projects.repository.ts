@@ -1,4 +1,5 @@
 import { desc, eq, or } from 'drizzle-orm';
+import type { ProjectServiceDefinition } from '@vcloudrunner/shared-types';
 
 import type { DbClient } from '../../db/client.js';
 import { projectMembers, projects } from '../../db/schema.js';
@@ -9,6 +10,7 @@ export interface CreateProjectInput {
   slug: string;
   gitRepositoryUrl: string;
   defaultBranch?: string;
+  services?: ProjectServiceDefinition[];
 }
 
 export class ProjectsRepository {
@@ -20,7 +22,8 @@ export class ProjectsRepository {
       name: input.name,
       slug: input.slug,
       gitRepositoryUrl: input.gitRepositoryUrl,
-      defaultBranch: input.defaultBranch ?? 'main'
+      defaultBranch: input.defaultBranch ?? 'main',
+      ...(input.services ? { services: input.services } : {})
     }).returning();
 
     return record;
@@ -35,6 +38,7 @@ export class ProjectsRepository {
         slug: projects.slug,
         gitRepositoryUrl: projects.gitRepositoryUrl,
         defaultBranch: projects.defaultBranch,
+        services: projects.services,
         createdAt: projects.createdAt,
         updatedAt: projects.updatedAt
       })

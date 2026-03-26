@@ -1,6 +1,11 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import {
+  buildProjectServiceInternalHostname,
+  getPrimaryProjectService
+} from '@vcloudrunner/shared-types';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { DeploymentStatusBadges } from '@/components/deployment-status-badges';
@@ -11,11 +16,11 @@ import { ActionToast } from '@/components/action-toast';
 import { PageLayout } from '@/components/page-layout';
 import {
   apiAuthToken,
-  fetchProjectsForDemoUser,
+  fetchProjectsForCurrentUser,
   fetchDeploymentsForProject,
   fetchEnvironmentVariables,
   fetchDeploymentLogs,
-  demoUserId,
+  resolveViewerContext,
 } from '@/lib/api';
 import {
   describeDashboardLiveDataFailure,
@@ -24,6 +29,11 @@ import {
   logLevelTextClassName,
   truncateUuid
 } from '@/lib/helpers';
+import {
+  composeProjectStatus,
+  createProjectServiceStatuses,
+  formatProjectServiceStatusBreakdown
+} from '@/lib/project-service-status';
 import { deployProjectAction } from '@/app/deployments/actions';
 
 interface ProjectDetailPageProps {
@@ -38,11 +48,14 @@ interface ProjectDetailPageProps {
 
 
 export default async function ProjectDetailPage({ params, searchParams }: ProjectDetailPageProps) {
-  if (!demoUserId) {
+  const { viewer, error: viewerContextError } = await resolveViewerContext();
+
+  if (!viewer) {
     return (
       <PageLayout>
         <LiveDataUnavailableState
           description={describeDashboardLiveDataFailure({
+            ...(viewerContextError ? { error: viewerContextError } : {}),
             hasDemoUserId: false,
             hasApiAuthToken: Boolean(apiAuthToken)
           })}
@@ -52,7 +65,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
   }
 
   try {
-    const projects = await fetchProjectsForDemoUser();
+    const projects = await fetchProjectsForCurrentUser();
     const project = projects.find((item) => item.id === params.id);
 
     if (!project) {
@@ -71,7 +84,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
       deploymentsResult.status === 'rejected'
         ? describeDashboardLiveDataFailure({
             error: deploymentsResult.reason,
-            hasDemoUserId: true,
+            hasDemoUserId: Boolean(viewer.userId),
             hasApiAuthToken: Boolean(apiAuthToken)
           })
         : null;
@@ -79,7 +92,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
       environmentVariablesResult.status === 'rejected'
         ? describeDashboardLiveDataFailure({
             error: environmentVariablesResult.reason,
-            hasDemoUserId: true,
+            hasDemoUserId: Boolean(viewer.userId),
             hasApiAuthToken: Boolean(apiAuthToken)
           })
         : null;
@@ -93,6 +106,13 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
     const sortedDeployments = deployments
       .slice()
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+    const primaryService = getPrimaryProjectService(project.services);
+    const serviceStatuses = createProjectServiceStatuses(project.services, sortedDeployments);
+    const serviceStatusesByName = new Map(
+      serviceStatuses.map((serviceStatus) => [serviceStatus.service.name, serviceStatus])
+    );
+    const composedProjectStatus = composeProjectStatus(serviceStatuses);
+    const composedServiceStatusBreakdown = formatProjectServiceStatusBreakdown(serviceStatuses);
 
     const latestDeployment = sortedDeployments[0] ?? null;
     let latestLogs: Array<{ level: string; message: string; timestamp: string }> = [];
@@ -104,7 +124,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
       } catch (error) {
         latestLogsErrorMessage = describeDashboardLiveDataFailure({
           error,
-          hasDemoUserId: true,
+          hasDemoUserId: Boolean(viewer.userId),
           hasApiAuthToken: Boolean(apiAuthToken)
         });
       }
@@ -125,6 +145,10 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
             <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
             <p className="text-sm text-muted-foreground">{project.gitRepositoryUrl}</p>
             <p className="text-sm text-primary">{project.slug}.apps.platform.example.com</p>
+            <p className="text-sm text-muted-foreground">
+              {project.services.length} service{project.services.length === 1 ? '' : 's'} configured.
+              Primary public service: <span className="font-medium text-foreground">{primaryService.name}</span>
+            </p>
           </div>
           <Button asChild variant="outline">
             <Link href="/projects">Back to Projects</Link>
@@ -177,18 +201,16 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Latest Status</CardTitle>
+              <CardTitle className="text-sm">Service Status</CardTitle>
             </CardHeader>
             <CardContent>
               {deploymentReadErrorMessage ? (
                 <p className="text-muted-foreground">Unavailable</p>
-              ) : latestDeployment ? (
-                <DeploymentStatusBadges
-                  status={latestDeployment.status}
-                  cancellationRequested={hasRequestedCancellation(latestDeployment.metadata)}
-                />
               ) : (
-                <p className="text-muted-foreground">No deployments</p>
+                <div className="space-y-2">
+                  <Badge variant={composedProjectStatus.variant}>{composedProjectStatus.label}</Badge>
+                  <p className="text-xs text-muted-foreground">{composedServiceStatusBreakdown}</p>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -202,9 +224,10 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
             <form action={deployProjectAction}>
               <input type="hidden" name="projectId" value={project.id} readOnly />
               <input type="hidden" name="projectName" value={project.name} readOnly />
+              <input type="hidden" name="serviceName" value={primaryService.name} readOnly />
               <input type="hidden" name="returnPath" value={`/projects/${project.id}`} readOnly />
               <FormSubmitButton
-                idleText="Deploy"
+                idleText={`Deploy ${primaryService.name}`}
                 pendingText="Deploying..."
                 variant="default"
                 size="sm"
@@ -221,6 +244,123 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
             <Button asChild size="sm" variant="outline">
               <Link href={`/projects/${project.id}/deployments`}>Open Deployments</Link>
             </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Services</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Project environment variables remain shared at the project level. Deployments now also receive generated `VCLOUDRUNNER_SERVICE_*` discovery variables plus a stable internal host per service on the worker network.
+            </p>
+            <div className="space-y-2">
+              {project.services.map((service) => {
+                const serviceStatus = serviceStatusesByName.get(service.name) ?? null;
+                const runtimeDetails = [
+                  typeof service.runtime?.containerPort === 'number'
+                    ? `port ${service.runtime.containerPort}`
+                    : null,
+                  typeof service.runtime?.memoryMb === 'number'
+                    ? `${service.runtime.memoryMb}MB`
+                    : null,
+                  typeof service.runtime?.cpuMillicores === 'number'
+                    ? `${service.runtime.cpuMillicores}m CPU`
+                    : null
+                ].filter((value): value is string => Boolean(value));
+
+                return (
+                  <div
+                    key={service.name}
+                    className="rounded-md border px-3 py-2"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium">{service.name}</p>
+                        <Badge variant={service.exposure === 'public' ? 'default' : 'secondary'}>
+                          {service.exposure}
+                        </Badge>
+                        <Badge variant="outline">{service.kind}</Badge>
+                        {service.name === primaryService.name ? (
+                          <Badge variant="secondary">primary</Badge>
+                        ) : null}
+                        {deploymentReadErrorMessage ? (
+                          <Badge variant="warning">history unavailable</Badge>
+                        ) : serviceStatus?.deploymentStatus ? (
+                          <DeploymentStatusBadges
+                            status={serviceStatus.deploymentStatus}
+                            cancellationRequested={serviceStatus.cancellationRequested}
+                          />
+                        ) : (
+                          <Badge variant="secondary">no deployments</Badge>
+                        )}
+                      </div>
+                      <form action={deployProjectAction}>
+                        <input type="hidden" name="projectId" value={project.id} readOnly />
+                        <input type="hidden" name="projectName" value={project.name} readOnly />
+                        <input type="hidden" name="serviceName" value={service.name} readOnly />
+                        <input type="hidden" name="returnPath" value={`/projects/${project.id}`} readOnly />
+                        <FormSubmitButton
+                          idleText={`Deploy ${service.name}`}
+                          pendingText="Deploying..."
+                          variant={service.name === primaryService.name ? 'default' : 'outline'}
+                          size="sm"
+                        />
+                      </form>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Source root: <span className="font-mono text-foreground">{service.sourceRoot}</span>
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Internal host: <span className="font-mono text-foreground">{buildProjectServiceInternalHostname(project.slug, service.name)}</span>
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Deployment status:{' '}
+                      {deploymentReadErrorMessage
+                        ? 'history unavailable'
+                        : serviceStatus
+                          ? serviceStatus.statusText
+                          : 'no deployments'}
+                      {serviceStatus?.latestDeployment
+                        ? ` | latest ${formatRelativeTime(serviceStatus.latestDeployment.createdAt)}`
+                        : ''}
+                    </p>
+                    {serviceStatus?.latestDeployment?.runtimeUrl ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Public URL:{' '}
+                        <a
+                          href={serviceStatus.latestDeployment.runtimeUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary underline-offset-4 hover:underline"
+                        >
+                          {serviceStatus.latestDeployment.runtimeUrl}
+                        </a>
+                      </p>
+                    ) : null}
+                    {serviceStatus?.latestDeployment ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Latest deployment:{' '}
+                        <Link
+                          href={`/deployments/${serviceStatus.latestDeployment.id}`}
+                          className="text-primary underline-offset-4 hover:underline"
+                        >
+                          {truncateUuid(serviceStatus.latestDeployment.id)}
+                        </Link>
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        This service has not been deployed yet.
+                      </p>
+                    )}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Runtime defaults: {runtimeDetails.length > 0 ? runtimeDetails.join(' · ') : 'platform defaults'}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
 
@@ -244,7 +384,10 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                     className="flex items-center justify-between rounded-md border px-3 py-2"
                   >
                     <div className="space-y-1">
-                      <p className="font-mono text-xs">{truncateUuid(deployment.id)}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-mono text-xs">{truncateUuid(deployment.id)}</p>
+                        <Badge variant="outline">{deployment.serviceName ?? 'app'}</Badge>
+                      </div>
                       <p className="text-xs text-muted-foreground" title={new Date(deployment.createdAt).toLocaleString()}>
                         {formatRelativeTime(deployment.createdAt)}
                       </p>
@@ -318,7 +461,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
           title="Project data unavailable"
           description={describeDashboardLiveDataFailure({
             error,
-            hasDemoUserId: true,
+            hasDemoUserId: Boolean(viewer.userId),
             hasApiAuthToken: Boolean(apiAuthToken)
           })}
         />

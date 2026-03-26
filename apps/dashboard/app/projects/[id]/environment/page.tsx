@@ -14,8 +14,8 @@ import { EmptyState } from '@/components/empty-state';
 import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
 import {
   apiAuthToken,
-  demoUserId,
-  fetchProjectsForDemoUser,
+  fetchProjectsForCurrentUser,
+  resolveViewerContext,
   fetchEnvironmentVariables,
 } from '@/lib/api';
 import { describeDashboardLiveDataFailure } from '@/lib/helpers';
@@ -35,11 +35,14 @@ interface ProjectEnvironmentPageProps {
 }
 
 export default async function ProjectEnvironmentPage({ params, searchParams }: ProjectEnvironmentPageProps) {
-  if (!demoUserId) {
+  const { viewer, error: viewerContextError } = await resolveViewerContext();
+
+  if (!viewer) {
     return (
       <PageLayout>
         <LiveDataUnavailableState
           description={describeDashboardLiveDataFailure({
+            ...(viewerContextError ? { error: viewerContextError } : {}),
             hasDemoUserId: false,
             hasApiAuthToken: Boolean(apiAuthToken)
           })}
@@ -49,7 +52,7 @@ export default async function ProjectEnvironmentPage({ params, searchParams }: P
   }
 
   try {
-    const projects = await fetchProjectsForDemoUser();
+    const projects = await fetchProjectsForCurrentUser();
     const project = projects.find((item) => item.id === params.id);
 
     if (!project) {
@@ -64,7 +67,7 @@ export default async function ProjectEnvironmentPage({ params, searchParams }: P
     } catch (error) {
       environmentReadErrorMessage = describeDashboardLiveDataFailure({
         error,
-        hasDemoUserId: true,
+        hasDemoUserId: Boolean(viewer.userId),
         hasApiAuthToken: Boolean(apiAuthToken)
       });
     }
@@ -186,7 +189,7 @@ export default async function ProjectEnvironmentPage({ params, searchParams }: P
           title="Project environment unavailable"
           description={describeDashboardLiveDataFailure({
             error,
-            hasDemoUserId: true,
+            hasDemoUserId: Boolean(viewer.userId),
             hasApiAuthToken: Boolean(apiAuthToken)
           })}
         />

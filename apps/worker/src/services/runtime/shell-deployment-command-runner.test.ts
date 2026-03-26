@@ -36,6 +36,7 @@ test('ShellDeploymentCommandRunner builds images with the expected docker comman
 
   await commandRunner.buildImage({
     dockerfilePath: 'services/api/Dockerfile',
+    buildContextPath: 'apps/frontend',
     imageTag: 'example:latest',
     repoDir: 'repo-dir'
   });
@@ -43,7 +44,7 @@ test('ShellDeploymentCommandRunner builds images with the expected docker comman
   assert.deepEqual(calls, [
     {
       file: 'docker',
-      args: ['build', '-f', 'services/api/Dockerfile', '-t', 'example:latest', '.'],
+      args: ['build', '-f', 'services/api/Dockerfile', '-t', 'example:latest', 'apps/frontend'],
       options: { cwd: 'repo-dir' }
     }
   ]);

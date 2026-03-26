@@ -1,7 +1,5 @@
 import type { ConnectionOptions } from 'bullmq';
 
-import { env } from '../config/env.js';
-
 function parseRedisDatabaseIndex(pathname: string): number {
   if (pathname.length <= 1) {
     return 0;
@@ -30,5 +28,3 @@ export function parseRedisConnectionOptions(redisUrl: string): ConnectionOptions
     enableReadyCheck: false
   };
 }
-
-export const redisConnection: ConnectionOptions = parseRedisConnectionOptions(env.REDIS_URL);

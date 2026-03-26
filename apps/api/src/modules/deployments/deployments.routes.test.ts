@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import Fastify, { type FastifyInstance } from 'fastify';
+import { createDefaultProjectServices } from '@vcloudrunner/shared-types';
 
 process.env.DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/vcloudrunner';
 process.env.REDIS_URL = 'redis://localhost:6379';
@@ -25,7 +26,8 @@ const project = {
   name: 'Example Project',
   slug: 'example-project',
   gitRepositoryUrl: 'https://example.com/repo.git',
-  defaultBranch: 'main'
+  defaultBranch: 'main',
+  services: createDefaultProjectServices()
 };
 
 const deploymentRecord = {
@@ -68,6 +70,7 @@ async function withDeploymentsRoutesApp(
     actorUserId: string;
     scopes: string[];
     membershipRows: Array<{ role: string }>;
+    onCreateDeploymentInput?: (input: Record<string, unknown>) => void;
   },
   run: (app: FastifyInstance) => Promise<void>
 ) {
@@ -89,7 +92,10 @@ async function withDeploymentsRoutesApp(
   t.mock.method(ProjectsService.prototype, 'getProjectById', async () => project);
   t.mock.method(mockDbClient, 'select', mockDbClient.select);
   t.mock.method(DeploymentsService.prototype, 'listDeployments', async () => [deploymentRecord]);
-  t.mock.method(DeploymentsService.prototype, 'createDeployment', async () => queuedDeploymentResponse);
+  t.mock.method(DeploymentsService.prototype, 'createDeployment', async (input: Record<string, unknown>) => {
+    options.onCreateDeploymentInput?.(input);
+    return queuedDeploymentResponse;
+  });
   t.mock.method(DeploymentsService.prototype, 'cancelDeployment', async () => ({
     deploymentId,
     status: 'queued' as const,
@@ -173,6 +179,34 @@ test('create deployment allows project members with deployments:write scope', as
 
     assert.equal(res.statusCode, 201);
     assert.deepEqual(JSON.parse(res.body), { data: queuedDeploymentResponse });
+  });
+});
+
+test('create deployment forwards an optional serviceName to the deployments service', async (t) => {
+  let capturedInput: Record<string, unknown> | null = null;
+
+  await withDeploymentsRoutesApp(t, {
+    token: 'member-write-service-token-123',
+    actorUserId: memberUserId,
+    scopes: ['deployments:write'],
+    membershipRows: [{ role: 'editor' }],
+    onCreateDeploymentInput: (input) => {
+      capturedInput = input;
+    }
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/projects/${projectId}/deployments`,
+      headers: {
+        authorization: 'Bearer member-write-service-token-123'
+      },
+      payload: {
+        serviceName: 'worker'
+      }
+    });
+
+    assert.equal(res.statusCode, 201);
+    assert.equal(capturedInput?.serviceName, 'worker');
   });
 });
 

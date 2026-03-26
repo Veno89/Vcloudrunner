@@ -1,19 +1,12 @@
-import Redis, { type Redis as RedisClient } from 'ioredis';
+import type { Redis as RedisClient } from 'ioredis';
 
-import { env } from '../config/env.js';
 import { logger as defaultLogger } from '../logger/logger.js';
 import type { DeploymentStateService } from './deployment-state.service.js';
 import { BackgroundScheduler } from './background-scheduler.js';
+import { createConfiguredBackgroundScheduler } from './configured-background-scheduler.factory.js';
+import { createHeartbeatRedis } from './heartbeat-redis.factory.js';
 
 type Logger = typeof defaultLogger;
-
-type RedisConstructor = new (
-  url: string,
-  options: {
-    maxRetriesPerRequest: null;
-    enableReadyCheck: false;
-  }
-) => RedisClient;
 
 type SchedulerConstructor = new (
   stateService: DeploymentStateService,
@@ -24,7 +17,7 @@ type SchedulerConstructor = new (
 interface CreateBackgroundSchedulerOptions {
   stateService: DeploymentStateService;
   logger?: Logger;
-  RedisClass?: RedisConstructor;
+  createHeartbeatRedis?: () => RedisClient;
   SchedulerClass?: SchedulerConstructor;
 }
 
@@ -32,14 +25,17 @@ export function createBackgroundScheduler(options: CreateBackgroundSchedulerOpti
   const {
     stateService,
     logger = defaultLogger,
-    RedisClass = Redis as unknown as RedisConstructor,
-    SchedulerClass = BackgroundScheduler as SchedulerConstructor
+    createHeartbeatRedis: createHeartbeatRedisFn,
+    SchedulerClass
   } = options;
 
-  const heartbeatRedis = new RedisClass(env.REDIS_URL, {
-    maxRetriesPerRequest: null,
-    enableReadyCheck: false
-  });
+  if (!createHeartbeatRedisFn && !SchedulerClass) {
+    return createConfiguredBackgroundScheduler({ stateService, logger });
+  }
 
-  return new SchedulerClass(stateService, heartbeatRedis, logger);
+  const heartbeatRedis = (createHeartbeatRedisFn ?? createHeartbeatRedis)();
+  const ResolvedSchedulerClass =
+    SchedulerClass ?? (BackgroundScheduler as SchedulerConstructor);
+
+  return new ResolvedSchedulerClass(stateService, heartbeatRedis, logger);
 }

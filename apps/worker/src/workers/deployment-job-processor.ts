@@ -1,5 +1,8 @@
 import { UnrecoverableError } from 'bullmq';
-import type { DeploymentJobPayload } from '@vcloudrunner/shared-types';
+import {
+  isPublicWebServiceTarget,
+  type DeploymentJobPayload
+} from '@vcloudrunner/shared-types';
 
 import { env } from '../config/env.js';
 import type { DeploymentEventSink } from '../services/deployment-event-sink.js';
@@ -88,6 +91,14 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function describeDeploymentService(job: DeploymentJobPayload) {
+  const serviceName = job.serviceName ?? 'app';
+  const serviceKind = job.serviceKind ?? 'web';
+  const serviceExposure = job.serviceExposure ?? 'public';
+
+  return `service ${serviceName} (${serviceKind}/${serviceExposure})`;
 }
 
 async function appendLogBestEffort(
@@ -591,6 +602,20 @@ async function configureRouteIfNeeded(
     correlationId: string;
   }
 ) {
+  if (!isPublicWebServiceTarget({
+    kind: input.job.data.serviceKind,
+    exposure: input.job.data.serviceExposure
+  })) {
+    await appendLogBestEffort(dependencies, {
+      deploymentId: input.job.data.deploymentId,
+      correlationId: input.correlationId,
+      message: `Public route skipped for ${describeDeploymentService(input.job.data)} because it is not a public web service.`,
+      stage: 'route-config-skipped',
+      warningMessage: 'deployment post-run log append failed; continuing deployment'
+    });
+    return null;
+  }
+
   if (input.result.hostPort === null) {
     return null;
   }

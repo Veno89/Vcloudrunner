@@ -10,8 +10,13 @@ const { ConfiguredDeploymentImageBuilder } = await import('./configured-deployme
 test('ConfiguredDeploymentImageBuilder clones the repo, resolves the build file, and builds the image', async (t) => {
   const infos: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
   const cloneCalls: Array<{ gitRepositoryUrl: string; branch: string; repoDir: string }> = [];
-  const buildCalls: Array<{ dockerfilePath: string; imageTag: string; repoDir: string }> = [];
-  const resolverCalls: string[] = [];
+  const buildCalls: Array<{
+    dockerfilePath: string;
+    buildContextPath: string;
+    imageTag: string;
+    repoDir: string;
+  }> = [];
+  const resolverCalls: Array<{ repoDir: string; sourceRoot?: string | null }> = [];
 
   t.mock.method(logger, 'info', (message: string, metadata?: Record<string, unknown>) => {
     infos.push({ message, metadata });
@@ -30,11 +35,12 @@ test('ConfiguredDeploymentImageBuilder clones the repo, resolves the build file,
       }
     },
     {
-      async detect(repoDir: string) {
-        resolverCalls.push(repoDir);
+      async detect(repoDir: string, options) {
+        resolverCalls.push({ repoDir, sourceRoot: options?.sourceRoot ?? null });
         return {
           type: 'dockerfile',
-          buildFilePath: 'services/api/Dockerfile'
+          buildFilePath: 'apps/frontend/Dockerfile',
+          buildContextPath: 'apps/frontend'
         };
       }
     }
@@ -45,7 +51,8 @@ test('ConfiguredDeploymentImageBuilder clones the repo, resolves the build file,
     gitRepositoryUrl: 'https://github.com/example/repo.git',
     branch: 'main',
     repoDir: 'repo-dir',
-    imageTag: 'image-tag'
+    imageTag: 'image-tag',
+    sourceRoot: 'apps/frontend'
   });
 
   assert.deepEqual(cloneCalls, [
@@ -55,21 +62,24 @@ test('ConfiguredDeploymentImageBuilder clones the repo, resolves the build file,
       repoDir: 'repo-dir'
     }
   ]);
-  assert.deepEqual(resolverCalls, ['repo-dir']);
+  assert.deepEqual(resolverCalls, [{ repoDir: 'repo-dir', sourceRoot: 'apps/frontend' }]);
   assert.deepEqual(buildCalls, [
     {
-      dockerfilePath: 'services/api/Dockerfile',
+      dockerfilePath: 'apps/frontend/Dockerfile',
+      buildContextPath: 'apps/frontend',
       imageTag: 'image-tag',
       repoDir: 'repo-dir'
     }
   ]);
   assert.deepEqual(result, {
-    buildFilePath: 'services/api/Dockerfile'
+    buildFilePath: 'apps/frontend/Dockerfile',
+    buildContextPath: 'apps/frontend'
   });
   assert.equal(infos[0]?.message, 'cloning repository');
   assert.equal(infos[0]?.metadata?.deploymentId, 'dep-123');
   assert.equal(infos[1]?.message, 'building docker image');
-  assert.equal(infos[1]?.metadata?.dockerfilePath, 'services/api/Dockerfile');
+  assert.equal(infos[1]?.metadata?.dockerfilePath, 'apps/frontend/Dockerfile');
+  assert.equal(infos[1]?.metadata?.buildContextPath, 'apps/frontend');
 });
 
 test('ConfiguredDeploymentImageBuilder throws a deployment failure when no build file is detected', async () => {
@@ -98,12 +108,14 @@ test('ConfiguredDeploymentImageBuilder throws a deployment failure when no build
       gitRepositoryUrl: 'https://github.com/example/repo.git',
       branch: 'main',
       repoDir: 'repo-dir',
-      imageTag: 'image-tag'
+      imageTag: 'image-tag',
+      sourceRoot: 'apps/frontend'
     }),
     (error: unknown) =>
       error instanceof DeploymentFailure &&
       error.code === 'DEPLOYMENT_DOCKERFILE_NOT_FOUND' &&
-      error.retryable === false
+      error.retryable === false &&
+      /selected service root "apps\/frontend"/.test(error.message)
   );
 });
 
@@ -125,7 +137,8 @@ test('ConfiguredDeploymentImageBuilder delegates image removal to the command ru
       async detect() {
         return {
           type: 'dockerfile',
-          buildFilePath: 'Dockerfile'
+          buildFilePath: 'Dockerfile',
+          buildContextPath: '.'
         };
       }
     }

@@ -5,11 +5,12 @@ import { createDeploymentLogArchiveUploader } from './archive-upload/deployment-
 import type { DeploymentLogArchiveUploader } from './archive-upload/deployment-log-archive-uploader.js';
 import type { DeploymentLogArchiveStore } from './archive-store/deployment-log-archive-store.js';
 import { createDeploymentStateRepository } from './deployment-state.repository.factory.js';
-import type { DeploymentStateRepository, Queryable } from './deployment-state.repository.js';
+import type { Queryable } from './deployment-state.repository.js';
 import { createIngressManager } from './ingress/ingress-manager.factory.js';
 import type { IngressManager } from './ingress/ingress-manager.js';
+import type { DeploymentStateServiceDependencies } from './deployment-state.service.js';
 
-interface CreateDeploymentStateServiceDependenciesOptions {
+export interface CreateDeploymentStateServiceDependenciesOptions {
   pool?: Queryable;
   ingressManager?: Pick<IngressManager, 'deleteRoute'>;
   archiveUploader?: DeploymentLogArchiveUploader;
@@ -19,13 +20,7 @@ interface CreateDeploymentStateServiceDependenciesOptions {
 
 export function createDeploymentStateServiceDependencies(
   options: CreateDeploymentStateServiceDependenciesOptions = {}
-): {
-  repository: DeploymentStateRepository;
-  ingressManager: Pick<IngressManager, 'deleteRoute'>;
-  archiveUploader: DeploymentLogArchiveUploader;
-  archiveStore: DeploymentLogArchiveStore;
-  archiveBuilder: DeploymentLogArchiveBuilder;
-} {
+): DeploymentStateServiceDependencies {
   return {
     repository: createDeploymentStateRepository(options.pool),
     ingressManager: options.ingressManager ?? createIngressManager(),

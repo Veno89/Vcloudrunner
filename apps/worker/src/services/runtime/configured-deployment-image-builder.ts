@@ -1,4 +1,5 @@
 import { logger } from '../../logger/logger.js';
+import { normalizeDeploymentSourceRoot } from '../deployment-source-root.js';
 import type { BuildSystemResolver } from '../build-detection/build-system-resolver.js';
 import type { DeploymentCommandRunner } from './deployment-command-runner.js';
 import type { BuildRuntimeImageInput, DeploymentImageBuilder, PreparedRuntimeImage } from './deployment-image-builder.js';
@@ -11,6 +12,8 @@ export class ConfiguredDeploymentImageBuilder implements DeploymentImageBuilder 
   ) {}
 
   async buildRuntimeImage(input: BuildRuntimeImageInput): Promise<PreparedRuntimeImage> {
+    const sourceRoot = normalizeDeploymentSourceRoot(input.sourceRoot);
+
     logger.info('cloning repository', { deploymentId: input.deploymentId });
     await this.commandRunner.cloneRepository({
       gitRepositoryUrl: input.gitRepositoryUrl,
@@ -18,23 +21,26 @@ export class ConfiguredDeploymentImageBuilder implements DeploymentImageBuilder 
       repoDir: input.repoDir
     });
 
-    const buildResult = await this.buildSystemResolver.detect(input.repoDir);
+    const buildResult = await this.buildSystemResolver.detect(input.repoDir, { sourceRoot });
     if (!buildResult) {
-      throw getMissingBuildFileError();
+      throw getMissingBuildFileError(sourceRoot);
     }
 
     logger.info('building docker image', {
       imageTag: input.imageTag,
-      dockerfilePath: buildResult.buildFilePath
+      dockerfilePath: buildResult.buildFilePath,
+      buildContextPath: buildResult.buildContextPath
     });
     await this.commandRunner.buildImage({
       dockerfilePath: buildResult.buildFilePath,
+      buildContextPath: buildResult.buildContextPath,
       imageTag: input.imageTag,
       repoDir: input.repoDir
     });
 
     return {
-      buildFilePath: buildResult.buildFilePath
+      buildFilePath: buildResult.buildFilePath,
+      buildContextPath: buildResult.buildContextPath
     };
   }
 

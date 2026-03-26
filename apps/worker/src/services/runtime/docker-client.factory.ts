@@ -1,17 +1,17 @@
-import Docker from 'dockerode';
+import { createConfiguredDockerClient } from './configured-docker-client.factory.js';
 
-import { env } from '../../config/env.js';
-
-type DockerConstructor = new (options: { socketPath: string }) => unknown;
+export type DockerConstructor = new (options: { socketPath: string }) => unknown;
 
 interface CreateDockerClientOptions {
   DockerClass?: DockerConstructor;
 }
 
 export function createDockerClient(options: CreateDockerClientOptions = {}) {
-  const DockerClass = options.DockerClass ?? (Docker as unknown as DockerConstructor);
+  if (!options.DockerClass) {
+    return createConfiguredDockerClient();
+  }
 
-  return new DockerClass({
-    socketPath: env.DOCKER_SOCKET_PATH
+  return createConfiguredDockerClient({
+    DockerClass: options.DockerClass
   });
 }

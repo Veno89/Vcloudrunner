@@ -17,7 +17,7 @@ export function ProjectCreatePanel({ action, defaultOpen = false }: ProjectCreat
       <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
         <div>
           <h2 className="text-sm font-semibold">Create project</h2>
-          <p className="text-xs text-muted-foreground">Add a repository and branch to start deployments.</p>
+          <p className="text-xs text-muted-foreground">Add a repository and branch to start with a default public app service.</p>
         </div>
         <Button
           type="button"

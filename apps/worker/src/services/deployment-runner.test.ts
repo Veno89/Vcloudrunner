@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { buildProjectServiceInternalHostname } from '@vcloudrunner/shared-types';
 
 await import('../test/worker-test-env.js');
 
@@ -22,7 +23,7 @@ function createRunner() {
     },
     {
       async buildRuntimeImage() {
-        return { buildFilePath: 'Dockerfile' };
+        return { buildFilePath: 'Dockerfile', buildContextPath: '.' };
       },
       async removeImage() {
         return undefined;
@@ -463,22 +464,25 @@ test('cleanupWorkspaceBestEffort warns and continues when deployment-error works
 });
 
 test('run uses the injected image builder for repository clone and image build orchestration', async () => {
+  const prepareCalls: Array<{ deploymentId: string; sourceRoot?: string | null }> = [];
   const buildCalls: Array<{
     deploymentId: string;
     gitRepositoryUrl: string;
     branch: string;
     repoDir: string;
     imageTag: string;
+    sourceRoot?: string | null;
   }> = [];
   const cleanupCalls: string[] = [];
 
   const runner = new DeploymentRunner(
     {
-      async prepareWorkspace() {
+      async prepareWorkspace(deploymentId: string, options) {
+        prepareCalls.push({ deploymentId, sourceRoot: options?.sourceRoot ?? null });
         return {
           workspaceDir: 'workspace-dir',
           repoDir: 'repo-dir',
-          projectPath: 'project-path'
+          projectPath: 'repo-dir/apps/frontend'
         };
       },
       async cleanupWorkspace(workspaceDir: string) {
@@ -489,7 +493,8 @@ test('run uses the injected image builder for repository clone and image build o
       async buildRuntimeImage(input) {
         buildCalls.push(input);
         return {
-          buildFilePath: 'services/api/Dockerfile'
+          buildFilePath: 'services/api/Dockerfile',
+          buildContextPath: 'apps/frontend'
         };
       },
       async removeImage() {
@@ -528,6 +533,8 @@ test('run uses the injected image builder for repository clone and image build o
     gitRepositoryUrl: 'https://github.com/example/repo.git',
     branch: 'main',
     env: { NODE_ENV: 'production' },
+    serviceName: 'frontend',
+    serviceSourceRoot: 'apps/frontend',
     runtime: {
       containerPort: 3000,
       memoryMb: 512,
@@ -541,10 +548,92 @@ test('run uses the injected image builder for repository clone and image build o
       gitRepositoryUrl: 'https://github.com/example/repo.git',
       branch: 'main',
       imageTag: 'vcloudrunner/demo-project:dep-123',
-      repoDir: 'repo-dir'
+      repoDir: 'repo-dir',
+      sourceRoot: 'apps/frontend'
     }
   ]);
+  assert.deepEqual(prepareCalls, [{ deploymentId: 'dep-123', sourceRoot: 'apps/frontend' }]);
   assert.deepEqual(cleanupCalls, ['workspace-dir']);
   assert.equal(result.containerId, 'container-123');
-  assert.equal(result.projectPath, 'project-path');
+  assert.equal(result.projectPath, 'repo-dir/apps/frontend');
+});
+
+test('run keeps internal services off public host ports and runtime urls', async () => {
+  const startContainerCalls: Array<Record<string, unknown>> = [];
+
+  const runner = new DeploymentRunner(
+    {
+      async prepareWorkspace() {
+        return {
+          workspaceDir: 'workspace-dir',
+          repoDir: 'repo-dir',
+          projectPath: 'repo-dir/apps/worker'
+        };
+      },
+      async cleanupWorkspace() {
+        return undefined;
+      }
+    },
+    {
+      async buildRuntimeImage() {
+        return {
+          buildFilePath: 'apps/worker/Dockerfile',
+          buildContextPath: 'apps/worker'
+        };
+      },
+      async removeImage() {
+        throw new Error('removeImage should not be called on successful runs');
+      }
+    },
+    {
+      async listNetworksByName() {
+        return [{ name: 'vcloudrunner-deployments' }];
+      },
+      async createNetwork() {
+        throw new Error('createNetwork should not run when the deployment network already exists');
+      },
+      async listContainersByName() {
+        return [];
+      },
+      async stopContainer() {
+        return undefined;
+      },
+      async removeContainer() {
+        throw new Error('removeContainer should not be called on successful runs');
+      },
+      async startContainer(input) {
+        startContainerCalls.push(input as unknown as Record<string, unknown>);
+        return {
+          containerId: 'container-worker',
+          hostPort: null
+        };
+      }
+    }
+  );
+
+  const result = await runner.run({
+    deploymentId: 'dep-worker',
+    projectId: 'project-123',
+    projectSlug: 'demo-project',
+    gitRepositoryUrl: 'https://github.com/example/repo.git',
+    branch: 'main',
+    env: { NODE_ENV: 'production' },
+    serviceName: 'worker',
+    serviceKind: 'worker',
+    serviceExposure: 'internal',
+    serviceSourceRoot: 'apps/worker',
+    runtime: {
+      containerPort: 3000,
+      memoryMb: 512,
+      cpuMillicores: 500
+    }
+  });
+
+  assert.equal(startContainerCalls.length, 1);
+  assert.equal(startContainerCalls[0]?.publishPort, false);
+  assert.deepEqual(startContainerCalls[0]?.networkAliases, [
+    buildProjectServiceInternalHostname('demo-project', 'worker')
+  ]);
+  assert.equal(result.hostPort, null);
+  assert.equal(result.runtimeUrl, null);
 });

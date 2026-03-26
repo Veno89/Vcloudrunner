@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 await import('../test/worker-test-env.js');
 
 const { env } = await import('../config/env.js');
-const { DeploymentStateService } = await import('./deployment-state.service.js');
+const { createDeploymentStateService } = await import('./deployment-state.service.factory.js');
 
 class MockPool {
   async query() {
@@ -12,7 +12,7 @@ class MockPool {
   }
 }
 
-const service = new DeploymentStateService(new MockPool());
+const service = createDeploymentStateService({ pool: new MockPool() });
 
 const baseEnv = {
   provider: env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER,
@@ -69,7 +69,7 @@ test.after(() => {
   env.DEPLOYMENT_LOG_ARCHIVE_AZURE_ACCOUNT_KEY = baseEnv.azureAccountKey;
 });
 
-test('s3 provider builds sigv4 authorization headers for archive upload request', async () => {
+test('s3 provider creates a native archive upload request for the configured bucket and key', async () => {
   setS3Env();
 
   const request = await service.createArchiveUploadRequest({
@@ -78,24 +78,16 @@ test('s3 provider builds sigv4 authorization headers for archive upload request'
     payload: Buffer.from('hello')
   });
 
+  assert.equal(request.provider, 's3');
+  assert.equal(request.transport, 'native');
   assert.match(request.targetUrl, /^https:\/\/s3\.amazonaws\.com\/my-bucket\/archives\//);
-  assert.match(request.headers.authorization, /^AWS4-HMAC-SHA256 Credential=/);
   assert.equal(request.headers['content-type'], 'application/gzip');
-  assert.ok(request.headers['x-amz-date']);
-  assert.ok(request.headers['x-amz-content-sha256']);
-});
-
-test('s3 signed headers include session token when configured', async () => {
-  setS3Env({ s3SessionToken: 'session-token-example' });
-
-  const request = await service.createArchiveUploadRequest({
-    fileName: 'dep-2.ndjson.gz',
-    baseUrl: 'https://s3.amazonaws.com',
-    payload: Buffer.from('world')
-  });
-
-  assert.equal(request.headers['x-amz-security-token'], 'session-token-example');
-  assert.match(request.headers.authorization, /SignedHeaders=.*x-amz-security-token/);
+  if (request.provider !== 's3') {
+    throw new Error('expected s3 archive upload request');
+  }
+  assert.equal(request.bucket, 'my-bucket');
+  assert.equal(request.key, 'archives/dep-1.ndjson.gz');
+  assert.equal(request.endpoint, 'https://s3.amazonaws.com');
 });
 
 test('gcs provider uses static bearer token when configured', async () => {
@@ -110,12 +102,14 @@ test('gcs provider uses static bearer token when configured', async () => {
     payload: Buffer.from('gcs')
   });
 
+  assert.equal(request.provider, 'gcs');
+  assert.equal(request.transport, 'http');
   assert.equal(request.headers.authorization, 'Bearer gcs-static-token');
   assert.equal(request.headers['content-type'], 'application/gzip');
   assert.match(request.targetUrl, /^https:\/\/storage\.googleapis\.com\/gcs-bucket\/archives\//);
 });
 
-test('azure provider builds shared key authorization headers', async () => {
+test('azure provider creates a native blob upload request for the configured container and blob path', async () => {
   env.DEPLOYMENT_LOG_ARCHIVE_UPLOAD_PROVIDER = 'azure';
   env.DEPLOYMENT_LOG_ARCHIVE_AZURE_CONTAINER = 'logs';
   env.DEPLOYMENT_LOG_ARCHIVE_AZURE_PREFIX = 'archives';
@@ -128,10 +122,16 @@ test('azure provider builds shared key authorization headers', async () => {
     payload: Buffer.from('azure')
   });
 
-  assert.match(request.headers.authorization, /^SharedKey devstoreaccount1:/);
-  assert.equal(request.headers['x-ms-blob-type'], 'BlockBlob');
+  assert.equal(request.provider, 'azure');
+  assert.equal(request.transport, 'native');
   assert.equal(request.headers['content-type'], 'application/gzip');
   assert.match(request.targetUrl, /^https:\/\/devstoreaccount1\.blob\.core\.windows\.net\/logs\/archives\//);
+  if (request.provider !== 'azure') {
+    throw new Error('expected azure archive upload request');
+  }
+  assert.equal(request.container, 'logs');
+  assert.equal(request.blobName, 'archives/dep-4.ndjson.gz');
+  assert.equal(request.serviceUrl, 'https://devstoreaccount1.blob.core.windows.net');
 });
 
 test('s3 provider fails fast when credentials are missing', async () => {

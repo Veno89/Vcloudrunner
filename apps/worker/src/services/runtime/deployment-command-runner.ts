@@ -6,6 +6,7 @@ export interface DeploymentCommandRunner {
   }): Promise<void>;
   buildImage(input: {
     dockerfilePath: string;
+    buildContextPath: string;
     imageTag: string;
     repoDir: string;
   }): Promise<void>;

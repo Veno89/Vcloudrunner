@@ -12,7 +12,9 @@ export interface StartContainerInput {
   imageTag: string;
   env: Record<string, string>;
   networkName: string;
+  networkAliases?: string[];
   containerPort: number;
+  publishPort: boolean;
   memoryMb: number;
   cpuMillicores: number;
 }

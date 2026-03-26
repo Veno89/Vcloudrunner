@@ -39,6 +39,16 @@ export class ProjectNotFoundError extends DomainError {
   }
 }
 
+export class InvalidProjectServiceError extends DomainError {
+  constructor(serviceName: string) {
+    super(
+      'INVALID_PROJECT_SERVICE',
+      `Requested project service "${serviceName}" does not exist`,
+      400
+    );
+  }
+}
+
 export class DeploymentNotFoundError extends DomainError {
   constructor() {
     super('DEPLOYMENT_NOT_FOUND', 'Deployment not found', 404);
@@ -56,10 +66,12 @@ export class DeploymentCancellationNotAllowedError extends DomainError {
 }
 
 export class DeploymentAlreadyActiveError extends DomainError {
-  constructor() {
+  constructor(serviceName?: string) {
     super(
       'DEPLOYMENT_ALREADY_ACTIVE',
-      'Project already has an active deployment (queued, building, or running)',
+      serviceName
+        ? `Project service "${serviceName}" already has an active deployment (queued, building, or running)`
+        : 'Project already has an active deployment (queued, building, or running)',
       409
     );
   }

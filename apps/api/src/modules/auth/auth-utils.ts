@@ -1,7 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 
 import { hasScope, type TokenScope } from './auth-scopes.js';
-import { requireAuthContext, type AuthRole } from '../../plugins/auth-context.js';
+import { requireAuthContext, type AuthContext } from '../../plugins/auth-context.js';
 import {
   ForbiddenProjectAccessError,
   ForbiddenTokenScopeError,
@@ -10,11 +10,7 @@ import {
 } from '../../server/domain-errors.js';
 import type { ProjectsService } from '../projects/projects.service.js';
 
-interface ActorContext {
-  userId: string;
-  role: AuthRole;
-  scopes: TokenScope[];
-}
+type ActorContext = AuthContext;
 
 export function requireActor(request: FastifyRequest): ActorContext {
   return requireAuthContext(request);

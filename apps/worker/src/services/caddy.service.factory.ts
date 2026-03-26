@@ -1,6 +1,8 @@
-import { createOutboundHttpClient } from './http/outbound-http-client.factory.js';
-import { CaddyService } from './caddy.service.js';
+import {
+  createConfiguredCaddyService,
+  type CreateConfiguredCaddyServiceOptions
+} from './configured-caddy.service.factory.js';
 
-export function createCaddyService() {
-  return new CaddyService(createOutboundHttpClient());
+export function createCaddyService(options: CreateConfiguredCaddyServiceOptions = {}) {
+  return createConfiguredCaddyService(options);
 }

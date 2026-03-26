@@ -14,6 +14,7 @@ const runtimeSchema = z.object({
 const createDeploymentBodySchema = z.object({
   commitSha: z.string().min(7).max(64).optional(),
   branch: z.string().min(1).max(255).optional(),
+  serviceName: z.string().min(1).max(32).regex(/^[a-z][a-z0-9-]*$/).optional(),
   runtime: runtimeSchema.optional(),
   metadata: z.record(z.unknown()).optional()
 });

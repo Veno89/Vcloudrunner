@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import type { DeploymentJobPayload } from '@vcloudrunner/shared-types';
 
 await import('../test/worker-test-env.js');
 
@@ -7,7 +8,7 @@ const { env } = await import('../config/env.js');
 const { createDeploymentJobProcessor } = await import('./deployment-job-processor.js');
 const { DeploymentFailure } = await import('./deployment-errors.js');
 
-const jobData = {
+const jobData: DeploymentJobPayload = {
   deploymentId: 'dep-123',
   projectId: 'proj-123',
   projectSlug: 'demo-project',
@@ -15,6 +16,10 @@ const jobData = {
   gitRepositoryUrl: 'https://example.com/repo.git',
   branch: 'main',
   commitSha: 'abc123',
+  serviceName: 'app',
+  serviceKind: 'web' as const,
+  serviceSourceRoot: '.',
+  serviceExposure: 'public' as const,
   env: {},
   runtime: {
     containerPort: 3000,
@@ -317,6 +322,66 @@ test('processor persists runtimeUrl only when public route configuration succeed
   assert.equal(markRunningCalls.length, 1);
   assert.equal(markRunningCalls[0]?.runtimeUrl, null);
   assert.equal(markRunningCalls[0]?.hostPort, 3100);
+});
+
+test('processor skips public route configuration for non-public services', async () => {
+  const markRunningCalls: Array<Record<string, unknown>> = [];
+  const appendMessages: string[] = [];
+  const routeCalls: Array<Record<string, unknown>> = [];
+
+  const processJob = createDeploymentJobProcessor({
+    runtimeExecutor: {
+      run: async () => ({
+        containerId: 'container-123',
+        containerName: 'container-name',
+        imageTag: 'image-tag',
+        hostPort: 3100,
+        runtimeUrl: 'http://demo-project.example.test',
+        internalPort: 3000,
+        projectPath: 'repo'
+      }),
+      cleanupCancelledRun: async () => undefined
+    },
+    stateService: {
+      isCancellationRequested: async () => false,
+      markStopped: async () => undefined,
+      markBuilding: async () => undefined,
+      appendLog: async (_deploymentId, message) => {
+        appendMessages.push(message);
+      },
+      markRunning: async (input) => {
+        markRunningCalls.push(input as unknown as Record<string, unknown>);
+      },
+      markFailed: async () => undefined
+    },
+    ingressManager: createIngressManagerStub({
+      upsertRoute: async (input) => {
+        routeCalls.push(input as unknown as Record<string, unknown>);
+      }
+    }),
+    logger: {
+      info: () => undefined,
+      warn: () => undefined,
+      error: () => undefined
+    },
+    eventSink: { emit: () => undefined }
+  });
+
+  await processJob(createJob({
+    serviceName: 'worker',
+    serviceKind: 'worker',
+    serviceExposure: 'internal'
+  }));
+
+  assert.equal(routeCalls.length, 0);
+  assert.equal(markRunningCalls.length, 1);
+  assert.equal(markRunningCalls[0]?.runtimeUrl, null);
+  assert.equal(markRunningCalls[0]?.hostPort, 3100);
+  assert.ok(
+    appendMessages.includes(
+      'Public route skipped for service worker (worker/internal) because it is not a public web service.'
+    )
+  );
 });
 
 test('processor still rethrows the original retryable error when retry logging fails', async () => {

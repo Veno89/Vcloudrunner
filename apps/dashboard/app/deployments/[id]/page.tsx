@@ -132,8 +132,9 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
             ? 'inactive after stop'
             : 'inactive'
           : cancellationRequested
-            ? 'not expected while cancellation is pending'
+          ? 'not expected while cancellation is pending'
           : 'pending';
+  const deploymentService = getDeploymentServiceMetadata(deployment.serviceName, deployment.metadata);
 
   return (
     <PageLayout>
@@ -149,6 +150,19 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
           status={deployment.status}
           cancellationRequested={cancellationRequested}
         />
+        {deploymentService ? (
+          <>
+            <Badge variant="secondary">{deploymentService.name}</Badge>
+            {deploymentService.kind ? (
+              <Badge variant="outline">{deploymentService.kind}</Badge>
+            ) : null}
+            {deploymentService.exposure ? (
+              <Badge variant={deploymentService.exposure === 'public' ? 'default' : 'secondary'}>
+                {deploymentService.exposure}
+              </Badge>
+            ) : null}
+          </>
+        ) : null}
         <Link href={`/projects/${project.id}`} className="text-sm text-primary hover:underline">
           View Project
         </Link>
@@ -175,6 +189,20 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p>{statusGuidance}</p>
+          {deploymentService ? (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-muted-foreground">Target service:</span>
+              <Badge variant="secondary">{deploymentService.name}</Badge>
+              {deploymentService.kind ? (
+                <Badge variant="outline">{deploymentService.kind}</Badge>
+              ) : null}
+              {deploymentService.exposure ? (
+                <Badge variant={deploymentService.exposure === 'public' ? 'default' : 'secondary'}>
+                  {deploymentService.exposure}
+                </Badge>
+              ) : null}
+            </div>
+          ) : null}
           {logsErrorMessage ? (
             <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-foreground">
               <p className="font-medium text-destructive">Recent logs unavailable</p>
@@ -191,9 +219,12 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
             <form action={deployProjectAction}>
               <input type="hidden" name="projectId" value={project.id} readOnly />
               <input type="hidden" name="projectName" value={project.name} readOnly />
+              {deploymentService ? (
+                <input type="hidden" name="serviceName" value={deploymentService.name} readOnly />
+              ) : null}
               <input type="hidden" name="returnPath" value={`/deployments/${deployment.id}`} readOnly />
               <FormSubmitButton
-                idleText="Redeploy"
+                idleText={deploymentService ? `Redeploy ${deploymentService.name}` : 'Redeploy'}
                 pendingText="Redeploying..."
                 variant="outline"
                 size="sm"
@@ -223,6 +254,9 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
           <CardContent className="space-y-3 text-sm">
             <DetailRow label="Deployment ID" value={deployment.id} mono />
             <DetailRow label="Project" value={project.name} />
+            {deploymentService ? (
+              <DetailRow label="Service" value={deploymentService.name} />
+            ) : null}
             <DetailRow label="Status" value={statusText} />
             {cancellationRequested && (deployment.status === 'queued' || deployment.status === 'building') ? (
               <DetailRow label="Cancellation" value="requested" />
@@ -561,6 +595,47 @@ function hasRuntimeStarted(logs: Array<{ level: string; message: string }>) {
       || message.includes('route configuration skipped')
     );
   });
+}
+
+function getDeploymentServiceMetadata(
+  serviceName: string | null | undefined,
+  metadata: unknown
+): {
+  name: string;
+  kind?: 'web' | 'worker';
+  exposure?: 'public' | 'internal';
+} | null {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return typeof serviceName === 'string' && serviceName.length > 0
+      ? { name: serviceName }
+      : null;
+  }
+
+  const service = (metadata as { service?: unknown }).service;
+
+  if (!service || typeof service !== 'object' || Array.isArray(service)) {
+    return typeof serviceName === 'string' && serviceName.length > 0
+      ? { name: serviceName }
+      : null;
+  }
+
+  const name = typeof (service as { name?: unknown }).name === 'string'
+    ? (service as { name: string }).name
+    : typeof serviceName === 'string' && serviceName.length > 0
+      ? serviceName
+    : null;
+  const kind = (service as { kind?: unknown }).kind;
+  const exposure = (service as { exposure?: unknown }).exposure;
+
+  if (!name) {
+    return null;
+  }
+
+  return {
+    name,
+    ...(kind === 'web' || kind === 'worker' ? { kind } : {}),
+    ...(exposure === 'public' || exposure === 'internal' ? { exposure } : {})
+  };
 }
 
 function deriveFailureSummary(logs: Array<{ level: string; message: string }>): string | null {

@@ -89,6 +89,7 @@ export function ProjectCreateForm({ action }: ProjectCreateFormProps) {
           Slug preview: <span className="font-mono text-foreground">{slug || '(empty)'}</span>
         </p>
         <p>Slugs are derived from project name (lowercase + hyphens) and must be globally unique.</p>
+        <p>New projects start with one public <span className="font-mono text-foreground">app</span> service and can grow into multi-service compositions later.</p>
         {nameError ? <p className="text-destructive">{nameError}</p> : null}
         {slugError ? <p className="text-destructive">{slugError}</p> : null}
         {urlError ? <p className="text-destructive">{urlError}</p> : null}

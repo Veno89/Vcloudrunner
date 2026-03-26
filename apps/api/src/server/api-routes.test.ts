@@ -228,11 +228,12 @@ test('root auth plugin applies to sibling route plugins', async (t) => {
   });
 
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(JSON.parse(res.body), {
-    userId: '00000000-0000-0000-0000-000000000010',
-    role: 'user',
-    scopes: ['projects:read']
-  });
+    assert.deepEqual(JSON.parse(res.body), {
+      userId: '00000000-0000-0000-0000-000000000010',
+      role: 'user',
+      scopes: ['projects:read'],
+      authSource: 'bootstrap-token'
+    });
 });
 
 test('root error handler applies to sibling route plugins', async (t) => {

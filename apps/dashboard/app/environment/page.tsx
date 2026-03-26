@@ -13,8 +13,8 @@ import { LiveDataUnavailableState } from '@/components/live-data-unavailable-sta
 import { FormSubmitButton } from '@/components/form-submit-button';
 import {
   apiAuthToken,
-  demoUserId,
-  fetchProjectsForDemoUser,
+  fetchProjectsForCurrentUser,
+  resolveViewerContext,
   fetchEnvironmentVariables,
 } from '@/lib/api';
 import { describeDashboardLiveDataFailure } from '@/lib/helpers';
@@ -36,10 +36,11 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
   let selectedProjectName = '';
   let liveDataErrorMessage: string | null = null;
   let environmentReadErrorMessage: string | null = null;
+  const { viewer, error: viewerContextError } = await resolveViewerContext();
 
-  if (demoUserId) {
+  if (viewer) {
     try {
-      const apiProjects = await fetchProjectsForDemoUser();
+      const apiProjects = await fetchProjectsForCurrentUser();
       projects = apiProjects.map((p) => ({ id: p.id, name: p.name }));
 
       const selected =
@@ -54,7 +55,7 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
         } catch (error) {
           environmentReadErrorMessage = describeDashboardLiveDataFailure({
             error,
-            hasDemoUserId: true,
+            hasDemoUserId: Boolean(viewer.userId),
             hasApiAuthToken: Boolean(apiAuthToken)
           });
         }
@@ -62,12 +63,13 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
     } catch (error) {
       liveDataErrorMessage = describeDashboardLiveDataFailure({
         error,
-        hasDemoUserId: true,
+        hasDemoUserId: Boolean(viewer.userId),
         hasApiAuthToken: Boolean(apiAuthToken)
       });
     }
   } else {
     liveDataErrorMessage = describeDashboardLiveDataFailure({
+      ...(viewerContextError ? { error: viewerContextError } : {}),
       hasDemoUserId: false,
       hasApiAuthToken: Boolean(apiAuthToken)
     });
