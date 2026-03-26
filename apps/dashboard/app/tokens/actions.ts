@@ -10,7 +10,7 @@ function createTokenActionErrorMessage(action: 'create' | 'revoke' | 'rotate', e
   const statusCode = extractApiStatusCode(error);
 
   if (statusCode === 401) {
-    return 'Token management is unauthorized. Check API_AUTH_TOKEN or the explicit local dev-auth bypass.';
+    return 'Token management is unauthorized. Check the active dashboard session, API_AUTH_TOKEN fallback, or the explicit local dev-auth bypass.';
   }
 
   if (statusCode === 403) {

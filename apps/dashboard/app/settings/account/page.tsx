@@ -7,20 +7,22 @@ import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
 import { SettingsSubnav } from '@/components/settings-subnav';
 import {
-  apiAuthToken,
   apiBaseUrl,
-  demoUserId,
   resolveViewerContext
 } from '@/lib/api';
+import { getDashboardRequestAuth } from '@/lib/dashboard-session';
 import { describeDashboardLiveDataFailure } from '@/lib/helpers';
 import {
   getDashboardAuthTransport,
   getViewerAuthSourceDetails,
   getViewerScopeLabels
 } from '@/lib/viewer-auth';
+import { signOutDashboardSessionAction } from '@/app/sign-in/actions';
 
 export default async function SettingsAccountPage() {
+  const requestAuth = getDashboardRequestAuth();
   const { viewer, error: viewerContextError } = await resolveViewerContext();
+  const hasSessionCookie = requestAuth.tokenSource === 'session-cookie';
 
   if (!viewer) {
     return (
@@ -36,18 +38,18 @@ export default async function SettingsAccountPage() {
           title="Account unavailable"
           description={describeDashboardLiveDataFailure({
             ...(viewerContextError ? { error: viewerContextError } : {}),
-            hasDemoUserId: Boolean(demoUserId),
-            hasApiAuthToken: Boolean(apiAuthToken)
+            hasDemoUserId: requestAuth.hasDemoUserId,
+            hasApiAuthToken: requestAuth.hasBearerToken
           })}
-          actionHref="/settings"
-          actionLabel="Open Settings"
+          actionHref="/sign-in"
+          actionLabel="Open Sign In"
         />
       </PageLayout>
     );
   }
 
   const scopeBadges = getViewerScopeLabels(viewer);
-  const authTransport = getDashboardAuthTransport();
+  const authTransport = getDashboardAuthTransport(requestAuth);
   const sessionSource = getViewerAuthSourceDetails(viewer.authSource);
 
   return (
@@ -174,7 +176,7 @@ export default async function SettingsAccountPage() {
             <div className="space-y-1">
               <p className="text-muted-foreground">Dev auth user hint</p>
               <p className="font-mono text-xs text-foreground">
-                {demoUserId ?? 'not configured'}
+                {requestAuth.demoUserId ?? 'not configured'}
               </p>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -192,12 +194,23 @@ export default async function SettingsAccountPage() {
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <p className="text-muted-foreground">
-              Token management is still the main first-class auth workflow today, but account and session state are now visible directly in the UI rather than inferred from environment variables alone.
+              Token management is still the main first-class auth workflow today, but this account page now also lets you manage the browser session that the dashboard itself uses.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button asChild>
                 <Link href="/settings/tokens">Manage Tokens</Link>
               </Button>
+              {hasSessionCookie ? (
+                <form action={signOutDashboardSessionAction}>
+                  <Button type="submit" variant="outline">
+                    Sign Out
+                  </Button>
+                </form>
+              ) : (
+                <Button asChild variant="outline">
+                  <Link href="/sign-in">Create Session</Link>
+                </Button>
+              )}
               <Button asChild variant="outline">
                 <Link href="/settings">Back to Overview</Link>
               </Button>

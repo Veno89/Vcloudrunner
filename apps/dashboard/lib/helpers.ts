@@ -73,15 +73,15 @@ export function describeDashboardLiveDataFailure(input: {
   hasApiAuthToken: boolean;
 }): string {
   if (!input.hasApiAuthToken && !input.hasDemoUserId) {
-    return 'Live dashboard data requires authenticated API context. Set API_AUTH_TOKEN, or use explicit local dev auth with an optional NEXT_PUBLIC_DEMO_USER_ID override.';
+    return 'Live dashboard data requires authenticated API context. Sign in with a dashboard session token, configure API_AUTH_TOKEN as a server fallback, or use explicit local dev auth with NEXT_PUBLIC_DEMO_USER_ID.';
   }
 
   const statusCode = extractApiStatusCode(input.error);
 
   if (statusCode === 401) {
     return input.hasApiAuthToken
-      ? 'API_AUTH_TOKEN was rejected. Use a valid bearer token, or enable the explicit dev-auth bypass only for local-only testing.'
-      : 'Live dashboard user context could not be resolved. Set API_AUTH_TOKEN to a valid bearer token, or enable the explicit dev-auth bypass only for local-only testing.';
+      ? 'The current dashboard bearer token was rejected. Sign in again with a valid token, or use the explicit dev-auth bypass only for local-only testing.'
+      : 'Live dashboard user context could not be resolved. Sign in with a valid token, configure API_AUTH_TOKEN as a fallback, or use the explicit dev-auth bypass only for local-only testing.';
   }
 
   if (statusCode === 403) {
@@ -123,11 +123,11 @@ export function describeDashboardProxyFailure(input: {
   upstreamMessage?: string | null;
 }): string {
   if (!input.hasApiAuthToken) {
-    return `Dashboard ${input.feature} requires API_AUTH_TOKEN. Set a valid bearer token, or enable the explicit dev-auth bypass only for local-only testing.`;
+    return `Dashboard ${input.feature} requires an authenticated dashboard session or bearer-token fallback. Sign in with a valid token, or enable the explicit dev-auth bypass only for local-only testing.`;
   }
 
   if (input.statusCode === 401) {
-    return `Dashboard ${input.feature} is unauthorized. API_AUTH_TOKEN was rejected, or the explicit dev-auth bypass is disabled.`;
+    return `Dashboard ${input.feature} is unauthorized. The current dashboard bearer token was rejected, or the explicit dev-auth bypass is disabled.`;
   }
 
   if (input.statusCode === 403) {
@@ -161,7 +161,7 @@ export function createEnvironmentVariableActionErrorMessage(
   }
 
   if (statusCode === 401) {
-    return 'Environment management is unauthorized. Check API_AUTH_TOKEN or the explicit local dev-auth bypass.';
+    return 'Environment management is unauthorized. Check the active dashboard session, API_AUTH_TOKEN fallback, or the explicit local dev-auth bypass.';
   }
 
   if (statusCode === 403) {
@@ -255,7 +255,7 @@ export function normalizeProjectDisplayName(value: unknown): string {
 
 export function createDeploymentErrorMessage(statusCode: number | null, projectName: string): string {
   if (statusCode === 401) {
-    return `Cannot deploy "${projectName}": API_AUTH_TOKEN was rejected or local dev auth is disabled.`;
+    return `Cannot deploy "${projectName}": the current dashboard session/token was rejected or local dev auth is disabled.`;
   }
 
   if (statusCode === 403) {

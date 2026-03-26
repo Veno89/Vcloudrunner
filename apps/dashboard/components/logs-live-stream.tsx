@@ -371,7 +371,7 @@ export function LogsLiveStream({
         {status === 'error' ? (
           <p className="text-[11px] text-destructive">
             Live log streaming disconnected. Try reconnecting here, and if it persists check{' '}
-            <code>API_AUTH_TOKEN</code> or upstream API availability.
+            the active dashboard session, <code>API_AUTH_TOKEN</code>, or upstream API availability.
           </p>
         ) : null}
       </div>

@@ -14,10 +14,10 @@ import { LiveDataUnavailableState } from '@/components/live-data-unavailable-sta
 import { SettingsSubnav } from '@/components/settings-subnav';
 import { PageLayout } from '@/components/page-layout';
 import {
-  apiAuthToken,
   fetchApiTokensForUser,
   resolveViewerContext
 } from '@/lib/api';
+import { getDashboardRequestAuth } from '@/lib/dashboard-session';
 import { describeDashboardLiveDataFailure } from '@/lib/helpers';
 import { createApiTokenAction, revokeApiTokenAction, rotateApiTokenAction } from '@/app/tokens/actions';
 
@@ -57,6 +57,7 @@ interface TokenManagementPageProps {
 }
 
 export async function TokenManagementPage({ searchParams }: TokenManagementPageProps) {
+  const requestAuth = getDashboardRequestAuth();
   const tokenCookie = cookies().get('__token_plaintext');
   const tokenPlaintextFromCookie = tokenCookie?.value ?? null;
   if (tokenCookie) {
@@ -92,14 +93,14 @@ export async function TokenManagementPage({ searchParams }: TokenManagementPageP
       tokenListErrorMessage = describeDashboardLiveDataFailure({
         error,
         hasDemoUserId: Boolean(viewer.userId),
-        hasApiAuthToken: Boolean(apiAuthToken),
+        hasApiAuthToken: requestAuth.hasBearerToken,
       });
     }
   } else {
     liveDataErrorMessage = describeDashboardLiveDataFailure({
       ...(viewerContextError ? { error: viewerContextError } : {}),
-      hasDemoUserId: false,
-      hasApiAuthToken: Boolean(apiAuthToken),
+      hasDemoUserId: requestAuth.hasDemoUserId,
+      hasApiAuthToken: requestAuth.hasBearerToken,
     });
   }
 
@@ -292,8 +293,8 @@ export async function TokenManagementPage({ searchParams }: TokenManagementPageP
         <LiveDataUnavailableState
           title="Token management unavailable"
           description={liveDataErrorMessage}
-          actionHref="/settings"
-          actionLabel="Open Settings"
+          actionHref="/sign-in"
+          actionLabel="Open Sign In"
         />
       )}
     </PageLayout>

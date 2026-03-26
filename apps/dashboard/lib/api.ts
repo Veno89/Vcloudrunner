@@ -1,4 +1,5 @@
 import { cache } from 'react';
+import { getDashboardRequestAuth, type DashboardRequestAuth } from './dashboard-session';
 
 import type {
   DeploymentStatus,
@@ -205,15 +206,18 @@ function normalizeWorkerHealthPayload(
   };
 }
 
-function buildAuthHeaders(extra?: Record<string, string>): Record<string, string> {
+function buildAuthHeaders(
+  auth: Pick<DashboardRequestAuth, 'bearerToken' | 'demoUserId'>,
+  extra?: Record<string, string>
+): Record<string, string> {
   const headers = extra ? { ...extra } : {};
 
-  if (apiAuthToken) {
-    headers.authorization = `Bearer ${apiAuthToken}`;
+  if (auth.bearerToken) {
+    headers.authorization = `Bearer ${auth.bearerToken}`;
   }
 
-  if (demoUserId) {
-    headers['x-user-id'] = demoUserId;
+  if (auth.demoUserId) {
+    headers['x-user-id'] = auth.demoUserId;
   }
 
   return headers;
@@ -222,7 +226,7 @@ function buildAuthHeaders(extra?: Record<string, string>): Record<string, string
 export function buildDashboardAuthHeaders(
   extra?: Record<string, string>
 ): Record<string, string> {
-  return buildAuthHeaders(extra);
+  return buildAuthHeaders(getDashboardRequestAuth(), extra);
 }
 
 async function requestApi(path: string, init?: RequestInit): Promise<Response> {
@@ -248,7 +252,7 @@ async function requestApi(path: string, init?: RequestInit): Promise<Response> {
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await requestApi(path, {
-    headers: buildAuthHeaders()
+    headers: buildDashboardAuthHeaders()
   });
 
   if (!response.ok) {
@@ -261,7 +265,7 @@ async function fetchJson<T>(path: string): Promise<T> {
 async function postJson<T>(path: string, payload: Record<string, unknown>): Promise<T> {
   const response = await requestApi(path, {
     method: 'POST',
-    headers: buildAuthHeaders({
+    headers: buildDashboardAuthHeaders({
       'content-type': 'application/json'
     }),
     body: JSON.stringify(payload)
@@ -277,7 +281,7 @@ async function postJson<T>(path: string, payload: Record<string, unknown>): Prom
 async function putJson<T>(path: string, payload: Record<string, unknown>): Promise<T> {
   const response = await requestApi(path, {
     method: 'PUT',
-    headers: buildAuthHeaders({
+    headers: buildDashboardAuthHeaders({
       'content-type': 'application/json'
     }),
     body: JSON.stringify(payload)
@@ -293,7 +297,7 @@ async function putJson<T>(path: string, payload: Record<string, unknown>): Promi
 async function deleteRequest(path: string): Promise<void> {
   const response = await requestApi(path, {
     method: 'DELETE',
-    headers: buildAuthHeaders()
+    headers: buildDashboardAuthHeaders()
   });
 
   if (!response.ok && response.status !== 204) {
@@ -327,9 +331,15 @@ export async function createDeployment(
   return response.data;
 }
 
-export const fetchViewerContext = cache(async (): Promise<ApiViewerContext | null> => {
+const fetchViewerContextByAuth = cache(async (
+  bearerToken: string | null,
+  demoUserIdValue: string | null
+): Promise<ApiViewerContext | null> => {
   const response = await requestApi('/v1/auth/me', {
-    headers: buildAuthHeaders()
+    headers: buildAuthHeaders({
+      bearerToken,
+      demoUserId: demoUserIdValue
+    })
   });
 
   if (response.status === 401) {
@@ -343,6 +353,11 @@ export const fetchViewerContext = cache(async (): Promise<ApiViewerContext | nul
   const payload = await response.json() as ApiDataResponse<ApiViewerContext>;
   return payload.data;
 });
+
+export async function fetchViewerContext(): Promise<ApiViewerContext | null> {
+  const auth = getDashboardRequestAuth();
+  return fetchViewerContextByAuth(auth.bearerToken, auth.demoUserId);
+}
 
 export async function resolveViewerContext(): Promise<{
   viewer: ApiViewerContext | null;
@@ -467,7 +482,7 @@ export async function fetchDeploymentLogs(
 export async function fetchQueueHealth(): Promise<ApiQueueHealth> {
   try {
     const response = await requestApi('/health/queue', {
-      headers: buildAuthHeaders()
+      headers: buildDashboardAuthHeaders()
     });
 
     const payload = await response.json().catch(() => ({}));
@@ -488,7 +503,7 @@ export async function fetchQueueHealth(): Promise<ApiQueueHealth> {
 export async function fetchWorkerHealth(): Promise<ApiWorkerHealth> {
   try {
     const response = await requestApi('/health/worker', {
-      headers: buildAuthHeaders()
+      headers: buildDashboardAuthHeaders()
     });
 
     const payload = await response.json().catch(() => ({}));
@@ -529,6 +544,18 @@ export async function fetchApiHealth(): Promise<ApiServiceHealth> {
       message: getErrorMessage(error)
     };
   }
+}
+
+export async function fetchViewerContextForBearerToken(
+  bearerToken: string
+): Promise<ApiViewerContext | null> {
+  const trimmedToken = bearerToken.trim();
+
+  if (trimmedToken.length === 0) {
+    return null;
+  }
+
+  return fetchViewerContextByAuth(trimmedToken, null);
 }
 
 export { apiBaseUrl, demoUserId, apiAuthToken };

@@ -1,5 +1,5 @@
 import type { ApiViewerAuthSource, ApiViewerContext } from './api';
-import { apiAuthToken, demoUserId } from './api';
+import type { DashboardRequestAuth } from './dashboard-session';
 
 type BadgeVariant = 'success' | 'warning' | 'destructive' | 'outline' | 'info';
 
@@ -13,32 +13,37 @@ export function getViewerScopeLabels(viewer: ApiViewerContext): string[] {
     : ['no explicit scopes'];
 }
 
-export function getDashboardAuthTransport(): {
+export function getDashboardAuthTransport(auth: DashboardRequestAuth): {
   label: string;
   variant: BadgeVariant;
   description: string;
 } {
-  if (apiAuthToken) {
-    return {
-      label: 'bearer token',
-      variant: 'success',
-      description: 'Dashboard requests authenticate with API_AUTH_TOKEN. This is the primary live auth path.'
-    };
+  switch (auth.transport) {
+    case 'session-cookie':
+      return {
+        label: 'session cookie',
+        variant: 'success',
+        description: 'Dashboard requests authenticate with the current per-user session cookie. This is now the preferred live auth path.'
+      };
+    case 'server-env-token':
+      return {
+        label: 'server env token',
+        variant: 'warning',
+        description: 'Dashboard requests are still falling back to API_AUTH_TOKEN from the server environment instead of a per-user session.'
+      };
+    case 'dev-user-header':
+      return {
+        label: 'dev auth header',
+        variant: 'warning',
+        description: 'Dashboard requests currently rely on x-user-id only. This is intended for local ENABLE_DEV_AUTH flows.'
+      };
+    case 'unconfigured':
+      return {
+        label: 'unconfigured',
+        variant: 'destructive',
+        description: 'No session cookie, bearer token fallback, or local dev-auth user hint is configured for dashboard API requests.'
+      };
   }
-
-  if (demoUserId) {
-    return {
-      label: 'dev auth header',
-      variant: 'warning',
-      description: 'Dashboard requests currently rely on x-user-id only. This is intended for local ENABLE_DEV_AUTH flows.'
-    };
-  }
-
-  return {
-    label: 'unconfigured',
-    variant: 'destructive',
-    description: 'No bearer token or local dev-auth user hint is configured for dashboard API requests.'
-  };
 }
 
 export function getViewerAuthSourceDetails(authSource: ApiViewerAuthSource): {

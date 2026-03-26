@@ -2,7 +2,6 @@ import type { DeploymentStatus } from '@vcloudrunner/shared-types';
 import { getPrimaryProjectService } from '@vcloudrunner/shared-types';
 
 import {
-  apiAuthToken,
   fetchApiHealth,
   fetchProjectsForCurrentUser,
   resolveViewerContext,
@@ -12,6 +11,7 @@ import {
   type ApiProject,
   type ApiDeployment,
 } from './api';
+import { getDashboardRequestAuth } from './dashboard-session';
 import {
   deriveDomain,
   describeDashboardLiveDataFailure,
@@ -111,6 +111,7 @@ export async function loadPlatformHealth(
 }
 
 export async function loadDashboardData(): Promise<DashboardData> {
+  const requestAuth = getDashboardRequestAuth();
   const fallback: DashboardData = {
     projects: [],
     sortedDeployments: [],
@@ -130,8 +131,8 @@ export async function loadDashboardData(): Promise<DashboardData> {
       health,
       liveDataErrorMessage: describeDashboardLiveDataFailure({
         ...(viewerContextError ? { error: viewerContextError } : {}),
-        hasDemoUserId: false,
-        hasApiAuthToken: Boolean(apiAuthToken)
+        hasDemoUserId: requestAuth.hasDemoUserId,
+        hasApiAuthToken: requestAuth.hasBearerToken
       })
     };
   }
@@ -157,7 +158,7 @@ export async function loadDashboardData(): Promise<DashboardData> {
             failedProjectCount: deploymentFailures.length,
             totalProjectCount: apiProjects.length,
             hasDemoUserId: Boolean(viewer.userId),
-            hasApiAuthToken: Boolean(apiAuthToken)
+            hasApiAuthToken: requestAuth.hasBearerToken
           })
         : null;
 
@@ -245,7 +246,7 @@ export async function loadDashboardData(): Promise<DashboardData> {
         liveDataErrorMessage: describeDashboardLiveDataFailure({
           error,
           hasDemoUserId: Boolean(viewer.userId),
-          hasApiAuthToken: Boolean(apiAuthToken)
+          hasApiAuthToken: requestAuth.hasBearerToken
         }),
     };
   }

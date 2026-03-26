@@ -1,8 +1,8 @@
 import { type NextRequest } from 'next/server';
 import {
-  buildDashboardAuthHeaders,
-  demoUserId
+  buildDashboardAuthHeaders
 } from '@/lib/api';
+import { getDashboardRequestAuth } from '@/lib/dashboard-session';
 import {
   createDashboardProxyTimeoutMessage,
   createDashboardProxyUnavailableMessage,
@@ -10,11 +10,12 @@ import {
 } from '@/lib/helpers';
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
-const apiAuthToken = process.env.API_AUTH_TOKEN;
 const DASHBOARD_PROXY_TIMEOUT_MS = 10_000;
 
 export async function GET(request: NextRequest) {
-  if (!apiAuthToken && !demoUserId) {
+  const requestAuth = getDashboardRequestAuth();
+
+  if (!requestAuth.hasAnyAuth) {
     return new Response(
       describeDashboardProxyFailure({
         feature: 'log export',
@@ -76,7 +77,7 @@ export async function GET(request: NextRequest) {
     return new Response(
       describeDashboardProxyFailure({
         feature: 'log export',
-        hasApiAuthToken: Boolean(apiAuthToken),
+        hasApiAuthToken: requestAuth.hasBearerToken,
         statusCode: upstream.status,
         upstreamMessage: message,
       }),

@@ -39,11 +39,11 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             : searchParams?.reason === 'invalid_input'
               ? encodeURIComponent('Invalid project input. Ensure name/repository URL are valid.')
               : searchParams?.reason === 'auth_required'
-                ? encodeURIComponent('Project creation is unauthorized. Check API_AUTH_TOKEN or the explicit local dev-auth bypass.')
+                ? encodeURIComponent('Project creation is unauthorized. Check the active dashboard session, API_AUTH_TOKEN fallback, or the explicit local dev-auth bypass.')
               : searchParams?.reason === 'access_denied'
                   ? encodeURIComponent('Project creation is authenticated but lacks the required project write access.')
                   : searchParams?.reason === 'user_context_missing'
-                    ? encodeURIComponent('Project creation requires a live dashboard user context. Check API_AUTH_TOKEN or the explicit local dev-auth setup.')
+                    ? encodeURIComponent('Project creation requires a live dashboard user context. Sign in with a valid token, configure API_AUTH_TOKEN as a fallback, or use explicit local dev-auth setup.')
               : searchParams?.message
         }
         fallbackErrorMessage="Operation failed. Check API availability and try again."

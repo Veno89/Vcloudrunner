@@ -7,15 +7,16 @@ import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
 import { SettingsSubnav } from '@/components/settings-subnav';
 import {
-  apiAuthToken,
-  demoUserId,
   resolveViewerContext
 } from '@/lib/api';
+import { getDashboardRequestAuth } from '@/lib/dashboard-session';
 import { describeDashboardLiveDataFailure } from '@/lib/helpers';
 import { getViewerAuthSourceDetails } from '@/lib/viewer-auth';
 
 export default async function SettingsPage() {
+  const requestAuth = getDashboardRequestAuth();
   const { viewer, error: viewerContextError } = await resolveViewerContext();
+  const hasSessionCookie = requestAuth.tokenSource === 'session-cookie';
 
   if (!viewer) {
     return (
@@ -31,9 +32,11 @@ export default async function SettingsPage() {
           title="Settings unavailable"
           description={describeDashboardLiveDataFailure({
             ...(viewerContextError ? { error: viewerContextError } : {}),
-            hasDemoUserId: Boolean(demoUserId),
-            hasApiAuthToken: Boolean(apiAuthToken)
+            hasDemoUserId: requestAuth.hasDemoUserId,
+            hasApiAuthToken: requestAuth.hasBearerToken
           })}
+          actionHref="/sign-in"
+          actionLabel="Open Sign In"
         />
       </PageLayout>
     );
@@ -78,7 +81,9 @@ export default async function SettingsPage() {
             </div>
             <p className="text-sm text-muted-foreground">{sessionSource.description}</p>
             <Button asChild>
-              <Link href="/settings/account">Open Account</Link>
+              <Link href={hasSessionCookie ? '/settings/account' : '/sign-in'}>
+                {hasSessionCookie ? 'Open Account' : 'Create Session'}
+              </Link>
             </Button>
           </CardContent>
         </Card>
