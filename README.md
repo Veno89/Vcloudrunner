@@ -13,6 +13,7 @@ What you can do with it today:
 - trigger deployments and watch logs
 - see queue / worker / API health from the dashboard
 - manage API tokens for dashboard and API access
+- invite project members with claim links, ownership transfer, and optional outbound invite-delivery webhook automation
 
 Important current limitations:
 
@@ -127,6 +128,11 @@ npm run dev:dashboard
 - the API runtime and `drizzle-kit` commands load env files in this order: repo root `.env` first, then `apps/api/.env` as an override
 - the worker follows the same pattern with repo root `.env` first, then `apps/worker/.env`
 - `REDIS_URL` defaults to Redis database `0` when no path is present, but any explicit path must be a single integer database index like `redis://localhost:6379/0`
+- invitation delivery can stay manual via claim links, or you can configure:
+  - `INVITATION_CLAIM_BASE_URL` for the public dashboard base used in generated invite links
+  - `INVITATION_DELIVERY_WEBHOOK_URL` for a best-effort outbound delivery hook
+  - `INVITATION_DELIVERY_WEBHOOK_AUTH_TOKEN` for optional bearer auth on that webhook
+- when the invitation-delivery webhook is configured, the API posts pending-invite payloads plus the claim URL on create/redelivery; if delivery is disabled or fails, the invitation is still stored and can be shared manually from the dashboard
 
 ## MVP Infrastructure Model
 

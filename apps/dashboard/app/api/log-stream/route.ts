@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     return new Response(
       describeDashboardProxyFailure({
         feature: 'live log streaming',
-        hasApiAuthToken: false,
+        requestAuth,
       }),
       { status: 401 }
     );
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
     return new Response(
       describeDashboardProxyFailure({
         feature: 'live log streaming',
-        hasApiAuthToken: requestAuth.hasBearerToken,
+        requestAuth,
         statusCode: upstream.status,
         upstreamMessage: message,
       }),

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
+import { DashboardUnavailableState } from '@/components/dashboard-unavailable-state';
 import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
 import { SettingsSubnav } from '@/components/settings-subnav';
@@ -10,7 +10,6 @@ import {
   resolveViewerContext
 } from '@/lib/api';
 import { getDashboardRequestAuth } from '@/lib/dashboard-session';
-import { describeDashboardLiveDataFailure } from '@/lib/helpers';
 import { getViewerAuthSourceDetails } from '@/lib/viewer-auth';
 
 export default async function SettingsPage() {
@@ -28,15 +27,11 @@ export default async function SettingsPage() {
 
         <SettingsSubnav active="overview" />
 
-        <LiveDataUnavailableState
+        <DashboardUnavailableState
           title="Settings unavailable"
-          description={describeDashboardLiveDataFailure({
-            ...(viewerContextError ? { error: viewerContextError } : {}),
-            hasDemoUserId: requestAuth.hasDemoUserId,
-            hasApiAuthToken: requestAuth.hasBearerToken
-          })}
-          actionHref="/sign-in"
-          actionLabel="Open Sign In"
+          requestAuth={requestAuth}
+          {...(viewerContextError ? { error: viewerContextError } : {})}
+          redirectTo="/settings"
         />
       </PageLayout>
     );
@@ -44,6 +39,10 @@ export default async function SettingsPage() {
 
   const sessionSource = getViewerAuthSourceDetails(viewer.authSource);
   const resolvedIdentity = viewer.user?.name ?? viewer.user?.email ?? viewer.userId;
+  const accountCtaHref = '/settings/account';
+  const accountCtaLabel = viewer.user
+    ? 'Open Account'
+    : 'Complete Account Setup';
 
   return (
     <PageLayout>
@@ -59,7 +58,9 @@ export default async function SettingsPage() {
           <CardHeader>
             <CardTitle className="text-base">Account & Session</CardTitle>
             <CardDescription>
-              The dashboard now resolves this actor live from the API instead of assuming a hardcoded demo user.
+              {viewer.user
+                ? 'The dashboard now resolves this actor live from the API instead of assuming a hardcoded demo user.'
+                : 'This actor is authenticated, but account setup still needs to create the persisted user profile behind it.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -80,11 +81,16 @@ export default async function SettingsPage() {
               )}
             </div>
             <p className="text-sm text-muted-foreground">{sessionSource.description}</p>
-            <Button asChild>
-              <Link href={hasSessionCookie ? '/settings/account' : '/sign-in'}>
-                {hasSessionCookie ? 'Open Account' : 'Create Session'}
-              </Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild>
+                <Link href={accountCtaHref}>{accountCtaLabel}</Link>
+              </Button>
+              {!hasSessionCookie ? (
+                <Button asChild variant="outline">
+                  <Link href="/sign-in">Create Session</Link>
+                </Button>
+              ) : null}
+            </div>
           </CardContent>
         </Card>
 
@@ -92,15 +98,21 @@ export default async function SettingsPage() {
           <CardHeader>
             <CardTitle className="text-base">API Tokens</CardTitle>
             <CardDescription>
-              Manage the token lifecycle for the currently resolved viewer.
+              {viewer.user
+                ? 'Manage the token lifecycle for the currently resolved viewer.'
+                : 'Complete account setup before moving into normal DB-backed token management.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Create, rotate, and revoke DB-backed API tokens for this account. These tokens are the preferred live auth path once you move past bootstrap or local dev-auth flows.
+              {viewer.user
+                ? 'Create, rotate, and revoke DB-backed API tokens for this account. These tokens are the preferred live auth path once you move past bootstrap or local dev-auth flows.'
+                : 'DB-backed tokens belong to persisted users. Finish account setup first so this authenticated actor can move out of bootstrap/dev identity and into the normal token lifecycle.'}
             </p>
             <Button asChild variant="outline">
-              <Link href="/settings/tokens">Open Tokens</Link>
+              <Link href={viewer.user ? '/settings/tokens' : '/settings/account'}>
+                {viewer.user ? 'Open Tokens' : 'Finish Account Setup'}
+              </Link>
             </Button>
           </CardContent>
         </Card>

@@ -2,6 +2,7 @@ import { ProjectCard } from '@/components/project-card';
 import { ProjectCreatePanel } from '@/components/project-create-panel';
 import { Button } from '@/components/ui/button';
 import { ActionToast } from '@/components/action-toast';
+import { DashboardAuthRequiredState } from '@/components/dashboard-auth-required-state';
 import { EmptyState } from '@/components/empty-state';
 import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { FormSubmitButton } from '@/components/form-submit-button';
@@ -22,7 +23,7 @@ interface ProjectsPageProps {
 
 export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
   const data = await loadDashboardData();
-  const projects = data.usingLiveData ? data.projects : mockProjects;
+  const projects = data.usingLiveData || data.authRequirement ? data.projects : mockProjects;
 
   return (
     <PageLayout>
@@ -39,21 +40,28 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             : searchParams?.reason === 'invalid_input'
               ? encodeURIComponent('Invalid project input. Ensure name/repository URL are valid.')
               : searchParams?.reason === 'auth_required'
-                ? encodeURIComponent('Project creation is unauthorized. Check the active dashboard session, API_AUTH_TOKEN fallback, or the explicit local dev-auth bypass.')
+                ? encodeURIComponent('Project creation is unauthorized. Sign in again with an active dashboard session, use API_AUTH_TOKEN only as a temporary fallback, or use the explicit local dev-auth bypass.')
               : searchParams?.reason === 'access_denied'
                   ? encodeURIComponent('Project creation is authenticated but lacks the required project write access.')
                   : searchParams?.reason === 'user_context_missing'
-                    ? encodeURIComponent('Project creation requires a live dashboard user context. Sign in with a valid token, configure API_AUTH_TOKEN as a fallback, or use explicit local dev-auth setup.')
+                    ? encodeURIComponent('Project creation requires a live dashboard session. Sign in with a valid token, use API_AUTH_TOKEN only as a temporary fallback, or use explicit local dev-auth setup.')
               : searchParams?.message
         }
         fallbackErrorMessage="Operation failed. Check API availability and try again."
       />
 
-      {!data.usingLiveData && (
+      {!data.usingLiveData && data.authRequirement ? (
+        <DashboardAuthRequiredState
+          requirement={data.authRequirement}
+          redirectTo="/projects"
+        />
+      ) : null}
+
+      {!data.usingLiveData && !data.authRequirement ? (
         <DemoModeBanner detail={data.liveDataErrorMessage}>
           Live project data unavailable, showing sample project data.
         </DemoModeBanner>
-      )}
+      ) : null}
 
       {data.usingLiveData && data.liveDataErrorMessage && (
         <DemoModeBanner title="Partial outage" detail={data.liveDataErrorMessage}>
@@ -68,7 +76,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
         />
       )}
 
-      {projects.length === 0 ? (
+      {data.authRequirement ? null : projects.length === 0 ? (
         <EmptyState
           title="No projects yet"
           description="Create your first project to start deployments."

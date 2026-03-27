@@ -3,11 +3,11 @@ import { notFound } from 'next/navigation';
 import { DeploymentStatusBadges } from '@/components/deployment-status-badges';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DashboardUnavailableState } from '@/components/dashboard-unavailable-state';
 import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { ProjectSubnav } from '@/components/project-subnav';
 import { PageLayout } from '@/components/page-layout';
 import { EmptyState } from '@/components/empty-state';
-import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import { ActionToast } from '@/components/action-toast';
 import {
@@ -16,6 +16,7 @@ import {
   resolveViewerContext,
   fetchDeploymentsForProject,
 } from '@/lib/api';
+import { getDashboardRequestAuth } from '@/lib/dashboard-session';
 import {
   describeDashboardLiveDataFailure,
   formatRelativeTime,
@@ -34,17 +35,16 @@ interface ProjectDeploymentsPageProps {
   };
 }
 export default async function ProjectDeploymentsPage({ params, searchParams }: ProjectDeploymentsPageProps) {
+  const requestAuth = getDashboardRequestAuth();
   const { viewer, error: viewerContextError } = await resolveViewerContext();
 
   if (!viewer) {
     return (
       <PageLayout>
-        <LiveDataUnavailableState
-          description={describeDashboardLiveDataFailure({
-            ...(viewerContextError ? { error: viewerContextError } : {}),
-            hasDemoUserId: false,
-            hasApiAuthToken: Boolean(apiAuthToken)
-          })}
+        <DashboardUnavailableState
+          requestAuth={requestAuth}
+          {...(viewerContextError ? { error: viewerContextError } : {})}
+          redirectTo={`/projects/${params.id}/deployments`}
         />
       </PageLayout>
     );
@@ -173,13 +173,11 @@ export default async function ProjectDeploymentsPage({ params, searchParams }: P
   } catch (error) {
     return (
       <PageLayout>
-        <LiveDataUnavailableState
+        <DashboardUnavailableState
           title="Project deployments unavailable"
-          description={describeDashboardLiveDataFailure({
-            error,
-            hasDemoUserId: Boolean(viewer.userId),
-            hasApiAuthToken: Boolean(apiAuthToken)
-          })}
+          requestAuth={requestAuth}
+          error={error}
+          redirectTo={`/projects/${params.id}/deployments`}
         />
       </PageLayout>
     );

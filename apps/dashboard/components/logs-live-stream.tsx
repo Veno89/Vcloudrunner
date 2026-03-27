@@ -2,6 +2,7 @@
 
 import type { DeploymentStatus } from '@vcloudrunner/shared-types';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -20,6 +21,7 @@ interface LogsLiveStreamProps {
   deploymentId: string;
   deploymentStatus: DeploymentStatus;
   initialLogs: LogItem[];
+  reauthHref?: string;
 }
 
 const MAX_LOG_WINDOW = 300;
@@ -94,7 +96,8 @@ export function LogsLiveStream({
   projectId,
   deploymentId,
   deploymentStatus,
-  initialLogs
+  initialLogs,
+  reauthHref
 }: LogsLiveStreamProps) {
   const [logs, setLogs] = useState<LogItem[]>(() => normalizeLogWindow(initialLogs));
   const [status, setStatus] = useState<'connecting' | 'live' | 'paused' | 'error' | 'inactive'>(
@@ -370,8 +373,11 @@ export function LogsLiveStream({
         ) : null}
         {status === 'error' ? (
           <p className="text-[11px] text-destructive">
-            Live log streaming disconnected. Try reconnecting here, and if it persists check{' '}
-            the active dashboard session, <code>API_AUTH_TOKEN</code>, or upstream API availability.
+            Live log streaming disconnected. Try reconnecting here, and if it persists{' '}
+            <Link href={reauthHref ?? '/sign-in'} className="underline underline-offset-2">
+              sign in again
+            </Link>{' '}
+            before checking upstream API availability.
           </p>
         ) : null}
       </div>

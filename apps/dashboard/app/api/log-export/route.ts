@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     return new Response(
       describeDashboardProxyFailure({
         feature: 'log export',
-        hasApiAuthToken: false,
+        requestAuth,
       }),
       { status: 401 }
     );
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     return new Response(
       describeDashboardProxyFailure({
         feature: 'log export',
-        hasApiAuthToken: requestAuth.hasBearerToken,
+        requestAuth,
         statusCode: upstream.status,
         upstreamMessage: message,
       }),

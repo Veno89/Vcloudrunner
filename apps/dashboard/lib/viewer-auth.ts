@@ -29,7 +29,7 @@ export function getDashboardAuthTransport(auth: DashboardRequestAuth): {
       return {
         label: 'server env token',
         variant: 'warning',
-        description: 'Dashboard requests are still falling back to API_AUTH_TOKEN from the server environment instead of a per-user session.'
+        description: 'Dashboard requests are currently using the shared API_AUTH_TOKEN fallback from the server environment instead of a per-user session.'
       };
     case 'dev-user-header':
       return {

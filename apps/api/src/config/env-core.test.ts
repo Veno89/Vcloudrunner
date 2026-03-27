@@ -66,6 +66,14 @@ test('parseEnv defaults blank numeric strings instead of coercing them to zero',
   assert.equal(env.DEPLOYMENT_DEFAULT_MEMORY_MB, 512);
 });
 
+test('parseEnv defaults invitation delivery settings to the local platform host with delivery disabled', () => {
+  const env = parseEnv(REQUIRED_ENV);
+
+  assert.equal(env.INVITATION_CLAIM_BASE_URL, 'http://platform.example.com');
+  assert.equal(env.INVITATION_DELIVERY_WEBHOOK_URL, '');
+  assert.equal(env.INVITATION_DELIVERY_WEBHOOK_AUTH_TOKEN, '');
+});
+
 test('parseEnv preserves explicit zero-valued numeric strings where zero is valid', () => {
   const env = parseEnv({
     ...REQUIRED_ENV,

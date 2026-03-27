@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { DashboardUnavailableState } from '@/components/dashboard-unavailable-state';
 import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { LogsAutoRefresh } from '@/components/logs-auto-refresh';
 import { LogsLiveStream } from '@/components/logs-live-stream';
@@ -11,7 +12,6 @@ import { LastRefreshedIndicator } from '@/components/last-refreshed-indicator';
 import { ProjectSubnav } from '@/components/project-subnav';
 import { PageLayout } from '@/components/page-layout';
 import { EmptyState } from '@/components/empty-state';
-import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
 import {
   apiAuthToken,
   fetchProjectsForCurrentUser,
@@ -19,6 +19,8 @@ import {
   fetchDeploymentsForProject,
   fetchDeploymentLogs,
 } from '@/lib/api';
+import { buildDashboardSignInHref } from '@/lib/dashboard-auth-navigation';
+import { getDashboardRequestAuth } from '@/lib/dashboard-session';
 import {
   describeDashboardLiveDataFailure,
   formatDeploymentStatusText,
@@ -39,17 +41,16 @@ interface ProjectLogsPageProps {
 }
 
 export default async function ProjectLogsPage({ params, searchParams }: ProjectLogsPageProps) {
+  const requestAuth = getDashboardRequestAuth();
   const { viewer, error: viewerContextError } = await resolveViewerContext();
 
   if (!viewer) {
     return (
       <PageLayout>
-        <LiveDataUnavailableState
-          description={describeDashboardLiveDataFailure({
-            ...(viewerContextError ? { error: viewerContextError } : {}),
-            hasDemoUserId: false,
-            hasApiAuthToken: Boolean(apiAuthToken)
-          })}
+        <DashboardUnavailableState
+          requestAuth={requestAuth}
+          {...(viewerContextError ? { error: viewerContextError } : {})}
+          redirectTo={`/projects/${params.id}/logs`}
         />
       </PageLayout>
     );
@@ -113,6 +114,10 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
       || selectedDeployment?.status === 'running';
     const logsAutoRefreshActive = logsAutoRefreshEnabled && selectedDeploymentSupportsLiveRefresh;
     const refreshedAt = new Date().toISOString();
+    const logsReauthHref = buildDashboardSignInHref({
+      redirectTo: `/projects/${project.id}/logs`,
+      reason: 'session-expired'
+    });
 
     const buildProjectLogsHref = (page: number) => {
       const params = new URLSearchParams();
@@ -225,6 +230,7 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
               deploymentId={selectedDeployment.id}
               deploymentStatus={selectedDeployment.status}
               initialLogs={deploymentLogs}
+              reauthHref={logsReauthHref}
             />
 
             {logReadErrorMessage ? (
@@ -287,13 +293,11 @@ export default async function ProjectLogsPage({ params, searchParams }: ProjectL
   } catch (error) {
     return (
       <PageLayout>
-        <LiveDataUnavailableState
+        <DashboardUnavailableState
           title="Project logs unavailable"
-          description={describeDashboardLiveDataFailure({
-            error,
-            hasDemoUserId: Boolean(viewer.userId),
-            hasApiAuthToken: Boolean(apiAuthToken)
-          })}
+          requestAuth={requestAuth}
+          error={error}
+          redirectTo={`/projects/${params.id}/logs`}
         />
       </PageLayout>
     );

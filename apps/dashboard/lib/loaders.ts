@@ -14,9 +14,11 @@ import {
 import { getDashboardRequestAuth } from './dashboard-session';
 import {
   deriveDomain,
+  getDashboardAuthRequirement,
   describeDashboardLiveDataFailure,
   describePartialDashboardDeploymentFailure,
-  hasRequestedCancellation
+  hasRequestedCancellation,
+  type DashboardAuthRequirement
 } from './helpers';
 import {
   type DashboardStatusBadgeVariant,
@@ -71,6 +73,7 @@ export interface DashboardData {
   health: PlatformHealth;
   usingLiveData: boolean;
   liveDataErrorMessage: string | null;
+  authRequirement: DashboardAuthRequirement | null;
 }
 
 export function createFallbackHealth(): PlatformHealth {
@@ -119,6 +122,7 @@ export async function loadDashboardData(): Promise<DashboardData> {
     health: createFallbackHealth(),
     usingLiveData: false,
     liveDataErrorMessage: null,
+    authRequirement: null,
   };
 
   const health = await loadPlatformHealth().catch(() => createFallbackHealth());
@@ -126,9 +130,15 @@ export async function loadDashboardData(): Promise<DashboardData> {
   const { viewer, error: viewerContextError } = await resolveViewerContext();
 
   if (!viewer) {
+    const authRequirement = getDashboardAuthRequirement({
+      requestAuth,
+      ...(viewerContextError ? { error: viewerContextError } : {})
+    });
+
     return {
       ...fallback,
       health,
+      authRequirement,
       liveDataErrorMessage: describeDashboardLiveDataFailure({
         ...(viewerContextError ? { error: viewerContextError } : {}),
         hasDemoUserId: requestAuth.hasDemoUserId,
@@ -238,6 +248,7 @@ export async function loadDashboardData(): Promise<DashboardData> {
       health: nextHealth,
       usingLiveData: true,
       liveDataErrorMessage,
+      authRequirement: null,
     };
   } catch (error) {
     return {

@@ -7,9 +7,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
+import { DashboardUnavailableState } from '@/components/dashboard-unavailable-state';
 import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { DeploymentStatusBadges } from '@/components/deployment-status-badges';
-import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
 import { ProjectSubnav } from '@/components/project-subnav';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import { ActionToast } from '@/components/action-toast';
@@ -18,10 +21,13 @@ import {
   apiAuthToken,
   fetchProjectsForCurrentUser,
   fetchDeploymentsForProject,
+  fetchProjectInvitations,
+  fetchProjectMembers,
   fetchEnvironmentVariables,
   fetchDeploymentLogs,
   resolveViewerContext,
 } from '@/lib/api';
+import { getDashboardRequestAuth } from '@/lib/dashboard-session';
 import {
   describeDashboardLiveDataFailure,
   formatRelativeTime,
@@ -35,6 +41,15 @@ import {
   formatProjectServiceStatusBreakdown
 } from '@/lib/project-service-status';
 import { deployProjectAction } from '@/app/deployments/actions';
+import {
+  inviteProjectMemberAction,
+  redeliverProjectInvitationAction,
+  removeProjectInvitationAction,
+  removeProjectMemberAction,
+  transferProjectOwnershipAction,
+  updateProjectInvitationAction,
+  updateProjectMemberRoleAction
+} from '@/app/projects/actions';
 
 interface ProjectDetailPageProps {
   params: {
@@ -48,17 +63,16 @@ interface ProjectDetailPageProps {
 
 
 export default async function ProjectDetailPage({ params, searchParams }: ProjectDetailPageProps) {
+  const requestAuth = getDashboardRequestAuth();
   const { viewer, error: viewerContextError } = await resolveViewerContext();
 
   if (!viewer) {
     return (
       <PageLayout>
-        <LiveDataUnavailableState
-          description={describeDashboardLiveDataFailure({
-            ...(viewerContextError ? { error: viewerContextError } : {}),
-            hasDemoUserId: false,
-            hasApiAuthToken: Boolean(apiAuthToken)
-          })}
+        <DashboardUnavailableState
+          requestAuth={requestAuth}
+          {...(viewerContextError ? { error: viewerContextError } : {})}
+          redirectTo={`/projects/${params.id}`}
         />
       </PageLayout>
     );
@@ -72,14 +86,17 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
       notFound();
     }
 
-    const [deploymentsResult, environmentVariablesResult] = await Promise.allSettled([
+    const [deploymentsResult, environmentVariablesResult, projectMembersResult] = await Promise.allSettled([
       fetchDeploymentsForProject(project.id),
       fetchEnvironmentVariables(project.id),
+      fetchProjectMembers(project.id),
     ]);
     const deployments =
       deploymentsResult.status === 'fulfilled' ? deploymentsResult.value : [];
     const environmentVariables =
       environmentVariablesResult.status === 'fulfilled' ? environmentVariablesResult.value : [];
+    const projectMembers =
+      projectMembersResult.status === 'fulfilled' ? projectMembersResult.value : [];
     const deploymentReadErrorMessage =
       deploymentsResult.status === 'rejected'
         ? describeDashboardLiveDataFailure({
@@ -96,9 +113,18 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
             hasApiAuthToken: Boolean(apiAuthToken)
           })
         : null;
+    const projectMembersReadErrorMessage =
+      projectMembersResult.status === 'rejected'
+        ? describeDashboardLiveDataFailure({
+            error: projectMembersResult.reason,
+            hasDemoUserId: Boolean(viewer.userId),
+            hasApiAuthToken: Boolean(apiAuthToken)
+          })
+        : null;
     const partialOutageDetail = [
       deploymentReadErrorMessage ? `Deployment history unavailable. ${deploymentReadErrorMessage}` : null,
-      environmentReadErrorMessage ? `Environment variables unavailable. ${environmentReadErrorMessage}` : null
+      environmentReadErrorMessage ? `Environment variables unavailable. ${environmentReadErrorMessage}` : null,
+      projectMembersReadErrorMessage ? `Project members unavailable. ${projectMembersReadErrorMessage}` : null
     ]
       .filter((message): message is string => Boolean(message))
       .join(' ');
@@ -113,6 +139,36 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
     );
     const composedProjectStatus = composeProjectStatus(serviceStatuses);
     const composedServiceStatusBreakdown = formatProjectServiceStatusBreakdown(serviceStatuses);
+    const currentViewerMembership = projectMembers.find((member) => member.userId === viewer.userId) ?? null;
+    const canManageMembers =
+      Boolean(viewer.user)
+      && (
+        viewer.role === 'admin'
+        || project.userId === viewer.userId
+        || currentViewerMembership?.role === 'admin'
+      );
+    const canTransferOwnership =
+      Boolean(viewer.user)
+      && (
+        viewer.role === 'admin'
+        || project.userId === viewer.userId
+      );
+    let projectInvitations = [] as Awaited<ReturnType<typeof fetchProjectInvitations>>;
+    let projectInvitationsReadErrorMessage: string | null = null;
+
+    if (viewer.user && canManageMembers) {
+      try {
+        projectInvitations = await fetchProjectInvitations(project.id);
+      } catch (error) {
+        projectInvitationsReadErrorMessage = describeDashboardLiveDataFailure({
+          error,
+          hasDemoUserId: Boolean(viewer.userId),
+          hasApiAuthToken: Boolean(apiAuthToken)
+        });
+      }
+    }
+    const pendingProjectInvitations = projectInvitations.filter((invitation) => invitation.status === 'pending');
+    const historicalProjectInvitations = projectInvitations.filter((invitation) => invitation.status !== 'pending');
 
     const latestDeployment = sortedDeployments[0] ?? null;
     let latestLogs: Array<{ level: string; message: string; timestamp: string }> = [];
@@ -168,7 +224,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
           fallbackErrorMessage="Deployment action failed."
         />
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">Deployments</CardTitle>
@@ -214,6 +270,21 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
               )}
             </CardContent>
           </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Members</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {projectMembersReadErrorMessage ? (
+                <>
+                  <p className="text-2xl font-semibold">Unavailable</p>
+                  <p className="text-xs text-muted-foreground">Project members could not be loaded.</p>
+                </>
+              ) : (
+                <p className="text-2xl font-semibold">{projectMembers.length}</p>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         <Card>
@@ -244,6 +315,317 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
             <Button asChild size="sm" variant="outline">
               <Link href={`/projects/${project.id}/deployments`}>Open Deployments</Link>
             </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Members</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {projectMembersReadErrorMessage ? (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
+                <p className="font-medium text-destructive">Project members unavailable</p>
+                <p className="mt-1 text-xs">{projectMembersReadErrorMessage}</p>
+              </div>
+            ) : null}
+
+            {!projectMembersReadErrorMessage && viewer.user && canManageMembers ? (
+              <form action={inviteProjectMemberAction} className="rounded-md border p-3">
+                <input type="hidden" name="projectId" value={project.id} readOnly />
+                <input type="hidden" name="returnPath" value={`/projects/${project.id}`} readOnly />
+                <div className="grid gap-2 md:grid-cols-[1fr_140px_auto]">
+                  <div className="space-y-2">
+                    <Label htmlFor="project-member-email" className="sr-only">Invite member email</Label>
+                    <Input
+                      id="project-member-email"
+                      type="email"
+                      name="email"
+                      placeholder="invitee@example.com"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="project-member-role" className="sr-only">Invite role</Label>
+                    <Select id="project-member-role" name="role" defaultValue="viewer">
+                      <option value="viewer">viewer</option>
+                      <option value="editor">editor</option>
+                      <option value="admin">admin</option>
+                    </Select>
+                  </div>
+                  <FormSubmitButton
+                    idleText="Invite Member"
+                    pendingText="Inviting..."
+                    className="md:self-end"
+                  />
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Existing persisted users are added immediately. New emails stay here as pending invitations until that user follows the generated claim link and completes account setup with the same email address. If invitation delivery automation is configured, the platform also sends that claim link out automatically.
+                </p>
+              </form>
+            ) : null}
+
+            {!projectMembersReadErrorMessage && !viewer.user ? (
+              <p className="text-sm text-muted-foreground">
+                Complete account setup before managing project membership.
+              </p>
+            ) : null}
+
+            {!projectMembersReadErrorMessage && viewer.user && !canManageMembers ? (
+              <p className="text-sm text-muted-foreground">
+                You can view project membership here, but inviting members currently requires owner, admin, or project-admin access.
+              </p>
+            ) : null}
+
+            {!projectMembersReadErrorMessage && viewer.user && canManageMembers && !canTransferOwnership ? (
+              <p className="text-sm text-muted-foreground">
+                Project-admin access can manage members and invitations here, but only the current owner can transfer project ownership.
+              </p>
+            ) : null}
+
+            {!projectMembersReadErrorMessage && viewer.user && canTransferOwnership ? (
+              <p className="text-sm text-muted-foreground">
+                Ownership transfer promotes the selected member to owner. The current owner stays on the project as an admin member until removed later.
+              </p>
+            ) : null}
+
+            {!projectMembersReadErrorMessage && viewer.user && canManageMembers && projectInvitationsReadErrorMessage ? (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
+                <p className="font-medium text-destructive">Pending invitations unavailable</p>
+                <p className="mt-1 text-xs">{projectInvitationsReadErrorMessage}</p>
+              </div>
+            ) : null}
+
+            {!projectMembersReadErrorMessage && viewer.user && canManageMembers && !projectInvitationsReadErrorMessage ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium">Pending invitations</p>
+                  <Badge variant="outline">{pendingProjectInvitations.length}</Badge>
+                </div>
+                {pendingProjectInvitations.length > 0 ? (
+                  <div className="space-y-2">
+                    {pendingProjectInvitations.map((invitation) => (
+                      <div
+                        key={invitation.id}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed px-3 py-2"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium">{invitation.email}</p>
+                            <Badge variant={invitation.role === 'admin' ? 'warning' : 'outline'}>
+                              pending {invitation.role}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Last updated {formatRelativeTime(invitation.updatedAt)}
+                            {invitation.invitedByUser ? ` by ${invitation.invitedByUser.name}` : ''}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            This invite is accepted automatically when this email completes account setup with the same address.
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Saving here refreshes the invite metadata. Use redelivery when you want the platform to send the current claim link again.
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Claim link:{' '}
+                            <Link
+                              href={`/invitations/${invitation.claimToken}`}
+                              className="font-mono text-primary underline-offset-4 hover:underline"
+                            >
+                              /invitations/{invitation.claimToken}
+                            </Link>
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/invitations/${invitation.claimToken}`}>Open Claim Link</Link>
+                          </Button>
+                          <form action={redeliverProjectInvitationAction}>
+                            <input type="hidden" name="projectId" value={project.id} readOnly />
+                            <input type="hidden" name="invitationId" value={invitation.id} readOnly />
+                            <input type="hidden" name="invitationEmail" value={invitation.email} readOnly />
+                            <input type="hidden" name="returnPath" value={`/projects/${project.id}`} readOnly />
+                            <FormSubmitButton
+                              idleText="Redeliver"
+                              pendingText="Sending..."
+                              size="sm"
+                              variant="outline"
+                            />
+                          </form>
+                          <form action={updateProjectInvitationAction} className="flex flex-wrap items-center gap-2">
+                            <input type="hidden" name="projectId" value={project.id} readOnly />
+                            <input type="hidden" name="invitationId" value={invitation.id} readOnly />
+                            <input type="hidden" name="invitationEmail" value={invitation.email} readOnly />
+                            <input type="hidden" name="returnPath" value={`/projects/${project.id}`} readOnly />
+                            <Label htmlFor={`project-invitation-role-${invitation.id}`} className="sr-only">
+                              Update pending invitation role
+                            </Label>
+                            <Select
+                              id={`project-invitation-role-${invitation.id}`}
+                              name="role"
+                              defaultValue={invitation.role}
+                              className="w-28"
+                            >
+                              <option value="viewer">viewer</option>
+                              <option value="editor">editor</option>
+                              <option value="admin">admin</option>
+                            </Select>
+                            <FormSubmitButton
+                              idleText="Save"
+                              pendingText="Saving..."
+                              size="sm"
+                              variant="outline"
+                            />
+                          </form>
+                          <form action={removeProjectInvitationAction}>
+                            <input type="hidden" name="projectId" value={project.id} readOnly />
+                            <input type="hidden" name="invitationId" value={invitation.id} readOnly />
+                            <input type="hidden" name="invitationEmail" value={invitation.email} readOnly />
+                            <input type="hidden" name="returnPath" value={`/projects/${project.id}`} readOnly />
+                            <FormSubmitButton
+                              idleText="Cancel Invite"
+                              pendingText="Cancelling..."
+                              size="sm"
+                              variant="destructive"
+                            />
+                          </form>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No pending invitations right now.
+                  </p>
+                )}
+                {historicalProjectInvitations.length > 0 ? (
+                  <div className="space-y-2 pt-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium">Invitation history</p>
+                      <Badge variant="secondary">{historicalProjectInvitations.length}</Badge>
+                    </div>
+                    {historicalProjectInvitations.map((invitation) => (
+                      <div
+                        key={invitation.id}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium">{invitation.email}</p>
+                            <Badge
+                              variant={invitation.status === 'accepted' ? 'success' : 'destructive'}
+                            >
+                              {invitation.status} {invitation.role}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {invitation.status === 'accepted'
+                              ? `Accepted ${formatRelativeTime(invitation.acceptedAt ?? invitation.updatedAt)}`
+                              : `Cancelled ${formatRelativeTime(invitation.cancelledAt ?? invitation.updatedAt)}`}
+                            {invitation.status === 'accepted' && invitation.acceptedByUser
+                              ? ` by ${invitation.acceptedByUser.name}`
+                              : ''}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Originally invited {formatRelativeTime(invitation.createdAt)}
+                            {invitation.invitedByUser ? ` by ${invitation.invitedByUser.name}` : ''}
+                          </p>
+                        </div>
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/invitations/${invitation.claimToken}`}>View Claim Page</Link>
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {!projectMembersReadErrorMessage && projectMembers.length > 0 ? (
+              <div className="space-y-2">
+                {projectMembers.map((member) => {
+                  const canManageThisMember = canManageMembers && !member.isOwner;
+                  const canTransferToThisMember = canTransferOwnership && !member.isOwner;
+
+                  return (
+                    <div
+                      key={`${member.projectId}:${member.userId}`}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium">{member.user.name}</p>
+                          <Badge variant={member.isOwner ? 'default' : member.role === 'admin' ? 'warning' : 'outline'}>
+                            {member.isOwner ? 'owner' : member.role}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{member.user.email}</p>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {canManageThisMember ? (
+                          <>
+                            <form action={updateProjectMemberRoleAction} className="flex flex-wrap items-center gap-2">
+                              <input type="hidden" name="projectId" value={project.id} readOnly />
+                              <input type="hidden" name="memberUserId" value={member.userId} readOnly />
+                              <input type="hidden" name="memberEmail" value={member.user.email} readOnly />
+                              <input type="hidden" name="returnPath" value={`/projects/${project.id}`} readOnly />
+                              <Label htmlFor={`project-member-role-${member.userId}`} className="sr-only">
+                                Update member role
+                              </Label>
+                              <Select
+                                id={`project-member-role-${member.userId}`}
+                                name="role"
+                                defaultValue={member.role}
+                                className="w-28"
+                              >
+                                <option value="viewer">viewer</option>
+                                <option value="editor">editor</option>
+                                <option value="admin">admin</option>
+                              </Select>
+                              <FormSubmitButton
+                                idleText="Save"
+                                pendingText="Saving..."
+                                size="sm"
+                                variant="outline"
+                              />
+                            </form>
+                            <form action={removeProjectMemberAction}>
+                              <input type="hidden" name="projectId" value={project.id} readOnly />
+                              <input type="hidden" name="memberUserId" value={member.userId} readOnly />
+                              <input type="hidden" name="memberEmail" value={member.user.email} readOnly />
+                              <input type="hidden" name="returnPath" value={`/projects/${project.id}`} readOnly />
+                              <FormSubmitButton
+                                idleText="Remove"
+                                pendingText="Removing..."
+                                size="sm"
+                                variant="destructive"
+                              />
+                            </form>
+                          </>
+                        ) : null}
+                        {canTransferToThisMember ? (
+                          <form action={transferProjectOwnershipAction}>
+                            <input type="hidden" name="projectId" value={project.id} readOnly />
+                            <input type="hidden" name="memberUserId" value={member.userId} readOnly />
+                            <input type="hidden" name="memberEmail" value={member.user.email} readOnly />
+                            <input type="hidden" name="returnPath" value={`/projects/${project.id}`} readOnly />
+                            <FormSubmitButton
+                              idleText="Make Owner"
+                              pendingText="Transferring..."
+                              size="sm"
+                              variant="outline"
+                            />
+                          </form>
+                        ) : null}
+                        <p className="text-xs text-muted-foreground">
+                          Added {formatRelativeTime(member.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -457,13 +839,11 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
   } catch (error) {
     return (
       <PageLayout>
-        <LiveDataUnavailableState
+        <DashboardUnavailableState
           title="Project data unavailable"
-          description={describeDashboardLiveDataFailure({
-            error,
-            hasDemoUserId: Boolean(viewer.userId),
-            hasApiAuthToken: Boolean(apiAuthToken)
-          })}
+          requestAuth={requestAuth}
+          error={error}
+          redirectTo={`/projects/${params.id}`}
         />
       </PageLayout>
     );

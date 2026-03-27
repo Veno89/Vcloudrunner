@@ -1,6 +1,8 @@
+import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -10,7 +12,7 @@ import { FormSubmitButton } from '@/components/form-submit-button';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState } from '@/components/empty-state';
 import { DemoModeBanner } from '@/components/demo-mode-banner';
-import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
+import { DashboardUnavailableState } from '@/components/dashboard-unavailable-state';
 import { SettingsSubnav } from '@/components/settings-subnav';
 import { PageLayout } from '@/components/page-layout';
 import {
@@ -73,11 +75,10 @@ export async function TokenManagementPage({ searchParams }: TokenManagementPageP
     revokedAt: string | null;
     expiresAt: string | null;
   }> = [];
-  let liveDataErrorMessage: string | null = null;
   let tokenListErrorMessage: string | null = null;
   const { viewer, error: viewerContextError } = await resolveViewerContext();
 
-  if (viewer) {
+  if (viewer?.user) {
     try {
       const fetched = await fetchApiTokensForUser(viewer.userId);
       apiTokens = fetched.map((token) => ({
@@ -96,12 +97,6 @@ export async function TokenManagementPage({ searchParams }: TokenManagementPageP
         hasApiAuthToken: requestAuth.hasBearerToken,
       });
     }
-  } else {
-    liveDataErrorMessage = describeDashboardLiveDataFailure({
-      ...(viewerContextError ? { error: viewerContextError } : {}),
-      hasDemoUserId: requestAuth.hasDemoUserId,
-      hasApiAuthToken: requestAuth.hasBearerToken,
-    });
   }
 
   return (
@@ -130,171 +125,196 @@ export async function TokenManagementPage({ searchParams }: TokenManagementPageP
         </div>
       )}
 
-      {!liveDataErrorMessage ? (
+      {viewer ? (
         <>
-          {tokenListErrorMessage ? (
+          {!viewer.user ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Finish Account Setup</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <p className="text-muted-foreground">
+                  DB-backed API tokens require a persisted user profile. Create your account profile first, then come back here to issue and rotate tokens normally.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button asChild>
+                    <Link href="/settings/account">Open Account Setup</Link>
+                  </Button>
+                  <Button asChild variant="outline">
+                    <Link href="/settings">Back to Settings</Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {viewer.user && tokenListErrorMessage ? (
             <DemoModeBanner title="Partial outage" detail={tokenListErrorMessage}>
               Token inventory is temporarily unavailable, but you can still create new tokens.
             </DemoModeBanner>
           ) : null}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Create Token</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form
-                action={createApiTokenAction}
-                className="space-y-4"
-              >
-                <div className="grid gap-2 md:grid-cols-[1fr_140px_180px_auto]">
-                  <Label htmlFor="token-label" className="sr-only">Token label</Label>
-                  <Input
-                    id="token-label"
-                    type="text"
-                    name="label"
-                    placeholder="Label (optional)"
-                  />
-                  <Label htmlFor="token-role" className="sr-only">Role</Label>
-                  <Select
-                    id="token-role"
-                    name="role"
-                    defaultValue="user"
-                  >
-                    <option value="user">user</option>
-                    <option value="admin">admin</option>
-                  </Select>
-                  <Label htmlFor="token-expires-at" className="sr-only">Expiration date</Label>
-                  <Input
-                    id="token-expires-at"
-                    type="datetime-local"
-                    name="expiresAt"
-                  />
-                  <FormSubmitButton idleText="Create Token" pendingText="Creating..." />
-                </div>
-                <fieldset>
-                  <legend className="mb-2 text-xs font-medium text-muted-foreground">
-                    Scopes (leave unchecked for default)
-                  </legend>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {scopeGroups.map((group) => (
-                      <fieldset key={group.label} className="rounded-md border border-input/70 p-3">
-                        <legend className="px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                          {group.label}
-                        </legend>
-                        <p className="mb-2 text-[11px] text-muted-foreground">{group.description}</p>
-                        <ul className="space-y-1.5">
-                          {group.scopes.map((scope) => (
-                            <li key={scope}>
-                              <label className="flex items-center gap-2 text-xs">
-                                <input
-                                  type="checkbox"
-                                  name="scopes"
-                                  value={scope}
-                                  className="h-3.5 w-3.5 rounded border-input bg-background text-primary"
-                                />
-                                <span className="font-mono">{scope}</span>
-                              </label>
-                            </li>
-                          ))}
-                        </ul>
-                      </fieldset>
-                    ))}
-                  </div>
-                </fieldset>
-              </form>
-            </CardContent>
-          </Card>
-
-          <div className="space-y-2">
-            {tokenListErrorMessage ? (
+          {viewer.user ? (
+            <>
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">Existing Tokens</CardTitle>
+                  <CardTitle className="text-sm">Create Token</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
-                    <p className="font-medium text-destructive">Token inventory unavailable</p>
-                    <p className="mt-1 text-xs">{tokenListErrorMessage}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : apiTokens.length === 0 ? (
-              <EmptyState
-                title="No API tokens yet"
-                description="Create one above to begin programmatic access."
-              />
-            ) : (
-              apiTokens.map((token) => (
-                <div
-                  key={token.id}
-                  className="flex items-center justify-between rounded-md border px-4 py-3 transition-colors hover:bg-accent/20"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium">
-                        {token.label ?? 'unlabeled token'}
-                      </p>
-                      <Badge variant={token.role === 'admin' ? 'warning' : 'info'}>
-                        {token.role}
-                      </Badge>
-                      {token.revokedAt && <Badge variant="destructive">Revoked</Badge>}
+                  <form
+                    action={createApiTokenAction}
+                    className="space-y-4"
+                  >
+                    <div className="grid gap-2 md:grid-cols-[1fr_140px_180px_auto]">
+                      <Label htmlFor="token-label" className="sr-only">Token label</Label>
+                      <Input
+                        id="token-label"
+                        type="text"
+                        name="label"
+                        placeholder="Label (optional)"
+                      />
+                      <Label htmlFor="token-role" className="sr-only">Role</Label>
+                      <Select
+                        id="token-role"
+                        name="role"
+                        defaultValue="user"
+                      >
+                        <option value="user">user</option>
+                        <option value="admin">admin</option>
+                      </Select>
+                      <Label htmlFor="token-expires-at" className="sr-only">Expiration date</Label>
+                      <Input
+                        id="token-expires-at"
+                        type="datetime-local"
+                        name="expiresAt"
+                      />
+                      <FormSubmitButton idleText="Create Token" pendingText="Creating..." />
                     </div>
-                    <p className="font-mono text-xs text-muted-foreground">
-                      {token.tokenPreview}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {token.revokedAt
-                        ? `Revoked at ${token.revokedAt}`
-                        : token.expiresAt
-                          ? `Expires at ${token.expiresAt}`
-                          : 'No expiration'}
-                    </p>
-                    {token.scopes.length > 0 && (
-                      <div className="flex flex-wrap gap-1 pt-0.5">
-                        {token.scopes.map((scope) => (
-                          <Badge key={scope} variant="outline" className="text-[10px] font-mono px-1.5 py-0">
-                            {scope}
-                          </Badge>
+                    <fieldset>
+                      <legend className="mb-2 text-xs font-medium text-muted-foreground">
+                        Scopes (leave unchecked for default)
+                      </legend>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {scopeGroups.map((group) => (
+                          <fieldset key={group.label} className="rounded-md border border-input/70 p-3">
+                            <legend className="px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              {group.label}
+                            </legend>
+                            <p className="mb-2 text-[11px] text-muted-foreground">{group.description}</p>
+                            <ul className="space-y-1.5">
+                              {group.scopes.map((scope) => (
+                                <li key={scope}>
+                                  <label className="flex items-center gap-2 text-xs">
+                                    <input
+                                      type="checkbox"
+                                      name="scopes"
+                                      value={scope}
+                                      className="h-3.5 w-3.5 rounded border-input bg-background text-primary"
+                                    />
+                                    <span className="font-mono">{scope}</span>
+                                  </label>
+                                </li>
+                              ))}
+                            </ul>
+                          </fieldset>
                         ))}
                       </div>
-                    )}
-                  </div>
-                  {!token.revokedAt && (
-                    <div className="flex items-center gap-2">
-                      <form action={rotateApiTokenAction}>
-                        <input type="hidden" name="tokenId" value={token.id} readOnly />
-                        <ConfirmSubmitButton
-                          label="Rotate"
-                          confirmMessage="Rotate this API token now? The current token will stop working immediately."
-                          variant="outline"
-                          size="sm"
-                          pendingLabel="Rotating..."
-                        />
-                      </form>
-                      <form action={revokeApiTokenAction}>
-                        <input type="hidden" name="tokenId" value={token.id} readOnly />
-                        <ConfirmSubmitButton
-                          label="Revoke"
-                          confirmMessage="Revoke this API token? Any clients using it will lose access immediately."
-                          variant="destructive"
-                          size="sm"
-                          pendingLabel="Revoking..."
-                        />
-                      </form>
+                    </fieldset>
+                  </form>
+                </CardContent>
+              </Card>
+
+              <div className="space-y-2">
+                {tokenListErrorMessage ? (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Existing Tokens</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
+                        <p className="font-medium text-destructive">Token inventory unavailable</p>
+                        <p className="mt-1 text-xs">{tokenListErrorMessage}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : apiTokens.length === 0 ? (
+                  <EmptyState
+                    title="No API tokens yet"
+                    description="Create one above to begin programmatic access."
+                  />
+                ) : (
+                  apiTokens.map((token) => (
+                    <div
+                      key={token.id}
+                      className="flex items-center justify-between rounded-md border px-4 py-3 transition-colors hover:bg-accent/20"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">
+                            {token.label ?? 'unlabeled token'}
+                          </p>
+                          <Badge variant={token.role === 'admin' ? 'warning' : 'info'}>
+                            {token.role}
+                          </Badge>
+                          {token.revokedAt && <Badge variant="destructive">Revoked</Badge>}
+                        </div>
+                        <p className="font-mono text-xs text-muted-foreground">
+                          {token.tokenPreview}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {token.revokedAt
+                            ? `Revoked at ${token.revokedAt}`
+                            : token.expiresAt
+                              ? `Expires at ${token.expiresAt}`
+                              : 'No expiration'}
+                        </p>
+                        {token.scopes.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pt-0.5">
+                            {token.scopes.map((scope) => (
+                              <Badge key={scope} variant="outline" className="text-[10px] font-mono px-1.5 py-0">
+                                {scope}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {!token.revokedAt && (
+                        <div className="flex items-center gap-2">
+                          <form action={rotateApiTokenAction}>
+                            <input type="hidden" name="tokenId" value={token.id} readOnly />
+                            <ConfirmSubmitButton
+                              label="Rotate"
+                              confirmMessage="Rotate this API token now? The current token will stop working immediately."
+                              variant="outline"
+                              size="sm"
+                              pendingLabel="Rotating..."
+                            />
+                          </form>
+                          <form action={revokeApiTokenAction}>
+                            <input type="hidden" name="tokenId" value={token.id} readOnly />
+                            <ConfirmSubmitButton
+                              label="Revoke"
+                              confirmMessage="Revoke this API token? Any clients using it will lose access immediately."
+                              variant="destructive"
+                              size="sm"
+                              pendingLabel="Revoking..."
+                            />
+                          </form>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
+                  ))
+                )}
+              </div>
+            </>
+          ) : null}
         </>
       ) : (
-        <LiveDataUnavailableState
+        <DashboardUnavailableState
           title="Token management unavailable"
-          description={liveDataErrorMessage}
-          actionHref="/sign-in"
-          actionLabel="Open Sign In"
+          requestAuth={requestAuth}
+          {...(viewerContextError ? { error: viewerContextError } : {})}
+          redirectTo="/settings/tokens"
         />
       )}
     </PageLayout>

@@ -1,4 +1,5 @@
 import { DemoModeBanner } from '@/components/demo-mode-banner';
+import { DashboardAuthRequiredState } from '@/components/dashboard-auth-required-state';
 import { DeploymentStatusBadges } from '@/components/deployment-status-badges';
 import { PageLayout } from '@/components/page-layout';
 import { PageHeader } from '@/components/page-header';
@@ -42,13 +43,20 @@ export default async function StatusPage() {
         lastRunningDeployAt={data.health.lastRunningDeployAt}
       />
 
-      {deploymentHistoryUnavailable ? (
+      {data.authRequirement ? (
+        <DashboardAuthRequiredState
+          requirement={data.authRequirement}
+          redirectTo="/status"
+        />
+      ) : null}
+
+      {!data.authRequirement && deploymentHistoryUnavailable ? (
         <DemoModeBanner detail={data.liveDataErrorMessage}>
           Platform health is live, but deployment history metrics are unavailable.
         </DemoModeBanner>
       ) : null}
 
-      {deploymentHistoryPartial ? (
+      {!data.authRequirement && deploymentHistoryPartial ? (
         <DemoModeBanner title="Partial outage" detail={data.liveDataErrorMessage}>
           Platform health is live, but some deployment history metrics may be incomplete.
         </DemoModeBanner>
@@ -57,13 +65,20 @@ export default async function StatusPage() {
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Deployment Success Rate</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {deploymentHistoryUnavailable ? (
-              <>
-                <p className="text-2xl font-semibold">Unavailable</p>
-                <p className="text-xs text-muted-foreground">
+          <CardTitle className="text-sm">Deployment Success Rate</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {data.authRequirement ? (
+            <>
+              <p className="text-2xl font-semibold">Sign in required</p>
+              <p className="text-xs text-muted-foreground">
+                Deployment history metrics now come from the authenticated dashboard session instead of mock data.
+              </p>
+            </>
+          ) : deploymentHistoryUnavailable ? (
+            <>
+              <p className="text-2xl font-semibold">Unavailable</p>
+              <p className="text-xs text-muted-foreground">
                   Deployment history metrics require live project/deployment access.
                 </p>
               </>
@@ -111,7 +126,11 @@ export default async function StatusPage() {
           <CardTitle className="text-sm">Recent Deployment Outcomes</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {deploymentHistoryUnavailable ? (
+          {data.authRequirement ? (
+            <p className="text-sm text-muted-foreground">
+              Sign in to load recent deployment outcomes for your accessible projects.
+            </p>
+          ) : deploymentHistoryUnavailable ? (
             <>
               <p className="text-sm text-muted-foreground">
                 Recent deployment outcomes are unavailable.

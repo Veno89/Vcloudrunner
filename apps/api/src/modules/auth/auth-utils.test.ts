@@ -8,10 +8,14 @@ process.env.ENCRYPTION_KEY = '12345678901234567890123456789012';
 const {
   assertUserAccess,
   ensureProjectAccess,
+  ensureProjectMembershipManagementAccess,
+  ensureProjectOwnershipTransferAccess,
   requireScope
 } = await import('./auth-utils.js');
 const {
   ForbiddenProjectAccessError,
+  ForbiddenProjectMembershipManagementError,
+  ForbiddenProjectOwnershipTransferError,
   ForbiddenTokenScopeError,
   ForbiddenUserAccessError,
   ProjectNotFoundError
@@ -24,14 +28,18 @@ type ProjectRecord = {
   userId: string;
 };
 
-function buildProjectsService(project: ProjectRecord | null, hasMembership = false) {
+function buildProjectsService(
+  project: ProjectRecord | null,
+  membership: { role: 'viewer' | 'editor' | 'admin' } | null = null
+) {
   const service = {
     getProjectById: async () => project,
-    checkMembership: async () => hasMembership
+    checkMembership: async () => membership !== null,
+    getMembership: async () => membership
   } as never;
   
   return Object.assign(service, {
-    getSelectCalls: () => hasMembership ? 1 : 0
+    getSelectCalls: () => membership ? 1 : 0
   });
 }
 
@@ -124,7 +132,7 @@ test('ensureProjectAccess allows admins without membership lookup', async () => 
 });
 
 test('ensureProjectAccess allows project members when a membership row exists', async () => {
-  const service = buildProjectsService(project, true);
+  const service = buildProjectsService(project, { role: 'viewer' });
 
   const result = await ensureProjectAccess(service, {
     projectId: project.id,
@@ -135,10 +143,90 @@ test('ensureProjectAccess allows project members when a membership row exists', 
 });
 
 test('ensureProjectAccess rejects non-owner users without project membership', async () => {
-  const service = buildProjectsService(project, false);
+  const service = buildProjectsService(project);
 
   await assert.rejects(
     ensureProjectAccess(service, {
+      projectId: project.id,
+      actor: memberActor
+    }),
+    ForbiddenProjectAccessError
+  );
+});
+
+test('ensureProjectMembershipManagementAccess allows project owners', async () => {
+  const service = buildProjectsService(project);
+
+  const result = await ensureProjectMembershipManagementAccess(service, {
+    projectId: project.id,
+    actor: ownerActor
+  });
+
+  assert.deepEqual(result, project);
+});
+
+test('ensureProjectMembershipManagementAccess allows project-admin members', async () => {
+  const service = buildProjectsService(project, { role: 'admin' });
+
+  const result = await ensureProjectMembershipManagementAccess(service, {
+    projectId: project.id,
+    actor: memberActor
+  });
+
+  assert.deepEqual(result, project);
+});
+
+test('ensureProjectMembershipManagementAccess rejects non-admin project members', async () => {
+  const service = buildProjectsService(project, { role: 'viewer' });
+
+  await assert.rejects(
+    ensureProjectMembershipManagementAccess(service, {
+      projectId: project.id,
+      actor: memberActor
+    }),
+    ForbiddenProjectMembershipManagementError
+  );
+});
+
+test('ensureProjectOwnershipTransferAccess allows project owners', async () => {
+  const service = buildProjectsService(project);
+
+  const result = await ensureProjectOwnershipTransferAccess(service, {
+    projectId: project.id,
+    actor: ownerActor
+  });
+
+  assert.deepEqual(result, project);
+});
+
+test('ensureProjectOwnershipTransferAccess allows platform admins', async () => {
+  const service = buildProjectsService(project);
+
+  const result = await ensureProjectOwnershipTransferAccess(service, {
+    projectId: project.id,
+    actor: adminActor
+  });
+
+  assert.deepEqual(result, project);
+});
+
+test('ensureProjectOwnershipTransferAccess rejects project-admin members who are not the owner', async () => {
+  const service = buildProjectsService(project, { role: 'admin' });
+
+  await assert.rejects(
+    ensureProjectOwnershipTransferAccess(service, {
+      projectId: project.id,
+      actor: memberActor
+    }),
+    ForbiddenProjectOwnershipTransferError
+  );
+});
+
+test('ensureProjectOwnershipTransferAccess rejects non-members who are not the owner or admin', async () => {
+  const service = buildProjectsService(project);
+
+  await assert.rejects(
+    ensureProjectOwnershipTransferAccess(service, {
       projectId: project.id,
       actor: memberActor
     }),

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { DashboardAuthRequiredState } from '@/components/dashboard-auth-required-state';
 import { EmptyState } from '@/components/empty-state';
 import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { PageHeader } from '@/components/page-header';
@@ -27,7 +28,8 @@ interface DeploymentsPageProps {
 
 export default async function DeploymentsPage({ searchParams }: DeploymentsPageProps) {
   const data = await loadDashboardData();
-  const deployments = data.usingLiveData ? data.deployments : mockDeployments;
+  const deployments =
+    data.usingLiveData || data.authRequirement ? data.deployments : mockDeployments;
   const normalizedDeployments = deployments.map((deployment) => ({
     ...deployment,
     projectId: 'projectId' in deployment ? deployment.projectId : String(deployment.project),
@@ -95,11 +97,18 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
         description="Recent deployments across all projects."
       />
 
-      {!data.usingLiveData && (
+      {!data.usingLiveData && data.authRequirement ? (
+        <DashboardAuthRequiredState
+          requirement={data.authRequirement}
+          redirectTo="/deployments"
+        />
+      ) : null}
+
+      {!data.usingLiveData && !data.authRequirement ? (
         <DemoModeBanner detail={data.liveDataErrorMessage}>
           Live deployment data unavailable, showing sample deployment data.
         </DemoModeBanner>
-      )}
+      ) : null}
 
       {data.usingLiveData && data.liveDataErrorMessage && (
         <DemoModeBanner title="Partial outage" detail={data.liveDataErrorMessage}>
@@ -107,38 +116,40 @@ export default async function DeploymentsPage({ searchParams }: DeploymentsPageP
         </DemoModeBanner>
       )}
 
-      <form className="grid gap-2 md:grid-cols-[220px_220px_1fr_auto]">
-        <Label htmlFor="deployment-status-filter" className="sr-only">Filter deployments by status</Label>
-        <Select id="deployment-status-filter" name="status" defaultValue={selectedStatus}>
-          <option value="all">All statuses</option>
-          <option value="cancelling">cancelling</option>
-          <option value="queued">queued</option>
-          <option value="building">building</option>
-          <option value="running">running</option>
-          <option value="failed">failed</option>
-          <option value="stopped">stopped</option>
-        </Select>
-        <Label htmlFor="deployment-project-filter" className="sr-only">Filter deployments by project</Label>
-        <Label htmlFor="deployment-query" className="sr-only">Search deployments</Label>
-        <Input
-          id="deployment-query"
-          name="q"
-          defaultValue={selectedQuery}
-          placeholder="Search by project, service, id, commit, or status"
-        />
-        <Select id="deployment-project-filter" name="projectId" defaultValue={selectedProjectId}>
-          <option value="all">All projects</option>
-          {projectOptions.map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.name}
-            </option>
-          ))}
-        </Select>
-        <input type="hidden" name="page" value="1" />
-        <Button type="submit" variant="outline" className="w-fit">Apply filters</Button>
-      </form>
+      {data.authRequirement ? null : (
+        <form className="grid gap-2 md:grid-cols-[220px_220px_1fr_auto]">
+          <Label htmlFor="deployment-status-filter" className="sr-only">Filter deployments by status</Label>
+          <Select id="deployment-status-filter" name="status" defaultValue={selectedStatus}>
+            <option value="all">All statuses</option>
+            <option value="cancelling">cancelling</option>
+            <option value="queued">queued</option>
+            <option value="building">building</option>
+            <option value="running">running</option>
+            <option value="failed">failed</option>
+            <option value="stopped">stopped</option>
+          </Select>
+          <Label htmlFor="deployment-project-filter" className="sr-only">Filter deployments by project</Label>
+          <Label htmlFor="deployment-query" className="sr-only">Search deployments</Label>
+          <Input
+            id="deployment-query"
+            name="q"
+            defaultValue={selectedQuery}
+            placeholder="Search by project, service, id, commit, or status"
+          />
+          <Select id="deployment-project-filter" name="projectId" defaultValue={selectedProjectId}>
+            <option value="all">All projects</option>
+            {projectOptions.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </Select>
+          <input type="hidden" name="page" value="1" />
+          <Button type="submit" variant="outline" className="w-fit">Apply filters</Button>
+        </form>
+      )}
 
-      {pagedDeployments.length === 0 ? (
+      {data.authRequirement ? null : pagedDeployments.length === 0 ? (
         <EmptyState
           title={
             deploymentHistoryUnavailable

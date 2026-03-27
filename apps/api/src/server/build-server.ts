@@ -25,6 +25,7 @@ import { AuthService } from '../modules/auth/auth.service.js';
 import { errorHandlerPlugin } from '../plugins/error-handler.js';
 import { redisConnection } from '../queue/redis.js';
 import { AlertMonitorService } from '../services/alert-monitor.service.js';
+import { WebhookProjectInvitationDeliveryService } from '../services/project-invitation-delivery.service.js';
 
 interface DeploymentQueueClient {
   close(): Promise<void>;
@@ -89,7 +90,10 @@ export const buildServer = (dependencies: BuildServerDependencies = {}) => {
 
   const deploymentQueueClient = new DeploymentQueue(deploymentQueue as Pick<Queue<DeploymentJobPayload, unknown, 'deploy'>, 'add' | 'getJobs' | 'getJob'> & Partial<Pick<Queue<DeploymentJobPayload, unknown, 'deploy'>, 'close'>>);
 
-  const projectsService = new ProjectsService(dbClient);
+  const projectsService = new ProjectsService(
+    dbClient,
+    new WebhookProjectInvitationDeliveryService()
+  );
   const apiTokensService = new ApiTokensService(dbClient);
   const deploymentsService = new DeploymentsService(dbClient, deploymentQueueClient);
   const environmentService = new EnvironmentService(dbClient);

@@ -1,6 +1,7 @@
 import type { DeploymentStatus } from '@vcloudrunner/shared-types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DashboardAuthRequiredState } from '@/components/dashboard-auth-required-state';
 import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { DeploymentStatusBadges } from '@/components/deployment-status-badges';
 import { DeploymentAutoRefresh } from '@/components/deployment-auto-refresh';
@@ -20,7 +21,6 @@ import {
 } from '@/lib/helpers';
 import { deployProjectAction } from '../actions';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 
 interface DeploymentDetailPageProps {
   params: { id: string };
@@ -34,7 +34,23 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
   const data = await loadDashboardData();
 
   if (!data.usingLiveData) {
-    redirect('/deployments');
+    return (
+      <PageLayout>
+        {data.authRequirement ? (
+          <DashboardAuthRequiredState
+            requirement={data.authRequirement}
+            redirectTo={`/deployments/${params.id}`}
+          />
+        ) : (
+          <LiveDataUnavailableState
+            title="Deployment details unavailable"
+            description={data.liveDataErrorMessage ?? 'Deployment details are temporarily unavailable.'}
+            actionHref="/deployments"
+            actionLabel="Back to Deployments"
+          />
+        )}
+      </PageLayout>
+    );
   }
 
   const match = data.sortedDeployments.find(

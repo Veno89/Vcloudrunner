@@ -49,6 +49,29 @@ async function withAuthRoutesApp(
         email: string;
       } | null;
     }>;
+    upsertViewerProfile?: (
+      actor: {
+        userId: string;
+        role: 'admin' | 'user';
+        scopes: AuthTestScope[];
+        authSource: 'database-token' | 'bootstrap-token' | 'dev-user-header' | 'dev-admin-token';
+      },
+      input: {
+        name: string;
+        email: string;
+      }
+    ) => Promise<{
+      userId: string;
+      role: 'admin' | 'user';
+      scopes: AuthTestScope[];
+      authSource: 'database-token' | 'bootstrap-token' | 'dev-user-header' | 'dev-admin-token';
+      authMode: 'token' | 'development';
+      user: {
+        id: string;
+        name: string;
+        email: string;
+      } | null;
+    }>;
   },
   run: (app: FastifyInstance) => Promise<void>
 ) {
@@ -80,6 +103,17 @@ async function withAuthRoutesApp(
         ? 'token'
         : 'development',
       user: null
+    })),
+    upsertViewerProfile: options.upsertViewerProfile ?? (async (actor, input) => ({
+      ...actor,
+      authMode: actor.authSource === 'database-token' || actor.authSource === 'bootstrap-token'
+        ? 'token'
+        : 'development',
+      user: {
+        id: actor.userId,
+        name: input.name,
+        email: input.email
+      }
     }))
   }), { prefix: '/v1' });
 
@@ -152,6 +186,45 @@ test('auth me supports the explicit v1 dev-auth fallback user header', async (t)
         authSource: 'dev-user-header',
         authMode: 'development',
         user: null
+      }
+    });
+  });
+});
+
+test('auth me profile upsert creates or refreshes the persisted viewer profile', async (t) => {
+  await withAuthRoutesApp(t, {
+    apiTokensJson: JSON.stringify([{
+      token: 'viewer-token-123',
+      userId: '00000000-0000-0000-0000-000000000010',
+      role: 'user',
+      scopes: ['projects:read']
+    }])
+  }, async (app) => {
+    const response = await app.inject({
+      method: 'PUT',
+      url: '/v1/auth/me/profile',
+      headers: {
+        authorization: 'Bearer viewer-token-123'
+      },
+      payload: {
+        name: 'Viewer User',
+        email: 'viewer@example.com'
+      }
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(JSON.parse(response.body), {
+      data: {
+        userId: '00000000-0000-0000-0000-000000000010',
+        role: 'user',
+        scopes: ['projects:read'],
+        authSource: 'bootstrap-token',
+        authMode: 'token',
+        user: {
+          id: '00000000-0000-0000-0000-000000000010',
+          name: 'Viewer User',
+          email: 'viewer@example.com'
+        }
       }
     });
   });

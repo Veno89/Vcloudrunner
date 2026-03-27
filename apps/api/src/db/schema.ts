@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   boolean,
   index,
@@ -29,6 +30,12 @@ export const projectMemberRole = pgEnum('project_member_role', [
   'viewer',
   'editor',
   'admin'
+]);
+
+export const projectInvitationStatus = pgEnum('project_invitation_status', [
+  'pending',
+  'accepted',
+  'cancelled'
 ]);
 
 export const users = pgTable('users', {
@@ -155,4 +162,26 @@ export const projectMembers = pgTable('project_members', {
 }, (table) => ({
   projectMembersProjectUserUnique: uniqueIndex('project_members_project_user_unique').on(table.projectId, table.userId),
   projectMembersUserIdIdx: index('project_members_user_id_idx').on(table.userId)
+}));
+
+export const projectInvitations = pgTable('project_invitations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  email: varchar('email', { length: 320 }).notNull(),
+  claimToken: varchar('claim_token', { length: 64 }).notNull(),
+  role: projectMemberRole('role').notNull().default('viewer'),
+  status: projectInvitationStatus('status').notNull().default('pending'),
+  invitedBy: uuid('invited_by').references(() => users.id),
+  acceptedByUserId: uuid('accepted_by_user_id').references(() => users.id),
+  acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+}, (table) => ({
+  projectInvitationsClaimTokenUnique: uniqueIndex('project_invitations_claim_token_unique').on(table.claimToken),
+  projectInvitationsProjectEmailPendingUnique: uniqueIndex('project_invitations_project_email_pending_unique')
+    .on(table.projectId, table.email)
+    .where(sql`${table.status} = 'pending'`),
+  projectInvitationsProjectStatusIdx: index('project_invitations_project_status_idx')
+    .on(table.projectId, table.status, table.updatedAt)
 }));

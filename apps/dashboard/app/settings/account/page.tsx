@@ -1,8 +1,12 @@
 import Link from 'next/link';
+import { ActionToast } from '@/components/action-toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
+import { FormSubmitButton } from '@/components/form-submit-button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { DashboardUnavailableState } from '@/components/dashboard-unavailable-state';
 import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
 import { SettingsSubnav } from '@/components/settings-subnav';
@@ -10,16 +14,28 @@ import {
   apiBaseUrl,
   resolveViewerContext
 } from '@/lib/api';
+import {
+  buildDashboardAccountSetupHref,
+  normalizeDashboardRedirectTarget
+} from '@/lib/dashboard-auth-navigation';
 import { getDashboardRequestAuth } from '@/lib/dashboard-session';
-import { describeDashboardLiveDataFailure } from '@/lib/helpers';
 import {
   getDashboardAuthTransport,
   getViewerAuthSourceDetails,
   getViewerScopeLabels
 } from '@/lib/viewer-auth';
 import { signOutDashboardSessionAction } from '@/app/sign-in/actions';
+import { saveViewerProfileAction } from './actions';
 
-export default async function SettingsAccountPage() {
+interface SettingsAccountPageProps {
+  searchParams?: {
+    status?: 'success' | 'error';
+    message?: string;
+    redirectTo?: string;
+  };
+}
+
+export default async function SettingsAccountPage({ searchParams }: SettingsAccountPageProps) {
   const requestAuth = getDashboardRequestAuth();
   const { viewer, error: viewerContextError } = await resolveViewerContext();
   const hasSessionCookie = requestAuth.tokenSource === 'session-cookie';
@@ -34,15 +50,11 @@ export default async function SettingsAccountPage() {
 
         <SettingsSubnav active="account" />
 
-        <LiveDataUnavailableState
+        <DashboardUnavailableState
           title="Account unavailable"
-          description={describeDashboardLiveDataFailure({
-            ...(viewerContextError ? { error: viewerContextError } : {}),
-            hasDemoUserId: requestAuth.hasDemoUserId,
-            hasApiAuthToken: requestAuth.hasBearerToken
-          })}
-          actionHref="/sign-in"
-          actionLabel="Open Sign In"
+          requestAuth={requestAuth}
+          {...(viewerContextError ? { error: viewerContextError } : {})}
+          redirectTo="/settings/account"
         />
       </PageLayout>
     );
@@ -51,6 +63,8 @@ export default async function SettingsAccountPage() {
   const scopeBadges = getViewerScopeLabels(viewer);
   const authTransport = getDashboardAuthTransport(requestAuth);
   const sessionSource = getViewerAuthSourceDetails(viewer.authSource);
+  const redirectTo = normalizeDashboardRedirectTarget(searchParams?.redirectTo);
+  const hasReturnTarget = redirectTo !== '/settings/account';
 
   return (
     <PageLayout>
@@ -60,6 +74,20 @@ export default async function SettingsAccountPage() {
       />
 
       <SettingsSubnav active="account" />
+
+      <ActionToast
+        status={searchParams?.status}
+        message={searchParams?.message}
+        fallbackErrorMessage="Account update failed."
+      />
+
+      {!viewer.user && hasReturnTarget ? (
+        <div className="rounded-md border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+          <p>
+            Complete account setup to continue to <span className="font-mono text-foreground">{redirectTo}</span>.
+          </p>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <Card>
@@ -116,11 +144,61 @@ export default async function SettingsAccountPage() {
             <p className="text-xs text-muted-foreground">
               {viewer.user
                 ? 'A persisted user record was found for this actor, so account identity can now be shown directly in the dashboard.'
-                : 'No persisted user record matched this actor yet, so the dashboard is showing the authenticated identity directly from the API auth context.'}
+                : 'No persisted user record matched this actor yet, so the dashboard is showing the authenticated identity directly from the API auth context until account setup is completed.'}
             </p>
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              {viewer.user ? 'Profile' : 'Complete Account Setup'}
+            </CardTitle>
+            <CardDescription>
+              {viewer.user
+                ? 'Keep the persisted profile for this authenticated actor up to date.'
+                : 'Create the first persisted user profile for this authenticated actor so token-backed account workflows can move beyond bootstrap-only identity.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <form action={saveViewerProfileAction} className="space-y-4">
+              <input type="hidden" name="redirectTo" value={redirectTo} readOnly />
+              <div className="space-y-2">
+                <Label htmlFor="account-name">Name</Label>
+                <Input
+                  id="account-name"
+                  name="name"
+                  defaultValue={viewer.user?.name ?? ''}
+                  placeholder="Platform Operator"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="account-email">Email</Label>
+                <Input
+                  id="account-email"
+                  name="email"
+                  type="email"
+                  defaultValue={viewer.user?.email ?? ''}
+                  placeholder="operator@example.com"
+                  required
+                />
+              </div>
+              <FormSubmitButton
+                idleText={viewer.user ? 'Save Profile' : 'Create Profile'}
+                pendingText={viewer.user ? 'Saving...' : 'Creating...'}
+              />
+            </form>
+            <p className="rounded-md border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
+              {viewer.user
+                ? 'This profile is now the persisted account identity used for DB-backed token ownership and future user/team workflows.'
+                : 'Creating this profile turns the current authenticated actor into a persisted user record, unlocks normal DB-backed token management from this account, and automatically accepts any pending project invitations sent to the same email address.'}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Session Source</CardTitle>
@@ -149,9 +227,7 @@ export default async function SettingsAccountPage() {
             </p>
           </CardContent>
         </Card>
-      </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Dashboard Request Path</CardTitle>
@@ -194,12 +270,27 @@ export default async function SettingsAccountPage() {
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <p className="text-muted-foreground">
-              Token management is still the main first-class auth workflow today, but this account page now also lets you manage the browser session that the dashboard itself uses.
+              {viewer.user
+                ? 'Token management is still the main first-class auth workflow today, and this account page now lets you keep both the browser session and persisted user profile aligned.'
+                : 'Finish the profile setup above first, then move into DB-backed token management from the same account. If you were trying to reach another page, saving the profile will send you back there automatically.'}
             </p>
             <div className="flex flex-wrap gap-2">
-              <Button asChild>
-                <Link href="/settings/tokens">Manage Tokens</Link>
-              </Button>
+              {viewer.user ? (
+                <Button asChild>
+                  <Link href="/settings/tokens">Manage Tokens</Link>
+                </Button>
+              ) : (
+                <Button asChild>
+                  <Link href={buildDashboardAccountSetupHref({
+                    ...(hasReturnTarget ? { redirectTo } : {})
+                  })}>Finish Profile Setup</Link>
+                </Button>
+              )}
+              {viewer.user && hasReturnTarget ? (
+                <Button asChild variant="outline">
+                  <Link href={redirectTo}>Continue to Page</Link>
+                </Button>
+              ) : null}
               {hasSessionCookie ? (
                 <form action={signOutDashboardSessionAction}>
                   <Button type="submit" variant="outline">

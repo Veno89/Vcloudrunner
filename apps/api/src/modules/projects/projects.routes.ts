@@ -1,7 +1,14 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 
-import { assertUserAccess, ensureProjectAccess, requireActor, requireScope } from '../auth/auth-utils.js';
+import {
+  assertUserAccess,
+  ensureProjectAccess,
+  ensureProjectMembershipManagementAccess,
+  ensureProjectOwnershipTransferAccess,
+  requireActor,
+  requireScope
+} from '../auth/auth-utils.js';
 import type { ProjectsService } from './projects.service.js';
 
 function isValidServiceSourceRoot(value: string) {
@@ -81,9 +88,58 @@ const projectByIdParamsSchema = z.object({
   projectId: z.string().uuid()
 });
 
+const projectMemberByIdParamsSchema = z.object({
+  projectId: z.string().uuid(),
+  memberUserId: z.string().uuid()
+});
+
+const projectInvitationByIdParamsSchema = z.object({
+  projectId: z.string().uuid(),
+  invitationId: z.string().uuid()
+});
+
+const projectInvitationClaimParamsSchema = z.object({
+  claimToken: z.string().trim().min(8).max(64).regex(/^[a-z0-9-]+$/i)
+});
+
+const projectMemberRoleSchema = z.enum(['viewer', 'editor', 'admin']);
+
+const inviteProjectMemberSchema = z.object({
+  email: z.string().trim().max(320).email(),
+  role: projectMemberRoleSchema.default('viewer')
+});
+
+const updateProjectMemberSchema = z.object({
+  role: projectMemberRoleSchema
+});
+
+const transferProjectOwnershipSchema = z.object({
+  userId: z.string().uuid()
+});
+
 export const createProjectsRoutes = (
   projectsService: ProjectsService
 ): FastifyPluginAsync => async (app) => {
+  app.get('/project-invitations/claim/:claimToken', async (request) => {
+    const { claimToken } = projectInvitationClaimParamsSchema.parse(request.params);
+
+    const invitation = await projectsService.getProjectInvitationClaim(claimToken);
+
+    return { data: invitation };
+  });
+
+  app.post('/project-invitations/claim/:claimToken/accept', async (request) => {
+    const actor = requireActor(request);
+    const { claimToken } = projectInvitationClaimParamsSchema.parse(request.params);
+
+    const invitation = await projectsService.acceptProjectInvitationClaim({
+      claimToken,
+      actorUserId: actor.userId
+    });
+
+    return { data: invitation };
+  });
+
   app.post('/projects', async (request, reply) => {
     const actor = requireActor(request);
     const payload = createProjectSchema.parse(request.body);
@@ -115,5 +171,143 @@ export const createProjectsRoutes = (
     const project = await ensureProjectAccess(projectsService, { projectId, actor });
 
     return { data: project };
+  });
+
+  app.get('/projects/:projectId/members', async (request) => {
+    const actor = requireActor(request);
+    const { projectId } = projectByIdParamsSchema.parse(request.params);
+
+    requireScope(actor, 'projects:read');
+    await ensureProjectAccess(projectsService, { projectId, actor });
+
+    const members = await projectsService.listProjectMembers(projectId);
+
+    return { data: members };
+  });
+
+  app.get('/projects/:projectId/invitations', async (request) => {
+    const actor = requireActor(request);
+    const { projectId } = projectByIdParamsSchema.parse(request.params);
+
+    requireScope(actor, 'projects:read');
+    await ensureProjectMembershipManagementAccess(projectsService, { projectId, actor });
+
+    const invitations = await projectsService.listProjectInvitations(projectId);
+
+    return { data: invitations };
+  });
+
+  app.post('/projects/:projectId/members', async (request, reply) => {
+    const actor = requireActor(request);
+    const { projectId } = projectByIdParamsSchema.parse(request.params);
+    const payload = inviteProjectMemberSchema.parse(request.body);
+
+    requireScope(actor, 'projects:write');
+    await ensureProjectMembershipManagementAccess(projectsService, { projectId, actor });
+
+    const member = await projectsService.inviteProjectMember({
+      projectId,
+      email: payload.email,
+      role: payload.role,
+      invitedBy: actor.userId
+    });
+
+    return reply.code(201).send({ data: member });
+  });
+
+  app.put('/projects/:projectId/invitations/:invitationId', async (request) => {
+    const actor = requireActor(request);
+    const { projectId, invitationId } = projectInvitationByIdParamsSchema.parse(request.params);
+    const payload = updateProjectMemberSchema.parse(request.body);
+
+    requireScope(actor, 'projects:write');
+    await ensureProjectMembershipManagementAccess(projectsService, { projectId, actor });
+
+    const invitation = await projectsService.updateProjectInvitation({
+      projectId,
+      invitationId,
+      role: payload.role,
+      invitedBy: actor.userId
+    });
+
+    return { data: invitation };
+  });
+
+  app.delete('/projects/:projectId/invitations/:invitationId', async (request, reply) => {
+    const actor = requireActor(request);
+    const { projectId, invitationId } = projectInvitationByIdParamsSchema.parse(request.params);
+
+    requireScope(actor, 'projects:write');
+    await ensureProjectMembershipManagementAccess(projectsService, { projectId, actor });
+
+    await projectsService.removeProjectInvitation({
+      projectId,
+      invitationId
+    });
+
+    return reply.code(204).send();
+  });
+
+  app.post('/projects/:projectId/invitations/:invitationId/redeliver', async (request) => {
+    const actor = requireActor(request);
+    const { projectId, invitationId } = projectInvitationByIdParamsSchema.parse(request.params);
+
+    requireScope(actor, 'projects:write');
+    await ensureProjectMembershipManagementAccess(projectsService, { projectId, actor });
+
+    const result = await projectsService.redeliverProjectInvitation({
+      projectId,
+      invitationId
+    });
+
+    return { data: result };
+  });
+
+  app.put('/projects/:projectId/members/:memberUserId', async (request) => {
+    const actor = requireActor(request);
+    const { projectId, memberUserId } = projectMemberByIdParamsSchema.parse(request.params);
+    const payload = updateProjectMemberSchema.parse(request.body);
+
+    requireScope(actor, 'projects:write');
+    await ensureProjectMembershipManagementAccess(projectsService, { projectId, actor });
+
+    const member = await projectsService.updateProjectMemberRole({
+      projectId,
+      userId: memberUserId,
+      role: payload.role
+    });
+
+    return { data: member };
+  });
+
+  app.delete('/projects/:projectId/members/:memberUserId', async (request, reply) => {
+    const actor = requireActor(request);
+    const { projectId, memberUserId } = projectMemberByIdParamsSchema.parse(request.params);
+
+    requireScope(actor, 'projects:write');
+    await ensureProjectMembershipManagementAccess(projectsService, { projectId, actor });
+
+    await projectsService.removeProjectMember({
+      projectId,
+      userId: memberUserId
+    });
+
+    return reply.code(204).send();
+  });
+
+  app.post('/projects/:projectId/ownership', async (request) => {
+    const actor = requireActor(request);
+    const { projectId } = projectByIdParamsSchema.parse(request.params);
+    const payload = transferProjectOwnershipSchema.parse(request.body);
+
+    requireScope(actor, 'projects:write');
+    await ensureProjectOwnershipTransferAccess(projectsService, { projectId, actor });
+
+    const member = await projectsService.transferProjectOwnership({
+      projectId,
+      userId: payload.userId
+    });
+
+    return { data: member };
   });
 };

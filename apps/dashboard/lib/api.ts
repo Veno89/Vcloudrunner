@@ -8,11 +8,81 @@ import type {
 
 export interface ApiProject {
   id: string;
+  userId: string;
   name: string;
   slug: string;
   gitRepositoryUrl: string;
   defaultBranch: string;
   services: ProjectServiceDefinition[];
+}
+
+export interface ApiProjectMember {
+  id: string;
+  projectId: string;
+  userId: string;
+  role: 'viewer' | 'editor' | 'admin';
+  invitedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  isOwner: boolean;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
+
+export interface ApiProjectInvitation {
+  id: string;
+  projectId: string;
+  email: string;
+  claimToken: string;
+  role: 'viewer' | 'editor' | 'admin';
+  status: 'pending' | 'accepted' | 'cancelled';
+  invitedBy: string | null;
+  acceptedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  acceptedAt: string | null;
+  cancelledAt: string | null;
+  invitedByUser: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+  acceptedByUser: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+}
+
+export interface ApiProjectInvitationClaim extends ApiProjectInvitation {
+  projectName: string;
+  projectSlug: string;
+}
+
+export interface ApiProjectInvitationDelivery {
+  status: 'disabled' | 'delivered' | 'failed';
+  message: string;
+  claimUrl: string;
+  attemptedAt: string;
+}
+
+export type ApiProjectInviteResult =
+  | {
+      kind: 'member';
+      member: ApiProjectMember;
+    }
+  | {
+      kind: 'invitation';
+      invitation: ApiProjectInvitation;
+      delivery: ApiProjectInvitationDelivery;
+    };
+
+export interface ApiProjectInvitationRedeliveryResult {
+  invitation: ApiProjectInvitation;
+  delivery: ApiProjectInvitationDelivery;
 }
 
 export interface ApiDeployment {
@@ -121,10 +191,20 @@ export interface ApiViewerContext {
     name: string;
     email: string;
   } | null;
+  acceptedProjectInvitations?: Array<{
+    projectId: string;
+    projectName: string;
+    role: 'viewer' | 'editor' | 'admin';
+  }>;
 }
 
 interface ApiDataResponse<T> {
   data: T;
+}
+
+interface ViewerContextFetchResult {
+  viewer: ApiViewerContext | null;
+  statusCode: number | null;
 }
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
@@ -334,7 +414,7 @@ export async function createDeployment(
 const fetchViewerContextByAuth = cache(async (
   bearerToken: string | null,
   demoUserIdValue: string | null
-): Promise<ApiViewerContext | null> => {
+): Promise<ViewerContextFetchResult> => {
   const response = await requestApi('/v1/auth/me', {
     headers: buildAuthHeaders({
       bearerToken,
@@ -342,8 +422,11 @@ const fetchViewerContextByAuth = cache(async (
     })
   });
 
-  if (response.status === 401) {
-    return null;
+  if (response.status === 401 || response.status === 403) {
+    return {
+      viewer: null,
+      statusCode: response.status
+    };
   }
 
   if (!response.ok) {
@@ -351,27 +434,44 @@ const fetchViewerContextByAuth = cache(async (
   }
 
   const payload = await response.json() as ApiDataResponse<ApiViewerContext>;
-  return payload.data;
+  return {
+    viewer: payload.data,
+    statusCode: response.status
+  };
 });
 
 export async function fetchViewerContext(): Promise<ApiViewerContext | null> {
   const auth = getDashboardRequestAuth();
-  return fetchViewerContextByAuth(auth.bearerToken, auth.demoUserId);
+  const result = await fetchViewerContextByAuth(auth.bearerToken, auth.demoUserId);
+  return result.viewer;
 }
 
 export async function resolveViewerContext(): Promise<{
   viewer: ApiViewerContext | null;
   error: unknown | null;
+  statusCode: number | null;
 }> {
+  const auth = getDashboardRequestAuth();
+
   try {
+    const result = await fetchViewerContextByAuth(auth.bearerToken, auth.demoUserId);
+
     return {
-      viewer: await fetchViewerContext(),
-      error: null
+      viewer: result.viewer,
+      error:
+        result.viewer || result.statusCode === null
+          ? null
+          : new Error(`API_REQUEST_FAILED ${result.statusCode}`),
+      statusCode: result.statusCode
     };
   } catch (error) {
     return {
       viewer: null,
-      error
+      error,
+      statusCode:
+        error instanceof Error
+          ? Number.parseInt(error.message.match(/API_REQUEST_FAILED\s+(\d+)/)?.[1] ?? '', 10) || null
+          : null
     };
   }
 }
@@ -400,6 +500,158 @@ interface CreateProjectInput {
 
 export async function createProject(input: CreateProjectInput): Promise<ApiProject> {
   const response = await postJson<ApiDataResponse<ApiProject>>('/v1/projects', { ...input });
+
+  return response.data;
+}
+
+export async function fetchProjectMembers(projectId: string): Promise<ApiProjectMember[]> {
+  const response = await fetchJson<ApiDataResponse<ApiProjectMember[]>>(
+    `/v1/projects/${projectId}/members`
+  );
+
+  return response.data;
+}
+
+export async function fetchProjectInvitations(projectId: string): Promise<ApiProjectInvitation[]> {
+  const response = await fetchJson<ApiDataResponse<ApiProjectInvitation[]>>(
+    `/v1/projects/${projectId}/invitations`
+  );
+
+  return response.data;
+}
+
+export async function fetchProjectInvitationClaim(
+  claimToken: string
+): Promise<ApiProjectInvitationClaim | null> {
+  const response = await requestApi(`/v1/project-invitations/claim/${encodeURIComponent(claimToken)}`);
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`API_REQUEST_FAILED ${response.status}`);
+  }
+
+  const payload = await response.json() as ApiDataResponse<ApiProjectInvitationClaim>;
+  return payload.data;
+}
+
+export async function inviteProjectMember(
+  projectId: string,
+  input: {
+    email: string;
+    role: 'viewer' | 'editor' | 'admin';
+  }
+): Promise<ApiProjectInviteResult> {
+  const response = await postJson<ApiDataResponse<ApiProjectInviteResult>>(
+    `/v1/projects/${projectId}/members`,
+    {
+      email: input.email,
+      role: input.role
+    }
+  );
+
+  return response.data;
+}
+
+export async function updateProjectInvitation(
+  projectId: string,
+  invitationId: string,
+  input: {
+    role: 'viewer' | 'editor' | 'admin';
+  }
+): Promise<ApiProjectInvitation> {
+  const response = await putJson<ApiDataResponse<ApiProjectInvitation>>(
+    `/v1/projects/${projectId}/invitations/${invitationId}`,
+    {
+      role: input.role
+    }
+  );
+
+  return response.data;
+}
+
+export async function removeProjectInvitation(
+  projectId: string,
+  invitationId: string
+): Promise<void> {
+  await deleteRequest(`/v1/projects/${projectId}/invitations/${invitationId}`);
+}
+
+export async function redeliverProjectInvitation(
+  projectId: string,
+  invitationId: string
+): Promise<ApiProjectInvitationRedeliveryResult> {
+  const response = await postJson<ApiDataResponse<ApiProjectInvitationRedeliveryResult>>(
+    `/v1/projects/${projectId}/invitations/${invitationId}/redeliver`,
+    {}
+  );
+
+  return response.data;
+}
+
+export async function acceptProjectInvitationClaim(
+  claimToken: string
+): Promise<ApiProjectInvitationClaim> {
+  const response = await postJson<ApiDataResponse<ApiProjectInvitationClaim>>(
+    `/v1/project-invitations/claim/${encodeURIComponent(claimToken)}/accept`,
+    {}
+  );
+
+  return response.data;
+}
+
+export async function updateProjectMemberRole(
+  projectId: string,
+  memberUserId: string,
+  input: {
+    role: 'viewer' | 'editor' | 'admin';
+  }
+): Promise<ApiProjectMember> {
+  const response = await putJson<ApiDataResponse<ApiProjectMember>>(
+    `/v1/projects/${projectId}/members/${memberUserId}`,
+    {
+      role: input.role
+    }
+  );
+
+  return response.data;
+}
+
+export async function removeProjectMember(
+  projectId: string,
+  memberUserId: string
+): Promise<void> {
+  await deleteRequest(`/v1/projects/${projectId}/members/${memberUserId}`);
+}
+
+export async function transferProjectOwnership(
+  projectId: string,
+  memberUserId: string
+): Promise<ApiProjectMember> {
+  const response = await postJson<ApiDataResponse<ApiProjectMember>>(
+    `/v1/projects/${projectId}/ownership`,
+    {
+      userId: memberUserId
+    }
+  );
+
+  return response.data;
+}
+
+interface UpsertViewerProfileInput {
+  name: string;
+  email: string;
+}
+
+export async function upsertViewerProfile(
+  input: UpsertViewerProfileInput
+): Promise<ApiViewerContext> {
+  const response = await putJson<ApiDataResponse<ApiViewerContext>>('/v1/auth/me/profile', {
+    name: input.name,
+    email: input.email
+  });
 
   return response.data;
 }
@@ -555,7 +807,8 @@ export async function fetchViewerContextForBearerToken(
     return null;
   }
 
-  return fetchViewerContextByAuth(trimmedToken, null);
+  const result = await fetchViewerContextByAuth(trimmedToken, null);
+  return result.viewer;
 }
 
 export { apiBaseUrl, demoUserId, apiAuthToken };

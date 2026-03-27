@@ -8,7 +8,7 @@ import { LogsLiveStream } from '@/components/logs-live-stream';
 import { LastRefreshedIndicator } from '@/components/last-refreshed-indicator';
 import { PageLayout } from '@/components/page-layout';
 import { EmptyState } from '@/components/empty-state';
-import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
+import { DashboardUnavailableState } from '@/components/dashboard-unavailable-state';
 import Link from 'next/link';
 import {
   apiAuthToken,
@@ -17,6 +17,8 @@ import {
   fetchDeploymentsForProject,
   fetchDeploymentLogs,
 } from '@/lib/api';
+import { buildDashboardSignInHref } from '@/lib/dashboard-auth-navigation';
+import { getDashboardRequestAuth } from '@/lib/dashboard-session';
 import {
   describeDashboardLiveDataFailure,
   describePartialDashboardDeploymentFailure,
@@ -36,6 +38,7 @@ interface LogsPageProps {
 }
 
 export default async function LogsPage({ searchParams }: LogsPageProps) {
+  const requestAuth = getDashboardRequestAuth();
   let deploymentOptions: Array<{
     id: string;
     projectId: string;
@@ -49,6 +52,7 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
   let selectedDeploymentStatus: DeploymentStatus | null = null;
   let selectedLabel = '';
   let totalLogPages = 1;
+  let liveDataError: unknown | null = null;
   let liveDataErrorMessage: string | null = null;
   let logReadErrorMessage: string | null = null;
   const logsPageSize = 100;
@@ -58,108 +62,128 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
   const refreshedAt = new Date().toISOString();
   const { viewer, error: viewerContextError } = await resolveViewerContext();
 
-  if (viewer) {
-    try {
-      const apiProjects = await fetchProjectsForCurrentUser();
-      const groupResults = await Promise.allSettled(
-        apiProjects.map(async (project) => {
-          const items = await fetchDeploymentsForProject(project.id);
-          return items.map((d) => ({ deployment: d, project }));
-        })
-      );
-      const groups = groupResults
-        .filter((result): result is PromiseFulfilledResult<Array<{
-          deployment: Awaited<ReturnType<typeof fetchDeploymentsForProject>>[number];
-          project: Awaited<ReturnType<typeof fetchProjectsForCurrentUser>>[number];
-        }>> => result.status === 'fulfilled')
-        .map((result) => result.value);
-      const groupFailures = groupResults
-        .filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+  if (!viewer) {
+    return (
+      <PageLayout>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Deployment Logs</h1>
+          <p className="text-sm text-muted-foreground">
+            Global shortcut for log access. Prefer project-scoped logs while investigating a single project.
+          </p>
+        </div>
 
-      if (groupFailures.length > 0) {
-        liveDataErrorMessage = describePartialDashboardDeploymentFailure({
-          error: groupFailures[0]?.reason,
-          failedProjectCount: groupFailures.length,
-          totalProjectCount: apiProjects.length,
-          hasDemoUserId: Boolean(viewer.userId),
-          hasApiAuthToken: Boolean(apiAuthToken)
-        });
-      }
+        <DashboardUnavailableState
+          title="Global log viewer unavailable"
+          requestAuth={requestAuth}
+          {...(viewerContextError ? { error: viewerContextError } : {})}
+          actionHref="/projects"
+          actionLabel="Open Projects"
+          redirectTo="/logs"
+        />
+      </PageLayout>
+    );
+  }
 
-      const sorted = groups
-        .flat()
-        .sort((a, b) => Date.parse(b.deployment.createdAt) - Date.parse(a.deployment.createdAt));
+  try {
+    const apiProjects = await fetchProjectsForCurrentUser();
+    const groupResults = await Promise.allSettled(
+      apiProjects.map(async (project) => {
+        const items = await fetchDeploymentsForProject(project.id);
+        return items.map((d) => ({ deployment: d, project }));
+      })
+    );
+    const groups = groupResults
+      .filter((result): result is PromiseFulfilledResult<Array<{
+        deployment: Awaited<ReturnType<typeof fetchDeploymentsForProject>>[number];
+        project: Awaited<ReturnType<typeof fetchProjectsForCurrentUser>>[number];
+      }>> => result.status === 'fulfilled')
+      .map((result) => result.value);
+    const groupFailures = groupResults
+      .filter((result): result is PromiseRejectedResult => result.status === 'rejected');
 
-      deploymentOptions = sorted.slice(0, 25).map(({ deployment, project }) => ({
-        id: deployment.id,
-        projectId: project.id,
-        projectName: project.name,
-        status: deployment.status,
-        label: [
-          project.name,
-          truncateUuid(deployment.id),
-          formatRelativeTime(deployment.createdAt),
-          formatDeploymentStatusText(
-            deployment.status,
-            hasRequestedCancellation(deployment.metadata)
-          )
-        ].join(' / '),
-      }));
-
-      const selected =
-        sorted.find((item) => item.deployment.id === searchParams?.logsDeploymentId) ??
-        sorted[0];
-
-      if (selected) {
-        selectedProjectId = selected.project.id;
-        selectedDeploymentId = selected.deployment.id;
-        selectedDeploymentStatus = selected.deployment.status;
-        selectedLabel = [
-          selected.project.name,
-          truncateUuid(selected.deployment.id),
-          formatDeploymentStatusText(
-            selected.deployment.status,
-            hasRequestedCancellation(selected.deployment.metadata)
-          )
-        ].join(' / ');
-
-        try {
-          const logs = await fetchDeploymentLogs(
-            selected.project.id,
-            selected.deployment.id,
-            500
-          );
-          const mappedLogs = logs.map((item) => ({
-            level: item.level,
-            message: item.message,
-            timestamp: item.timestamp,
-          }));
-          totalLogPages = Math.max(1, Math.ceil(mappedLogs.length / logsPageSize));
-          const safeLogsPage = Math.min(currentLogsPage, totalLogPages);
-          const pageStart = (safeLogsPage - 1) * logsPageSize;
-          deploymentLogs = mappedLogs.slice(pageStart, pageStart + logsPageSize);
-        } catch (error) {
-          logReadErrorMessage = describeDashboardLiveDataFailure({
-            error,
-            hasDemoUserId: Boolean(viewer.userId),
-            hasApiAuthToken: Boolean(apiAuthToken)
-          });
-        }
-      }
-    } catch (error) {
-      liveDataErrorMessage = describeDashboardLiveDataFailure({
-        error,
+    if (groupFailures.length > 0) {
+      liveDataErrorMessage = describePartialDashboardDeploymentFailure({
+        error: groupFailures[0]?.reason,
+        failedProjectCount: groupFailures.length,
+        totalProjectCount: apiProjects.length,
         hasDemoUserId: Boolean(viewer.userId),
         hasApiAuthToken: Boolean(apiAuthToken)
       });
     }
-  } else {
+
+    const sorted = groups
+      .flat()
+      .sort((a, b) => Date.parse(b.deployment.createdAt) - Date.parse(a.deployment.createdAt));
+
+    deploymentOptions = sorted.slice(0, 25).map(({ deployment, project }) => ({
+      id: deployment.id,
+      projectId: project.id,
+      projectName: project.name,
+      status: deployment.status,
+      label: [
+        project.name,
+        truncateUuid(deployment.id),
+        formatRelativeTime(deployment.createdAt),
+        formatDeploymentStatusText(
+          deployment.status,
+          hasRequestedCancellation(deployment.metadata)
+        )
+      ].join(' / '),
+    }));
+
+    const selected =
+      sorted.find((item) => item.deployment.id === searchParams?.logsDeploymentId) ??
+        sorted[0];
+
+    if (selected) {
+      selectedProjectId = selected.project.id;
+      selectedDeploymentId = selected.deployment.id;
+      selectedDeploymentStatus = selected.deployment.status;
+      selectedLabel = [
+        selected.project.name,
+        truncateUuid(selected.deployment.id),
+        formatDeploymentStatusText(
+          selected.deployment.status,
+          hasRequestedCancellation(selected.deployment.metadata)
+        )
+      ].join(' / ');
+
+      try {
+        const logs = await fetchDeploymentLogs(
+          selected.project.id,
+          selected.deployment.id,
+          500
+        );
+        const mappedLogs = logs.map((item) => ({
+          level: item.level,
+          message: item.message,
+          timestamp: item.timestamp,
+        }));
+        totalLogPages = Math.max(1, Math.ceil(mappedLogs.length / logsPageSize));
+        const safeLogsPage = Math.min(currentLogsPage, totalLogPages);
+        const pageStart = (safeLogsPage - 1) * logsPageSize;
+        deploymentLogs = mappedLogs.slice(pageStart, pageStart + logsPageSize);
+      } catch (error) {
+        logReadErrorMessage = describeDashboardLiveDataFailure({
+          error,
+          hasDemoUserId: Boolean(viewer.userId),
+          hasApiAuthToken: Boolean(apiAuthToken)
+        });
+      }
+    }
+  } catch (error) {
+    liveDataError = error;
     liveDataErrorMessage = describeDashboardLiveDataFailure({
-      ...(viewerContextError ? { error: viewerContextError } : {}),
-      hasDemoUserId: false,
+      error,
+      hasDemoUserId: Boolean(viewer.userId),
       hasApiAuthToken: Boolean(apiAuthToken)
     });
   }
+
+  const logsReauthHref = buildDashboardSignInHref({
+    redirectTo: '/logs',
+    reason: 'session-expired'
+  });
 
   const hasLiveData = Boolean(selectedDeploymentId);
   const selectedDeploymentSupportsLiveRefresh =
@@ -270,6 +294,7 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
               deploymentId={selectedDeploymentId}
               deploymentStatus={selectedDeploymentStatus}
               initialLogs={deploymentLogs}
+              reauthHref={logsReauthHref}
             />
           )}
 
@@ -311,11 +336,13 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
           </p>
         </>
       ) : liveDataErrorMessage ? (
-        <LiveDataUnavailableState
+        <DashboardUnavailableState
           title="Global log viewer unavailable"
-          description={liveDataErrorMessage}
+          requestAuth={requestAuth}
+          {...(liveDataError ? { error: liveDataError } : {})}
           actionHref="/projects"
           actionLabel="Open Projects"
+          redirectTo="/logs"
         />
       ) : (
         <EmptyState

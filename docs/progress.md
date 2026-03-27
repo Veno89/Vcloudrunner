@@ -1,6 +1,6 @@
 # Vcloudrunner MVP Progress Tracker
 
-Last updated: 2026-03-26 (Phase 4 interactive dashboard session flow)
+Last updated: 2026-03-27 (Phase 4 invitation delivery closeout)
 
 ## Legend
 
@@ -10,7 +10,7 @@ Last updated: 2026-03-26 (Phase 4 interactive dashboard session flow)
 
 
 
-## Phase Status Snapshot (2026-03-26)
+## Phase Status Snapshot (2026-03-27)
 
 - **Phase 1: Critical stabilization** — ~99% complete
   - done: deployment concurrency invariant (service + DB), queue enqueue failure mapping/state correction, deployment-create env-resolution failure correction so decrypt/read failures no longer strand active deployments, queued-cancel race/idempotency hardening, safer compose defaults, production dev-auth startup guard, stricter bootstrap token startup validation, strict env-boolean parsing for auth/ingress and worker archive-lifecycle flags, strict numeric env parsing for API/worker runtime settings so blank strings no longer coerce to `0`, telemetry startup that now honors the same boolean env semantics as the validated config layer, explicit rejection of invalid credentials during dev-auth fallback flows, root auth/error plugin inheritance fix, host-run worker `.env` loading that now matches the documented app-local override flow, cwd-independent repo-root env resolution for API/worker startup and API `drizzle-kit` commands, aligned `drizzle-kit` env loading/fail-fast behavior with the API runtime, pinned compose API dev auth off independently from local host-run `.env` settings, stricter Redis queue URL parsing so explicit database paths must be integer indexes instead of silently coercing invalid values, broader API auth/deployment regression coverage, fuller api-token route access coverage, and clearer dashboard auth/config failure states
@@ -21,12 +21,324 @@ Last updated: 2026-03-26 (Phase 4 interactive dashboard session flow)
 - **Phase 3: UI/UX trust and polish** — ~100% complete
   - done: route architecture, loading/error boundaries, action feedback helpers, clearer deployment error messages, stopped-status consistency, in-context failure handling, live-data unavailable/degraded states across the dashboard, platform-health visibility even when project-scoped live data is unavailable, clearer status-page behavior under partial outages, more truthful platform-health badge semantics, preserved worker stale/unavailable distinctions, more accurate demo-mode/live-data messaging on top-level pages, timeout-bounded dashboard live-data/log-proxy fetching so hung upstream calls degrade into explicit timeout states instead of hanging route rendering, overlap-safe client-side queue-health polling for operational widgets, pending-aware/visibility-aware auto-refresh loops for deployment and log views, visibility-aware live log streaming with replay-safe resume behavior plus in-panel reconnect recovery, terminal-state-aware log streaming so stopped/failed deployments now keep historical logs visible without pretending to be actively streaming, terminal-state-aware log auto-refresh so stopped/failed deployments no longer keep polling the route while saying no new live logs are expected, partial-outage-aware global deployment/history loaders so one failing project no longer blanks top-level dashboard views, partial-outage-aware project detail panels so deployment or environment read failures no longer take down the full project page, project-scoped deployment/environment/log routes that now stay usable when their secondary live-data reads fail, a global environment shortcut that now stays live when the selected project’s variable read fails, deployment detail routing that no longer turns partial-outage misses into false not-found states, token settings that now keep creation available when the token inventory read fails, deployment detail pages that now explicitly disclose surrounding history outages when the current deployment remains available, status-page outcome summaries that now stay terminal-only, truthful operational-card labeling for running-deployment recency, and cancellation-requested deployment states that now show an explicit `cancelling` cue plus updated queued/building/stopped guidance across detail, summary, log-selector, project-overview, operational-metric, global-filter, and plain-text detail surfaces instead of masquerading as normal in-progress work
   - left (~0%): core UI/UX trust and polish goals are complete; only optional future polish remains
-- **Phase 4: Extensibility and platform maturity** — ~95% complete
+- **Phase 4: Extensibility and platform maturity** — ~99% complete
   - done: API route and service composition (removing module-level singletons in favor of injected factories in fastify plugins), runtime and deployment lifecycle seams exist, basic domain boundaries are in place, worker runtime execution plus runtime-health inspection now share an adapter/factory seam instead of hard-wiring bootstrap reconciliation to Docker, worker ingress management now also goes through an explicit seam instead of naming `CaddyService` directly, lifecycle event emission now depends on an event-sink seam instead of a raw webhook-emitter function, archive upload request/auth logic now goes through a dedicated provider seam instead of living inside deployment state management, that archive upload request/auth layer is now further split into provider-specific `http`/`s3`/`gcs`/`azure` adapters behind a registry-driven selector instead of one branching class, deployment-log archive encoding/compression now also goes through a dedicated archive-builder seam instead of living inline inside the state service, worker outbound HTTP transport now also goes through a shared client seam instead of letting Caddy route updates, lifecycle webhooks, archive uploads, and GCS token exchange each hand-roll their own timeout and fetch logic, worker archive-upload composition now also goes through dedicated factories instead of letting the configured provider, GCS auth adapter, and configured uploader self-compose registries or HTTP clients inline, worker shell command execution now goes through a deployment-command-runner seam instead of living inline inside runtime orchestration, worker container/network lifecycle now also goes through a runtime-manager seam instead of binding `DeploymentRunner` straight to `dockerode`, worker Caddy service plus Docker runtime executor/inspector/manager composition now also goes through dedicated adapter-specific factories instead of letting those concrete infrastructure adapters self-compose outbound HTTP, deployment-runner, or Docker-client dependencies inside their constructors, worker workspace preparation/cleanup now goes through a workspace-manager seam instead of living inline inside runtime orchestration, build-file repository inspection now goes through a repository-file-inspector seam instead of letting Dockerfile detection shell out to git directly, build-system resolver, Dockerfile detector, and configured image-builder composition now also go through dedicated factories instead of self-composing detector lists, repository inspectors, command runners, or resolvers inside their constructors, local archive file handling now also goes through a deployment-log-archive-store seam instead of living inline inside deployment state management, build-system resolution now also goes through a dedicated resolver seam instead of letting `DeploymentRunner` call a static detector registry directly, the default build-detector list now also goes through a dedicated detector factory instead of being hard-wired inline inside the configured resolver, raw process-launch behavior for repository inspection and shell deployment commands now also goes through a shared exec-file runner seam instead of naming `execFile` separately inside each adapter, repository clone plus image-build orchestration now also goes through a deployment-image-builder seam instead of living inline inside `DeploymentRunner`, archive upload transport/retry behavior now also goes through a deployment-log-archive-uploader seam instead of living inline inside deployment state management, worker deployment-state construction now also goes through a factory seam instead of being named directly in the job processor and bootstrap composition roots, BullMQ deployment-worker construction now also goes through a dedicated factory seam instead of being hard-wired inline at the worker module boundary, deployment-worker default processor composition now also goes through a dedicated configured factory instead of letting the general worker factory self-compose a processor inline, worker bootstrap lifecycle composition now also goes through a dedicated configured factory instead of being wired inline in `index.ts`, worker background-scheduler plus heartbeat-Redis construction now also goes through a dedicated factory seam instead of being wired inline in the bootstrap entrypoint, deployment-state repository construction now also goes through a dedicated factory seam instead of being named directly inside state-service composition, deployment-state repository default queryable composition now also goes through a dedicated configured factory instead of letting the repository self-compose its database pool inside the constructor, deployment-state database-queryable / `pg` pool construction now also goes through a dedicated factory seam instead of living inline inside the repository, deployment-runner construction now also goes through a dedicated factory seam instead of being named directly inside the Docker runtime executor, deployment-runner default workspace/image/runtime collaborator composition now also goes through a dedicated configured factory instead of letting the runner self-compose those defaults inside its constructor, deployment-job-processor default dependency wiring now also goes through a dedicated factory seam instead of naming runtime/state/ingress/event/logger defaults inline inside the processor module, deployment-state-service default repository/ingress/archive collaborator wiring now also goes through a dedicated factory seam instead of being named inline inside the service constructor, Docker client construction now also goes through a shared factory seam instead of being named directly inside the Docker-backed runtime manager and inspector adapters, and duplicated worker runtime-family selection now also goes through a shared resolver seam instead of being repeated inline across the runtime executor, runtime inspector, and container-runtime-manager factories, while archive providers now use provider-native AWS/Azure SDK upload adapters plus `google-auth-library`-backed GCS token resolution instead of hand-rolled signing/token flows, and deployment-state service construction now also lives in a dedicated configured factory so the class itself no longer self-composes default collaborators, while heartbeat Redis, repository-file-inspector, deployment-state-queryable, Docker-client, outbound HTTP, Caddy service, webhook listener, ingress manager, deployment-log archive builder/store, and HTTP archive-provider default construction now also live behind dedicated configured or adapter-specific factories instead of being instantiated inline around the worker service graph, and worker queue Redis connection defaults now also go through dedicated configured and override-friendly factory seams instead of living as a module-level boundary constant
-  - done recently: projects now carry explicit service-definition contracts with one primary public service plus internal-only services, the worker build/runtime path honors the selected service root for workspace preparation, Dockerfile detection, Docker build context, and runtime project paths, deployments can now explicitly target named services with a per-project/per-service active-deployment invariant instead of a project-wide active lock, the API now generates `VCLOUDRUNNER_SERVICE_*` discovery env vars plus stable internal hostnames for each project service, the worker runtime now attaches matching Docker network aliases for those generated service hosts, runtime/ingress behavior now only exposes public web services, the dashboard now composes project status from per-service deployment state while surfacing each service's current deployment status, latest deployment, and internal host through project and deployment views, the dashboard now resolves its live user context through an authenticated `/v1/auth/me` API path instead of treating `NEXT_PUBLIC_DEMO_USER_ID` as the primary identity source, the authenticated actor payload now reports auth source plus persisted user profile details when available, Settings now includes a dedicated account/session surface instead of keeping auth state only in the overview, and the dashboard now supports an interactive per-user sign-in/sign-out flow backed by an httpOnly session cookie that overrides the old shared env-token fallback
-  - left (~5%): broader auth/user model evolution, runtime adapter expansion, advanced day-2 operational tooling
+  - done recently: projects now carry explicit service-definition contracts with one primary public service plus internal-only services, the worker build/runtime path honors the selected service root for workspace preparation, Dockerfile detection, Docker build context, and runtime project paths, deployments can now explicitly target named services with a per-project/per-service active-deployment invariant instead of a project-wide active lock, the API now generates `VCLOUDRUNNER_SERVICE_*` discovery env vars plus stable internal hostnames for each project service, the worker runtime now attaches matching Docker network aliases for those generated service hosts, runtime/ingress behavior now only exposes public web services, the dashboard now composes project status from per-service deployment state while surfacing each service's current deployment status, latest deployment, and internal host through project and deployment views, the dashboard now resolves its live user context through an authenticated `/v1/auth/me` API path instead of treating `NEXT_PUBLIC_DEMO_USER_ID` as the primary identity source, the authenticated actor payload now reports auth source plus persisted user profile details when available, Settings now includes a dedicated account/session surface instead of keeping auth state only in the overview, the dashboard now supports an interactive per-user sign-in/sign-out flow backed by an httpOnly session cookie that overrides the old shared env-token fallback, top-level dashboard routes now distinguish sign-in-required / session-expired states from true live-data outages while returning re-auth flows to the operator's original page, the remaining project-scoped pages plus global logs/environment/token surfaces now use the same auth-aware unavailable handling while live log streaming and log-export proxy messaging steer operators back into session re-auth instead of silently normalizing env-token fallback, direct deployment-detail access plus the remaining project/token server-action viewer-resolution failures now also redirect through the same auth-aware session recovery path instead of generic top-level redirects or `no user context` handling, the platform now has its first real persisted-user bootstrap path so authenticated bootstrap/dev actors can create a stored profile and move into DB-backed token workflows without staying stuck in token-only identity, sign-in / session-controls / project-create / token-management flows now treat account setup as the normal bridge out of bootstrap/dev identity instead of leaving those actors stranded in half-configured write paths, the first persisted project-membership groundwork now exists through owner-membership seeding, member listing, existing-user invites, and a project detail members surface with invite controls, owners/admins/project-admins can now update non-owner member roles or remove non-owner memberships directly from the project page through the same persisted project-membership model, the platform now stores pending project invitations for non-persisted emails while automatically accepting matching invitations when that user completes account setup with the same email, pending invitations can now be refreshed or cancelled directly from the dashboard while account-setup success feedback names accepted project memberships more clearly, invitation records now preserve `pending` / `accepted` / `cancelled` history with shareable claim links plus a dedicated dashboard claim page instead of disappearing on acceptance or cancellation, and project ownership can now be transferred explicitly to an existing member while keeping that operation owner-only and leaving the previous owner behind as a normal admin member
+  - left (~0%): the current four-phase MVP plan is complete; broader auth/team maturity, richer outbound delivery providers, runtime adapter expansion, and advanced day-2 tooling now belong to the next planning pass rather than the original phase checklist
 
 ## Implementation Log
+
+### Phase: Phase 4 invitation delivery closeout (2026-03-27, outbound webhook delivery + redelivery controls)
+
+- what was built:
+  - added a minimal outbound invitation delivery seam on the API side through a configurable webhook, so newly stored pending invitations can now emit a structured payload with the invited email, project metadata, inviter details, and the full claim URL instead of relying only on manual copy/share
+  - made invitation creation preserve the pending invite even when outbound delivery is disabled or fails, while returning explicit `delivered` / `disabled` / `failed` delivery outcomes so operators can act on the result without losing the invitation itself
+  - added a dedicated pending-invitation redelivery route plus dashboard control, so operators can resend the current claim link on demand without mutating role metadata or recreating the invite
+  - documented the new API env knobs for claim-link base URL and invitation delivery webhook auth, and verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/.env.example`
+  - `apps/api/src/config/env-core.ts`
+  - `apps/api/src/config/env-core.test.ts`
+  - `apps/api/src/services/project-invitation-delivery.service.ts`
+  - `apps/api/src/services/project-invitation-delivery.service.test.ts`
+  - `apps/api/src/server/build-server.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/modules/projects/projects.routes.ts`
+  - `apps/api/src/modules/projects/projects.routes.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/app/projects/actions.ts`
+  - `apps/dashboard/app/projects/[id]/page.tsx`
+  - `README.md`
+  - `docs/progress.md`
+- what is still missing:
+  - the original four-phase MVP plan is now closed; any deeper email-provider integration, full team/workspace model, or broader platform maturity work should be captured in the next roadmap-driven plan rather than reopening the original phase checklist
+- next recommended step:
+  - treat the current four-phase plan as complete, then start a fresh post-phase planning pass against `docs/roadmap.md` when you want to choose the next deliberate expansion slice
+
+### Phase: Phase 4 project ownership transfer follow-through (2026-03-26, final project-admin lifecycle seam)
+
+- what was built:
+  - added an explicit project-ownership transfer API path plus owner-only transfer guard so ownership can move to an existing member without widening that control to ordinary project-admin memberships
+  - extended the project service/repository layer so ownership transfer promotes the new owner into an admin-capable membership, preserves the previous owner as an admin member, and then rehydrates the updated project member state from the canonical membership list
+  - upgraded the dashboard project members panel with an owner-only "Make Owner" action plus clearer copy explaining that ownership transfer keeps the previous owner on the project as an admin until later removal
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/src/server/domain-errors.ts`
+  - `apps/api/src/modules/auth/auth-utils.ts`
+  - `apps/api/src/modules/auth/auth-utils.test.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/modules/projects/projects.routes.ts`
+  - `apps/api/src/modules/projects/projects.routes.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/app/projects/actions.ts`
+  - `apps/dashboard/app/projects/[id]/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - project membership now has a real owner-transfer path, but Phase 4 still has one open decision around whether lightweight outbound invitation delivery belongs in-scope or whether the current shareable claim-link model is enough to close the phase
+- next recommended step:
+  - make the Phase 4 closeout decision on outbound invitation delivery: either add a minimal delivery seam/workflow now, or explicitly treat the current claim-link invite model as sufficient and close Phase 4 before moving back to broader roadmap additions
+
+### Phase: Phase 4 project invitation claim/history follow-through (2026-03-26, shareable claim links + preserved invitation lifecycle)
+
+- what was built:
+  - upgraded project invitations from disposable pending rows into a preserved lifecycle model with `pending` / `accepted` / `cancelled` states, claim tokens, and retained acceptance/cancellation timestamps so invitation history no longer disappears once an invite changes state
+  - added unauthenticated invitation-claim lookup plus authenticated claim acceptance API routes, allowing shareable invitation URLs to resolve into project/role details and letting the invited persisted user accept access directly from that claim token
+  - extended account-setup auto-accept to mark matching invitations as accepted instead of deleting them, so the system now keeps historical invitation truth while still onboarding invited users automatically by email
+  - upgraded the dashboard with a dedicated `/invitations/[claimToken]` claim page, session-aware claim actions, pending-invite claim links on the project members page, and a new invitation history view for accepted/cancelled invites
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/drizzle/0009_project_invitation_lifecycle.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/server/domain-errors.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/modules/projects/projects.routes.ts`
+  - `apps/api/src/modules/projects/projects.routes.test.ts`
+  - `apps/api/src/modules/auth/auth.service.ts`
+  - `apps/api/src/modules/auth/auth.service.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/app/invitations/[claimToken]/page.tsx`
+  - `apps/dashboard/app/invitations/[claimToken]/actions.ts`
+  - `apps/dashboard/app/projects/[id]/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - invitations now have shareable claim primitives and preserved history, but there is still no real outbound email delivery, resend automation, ownership transfer flow, or broader workspace/team lifecycle above per-project membership
+- next recommended step:
+  - continue Phase 4 auth/user-model work by closing out the remaining membership-admin gap: decide and implement ownership-transfer / final project-admin lifecycle semantics on top of the new invitation history model, then revisit whether outbound delivery automation still belongs inside Phase 4 or a later maturity pass
+
+### Phase: Phase 4 project invitation management follow-through (2026-03-26, pending invite refresh/cancel + clearer acceptance visibility)
+
+- what was built:
+  - extended the project-membership API with pending-invitation update and delete operations, so owners/admins/project-admins can now refresh or cancel stored invitations instead of treating pending emails as immutable rows
+  - added repository, service, and route coverage for those pending-invite management paths, including explicit `404` handling when an invitation has already been claimed or removed
+  - upgraded the dashboard project detail members panel so each pending invitation now has inline save/refresh and cancel actions, plus clearer copy explaining that account setup auto-accepts matching invites and that saving refreshes follow-up visibility
+  - improved account-setup feedback so profile creation now names accepted projects and roles when pending invitations are claimed, and clarified the same auto-accept behavior in the account settings UI
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/src/server/domain-errors.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/modules/projects/projects.routes.ts`
+  - `apps/api/src/modules/projects/projects.routes.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/app/projects/actions.ts`
+  - `apps/dashboard/app/projects/[id]/page.tsx`
+  - `apps/dashboard/app/settings/account/actions.ts`
+  - `apps/dashboard/app/settings/account/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - pending invitations are now storable, manageable, and auto-accepted during account setup, but there is still no real email delivery, deep-link/tokenized acceptance flow, accepted/cancelled invitation history, or ownership-transfer/workspace-team model yet
+- next recommended step:
+  - continue Phase 4 auth/user-model work by finishing the invitation lifecycle beyond dashboard-local management: add invitation delivery/claim primitives and clearer accepted/cancelled history, then decide whether ownership transfer belongs in that same final membership pass or immediately after it
+
+### Phase: Phase 4 project invitation storage and acceptance follow-through (2026-03-26, pending invites + account-setup auto-accept)
+
+- what was built:
+  - added a persisted `project_invitations` model plus API support for listing pending invitations, so project membership no longer stops at already-persisted users and managers can see which email-based invites are still waiting to be claimed
+  - changed project invite behavior so existing persisted users still become members immediately, while unknown emails now create pending invitations instead of erroring, with duplicate pending invites rejected cleanly
+  - extended account setup so saving a new persisted profile automatically accepts any pending project invitations that match the saved email, then rehydrates the dashboard with a success message that reflects accepted invitations when relevant
+  - updated the dashboard project detail members surface to show pending invitations alongside active members and clarified the direct-member-vs-pending-invite behavior in the invite flow
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/drizzle/0008_project_invitations.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/server/domain-errors.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/modules/projects/projects.routes.ts`
+  - `apps/api/src/modules/projects/projects.routes.test.ts`
+  - `apps/api/src/modules/auth/auth.service.ts`
+  - `apps/api/src/modules/auth/auth.service.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/app/projects/actions.ts`
+  - `apps/dashboard/app/projects/[id]/page.tsx`
+  - `apps/dashboard/app/settings/account/actions.ts`
+  - `docs/progress.md`
+- what is still missing:
+  - pending invitations now exist and can be auto-accepted during account setup, but there is still no explicit invitation cancellation/resend path, no email delivery or deep-link acceptance workflow, and no richer ownership-transfer or workspace-level team model yet
+- next recommended step:
+  - continue Phase 4 auth/user-model work by adding invitation management follow-through around pending invites: cancellation/resend controls, clearer invite acceptance visibility for operators, and then decide whether ownership transfer belongs in the same team-admin slice or a later pass
+
+### Phase: Phase 4 project membership lifecycle follow-through (2026-03-26, role updates + member removal)
+
+- what was built:
+  - expanded the new project-membership API with role updates and member removal for existing non-owner memberships, while keeping project-owner membership immutable so ownership does not get accidentally stripped before invitation acceptance and richer transfer rules exist
+  - added route and service coverage for those new membership lifecycle operations, including explicit `404` handling for missing members and `409` handling when callers try to mutate the owner membership
+  - upgraded the dashboard project detail members panel so operators with owner/admin/project-admin access can now change member roles inline or remove non-owner members without leaving the project page, while self-removal safely redirects back to the broader projects view
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/src/server/domain-errors.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/modules/projects/projects.routes.ts`
+  - `apps/api/src/modules/projects/projects.routes.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/app/projects/actions.ts`
+  - `apps/dashboard/app/projects/[id]/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - project membership is now manageable for existing persisted users, but invitations still only work for users who already exist in the database, there is no stored invitation/acceptance or delivery lifecycle yet, and there is still no ownership-transfer or broader team/workspace model above per-project membership
+- next recommended step:
+  - continue Phase 4 auth/user-model work by introducing stored invitation records and acceptance flows so project membership can include users who have not completed account setup yet, then decide whether ownership transfer belongs in the same lifecycle pass or a later team-admin slice
+
+### Phase: Phase 4 project membership groundwork (2026-03-26, owner seeding + member list/invite foundations)
+
+- what was built:
+  - updated project creation to seed an owner membership row and fixed project membership lookup semantics so later project-role checks operate on a correct per-project/per-user foundation instead of a permissive membership query
+  - added authenticated API groundwork for project member listing and existing-user invites, including owner/admin/project-admin authorization rules and explicit conflict/not-found domain errors for duplicate membership and missing persisted users
+  - extended the dashboard project detail page with a members panel, current member list, and an invite form for operators who already have the right project-management role, while keeping missing-profile actors on the account-setup path before they attempt membership writes
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/src/server/domain-errors.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/modules/projects/projects.routes.ts`
+  - `apps/api/src/modules/projects/projects.routes.test.ts`
+  - `apps/api/src/modules/auth/auth-utils.ts`
+  - `apps/api/src/modules/auth/auth-utils.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/app/projects/actions.ts`
+  - `apps/dashboard/app/projects/[id]/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - project membership now has a real persistence and UI foothold, but invitations still only target already-persisted users, there is no invitation acceptance or delivery lifecycle yet, and owners/admins still cannot change roles or remove members through the product
+- next recommended step:
+  - continue Phase 4 auth/user-model work by expanding this into a fuller project-membership lifecycle, starting with role updates and member removal for existing memberships, then shaping stored invitation/acceptance flows for users who are not yet present in the database
+
+### Phase: Phase 4 onboarding bridge follow-through (2026-03-26, sign-in and write-path guidance)
+
+- what was built:
+  - updated dashboard sign-in so accepted bootstrap-token sessions with no persisted user record now redirect into account setup instead of pretending the operator is already fully onboarded
+  - taught `/settings/account`, session controls, and the Settings overview to surface missing-profile state more explicitly and preserve safe return targets so account setup can act as the bridge back to the page the operator was originally trying to reach
+  - added missing-profile guards to token-management actions and project creation so write paths that require a persisted `users` row now route into account setup rather than falling through to broken bootstrap/dev-auth behavior
+  - refreshed dashboard auth/setup guidance in the sign-in page and README so bootstrap/dev paths are described as transitional setup tools rather than normal long-term operator identity
+  - verified the slice with `npm --workspace @vcloudrunner/dashboard run typecheck` and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/dashboard/lib/dashboard-auth-navigation.ts`
+  - `apps/dashboard/app/sign-in/actions.ts`
+  - `apps/dashboard/app/sign-in/page.tsx`
+  - `apps/dashboard/app/settings/account/actions.ts`
+  - `apps/dashboard/app/settings/account/page.tsx`
+  - `apps/dashboard/app/settings/page.tsx`
+  - `apps/dashboard/components/dashboard-session-controls.tsx`
+  - `apps/dashboard/app/projects/actions.ts`
+  - `apps/dashboard/app/tokens/actions.ts`
+  - `apps/dashboard/README.md`
+  - `docs/progress.md`
+- what is still missing:
+  - the onboarding bridge now works much more intentionally, but the platform still lacks the first real membership/invitation workflow and still has some broader bootstrap/dev-auth assumptions to reduce outside the immediate sign-in and write-path guidance
+- next recommended step:
+  - continue Phase 4 auth/user-model work by starting the first persisted membership/invitation groundwork from the now-stored user model, while cleaning up any remaining bootstrap/dev-auth assumptions that still read as normal operator state
+
+### Phase: Phase 4 persisted-user bootstrap onboarding (2026-03-26, first real user-profile workflow)
+
+- what was built:
+  - added an authenticated API profile upsert route at `/v1/auth/me/profile`, backed by auth-service persistence logic that can create or refresh the current actor's `users` record while mapping duplicate-email conflicts cleanly
+  - added the first real dashboard account-onboarding form on `/settings/account`, so viewers without a persisted profile can create one in place and existing users can keep their stored name/email current
+  - updated Settings and token management to treat persisted profile setup as a first-class prerequisite for DB-backed token workflows instead of assuming every authenticated actor already has a stored user row
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/src/modules/auth/auth.routes.ts`
+  - `apps/api/src/modules/auth/auth.routes.test.ts`
+  - `apps/api/src/modules/auth/auth.service.ts`
+  - `apps/api/src/modules/auth/auth.service.test.ts`
+  - `apps/api/src/server/domain-errors.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/app/settings/account/actions.ts`
+  - `apps/dashboard/app/settings/account/page.tsx`
+  - `apps/dashboard/app/settings/page.tsx`
+  - `apps/dashboard/components/token-management-page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - the platform now has a real persisted-user bootstrap loop, but several operator-facing flows still assume bootstrap/dev-auth as acceptable long-term identity paths, and there is still no richer membership/invitation model beyond single-user token ownership
+- next recommended step:
+  - continue Phase 4 auth/user-model work by carrying this onboarding path through the remaining bootstrap/dev-auth surfaces, especially sign-in and settings guidance, then begin the first membership/invitation groundwork from the now-persisted user model
+
+### Phase: Phase 4 deployment-detail auth recovery and action redirect follow-through (2026-03-26, remaining auth-aware route and action cleanup)
+
+- what was built:
+  - removed the old deployment-detail fallback redirect so direct deployment URLs now show an explicit sign-in / re-auth state when live access is unavailable instead of bouncing operators back to the deployments index
+  - added a shared action-side auth redirect helper and wired project creation plus token create/rotate/revoke actions through it so missing or expired viewer context now routes through sign-in recovery rather than generic `no user context` redirects
+  - refreshed the remaining dashboard copy that still over-emphasized `API_AUTH_TOKEN`, including the projects action feedback path, auth transport description, and dashboard README guidance, so per-user session cookies read as the normal operator path and the env token is clearly documented as fallback-only
+  - verified the slice with `npm --workspace @vcloudrunner/dashboard run typecheck` and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/dashboard/lib/dashboard-action-auth.ts`
+  - `apps/dashboard/app/deployments/[id]/page.tsx`
+  - `apps/dashboard/app/projects/actions.ts`
+  - `apps/dashboard/app/tokens/actions.ts`
+  - `apps/dashboard/app/projects/page.tsx`
+  - `apps/dashboard/lib/viewer-auth.ts`
+  - `apps/dashboard/README.md`
+  - `docs/progress.md`
+- what is still missing:
+  - the dashboard auth/session experience is now largely coherent, but the broader Phase 4 auth/user-model work still stops at token-backed identity and dashboard session recovery; there is still no first-class persisted user bootstrap/onboarding flow or richer team/membership model beyond token ownership and dev-auth/bootstrap paths
+- next recommended step:
+  - continue Phase 4 auth/user-model work by starting the first real persisted-user workflow beyond token-only identity, beginning with a concrete bootstrap/onboarding slice that reduces the remaining dev/bootstrap-token assumptions in operator-facing flows while preparing for later team membership and invitation work
+
+### Phase: Phase 4 project-scoped auth gating and session-aware proxy follow-through (2026-03-26, remaining live page auth recovery)
+
+- what was built:
+  - added a shared dashboard unavailable-state wrapper that chooses between explicit sign-in / re-auth guidance and true outage messaging from the same request-auth context
+  - applied that auth-aware unavailable handling across the remaining project-scoped pages, plus the global environment, logs, settings, account, and token-management views, so those routes no longer collapse missing or expired auth into a generic live-data outage
+  - updated live log streaming to offer a direct sign-in-again recovery path from the current page and updated the log proxy routes to describe session expiry, access denial, and server-fallback rejection more explicitly
+  - tightened several dashboard auth and action error messages so `API_AUTH_TOKEN` is framed as a temporary fallback rather than the normal operator workflow
+  - verified the slice with `npm --workspace @vcloudrunner/dashboard run typecheck` and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/dashboard/components/dashboard-unavailable-state.tsx`
+  - `apps/dashboard/app/projects/[id]/page.tsx`
+  - `apps/dashboard/app/projects/[id]/deployments/page.tsx`
+  - `apps/dashboard/app/projects/[id]/environment/page.tsx`
+  - `apps/dashboard/app/projects/[id]/logs/page.tsx`
+  - `apps/dashboard/app/environment/page.tsx`
+  - `apps/dashboard/app/logs/page.tsx`
+  - `apps/dashboard/app/settings/page.tsx`
+  - `apps/dashboard/app/settings/account/page.tsx`
+  - `apps/dashboard/components/token-management-page.tsx`
+  - `apps/dashboard/components/logs-live-stream.tsx`
+  - `apps/dashboard/app/api/log-stream/route.ts`
+  - `apps/dashboard/app/api/log-export/route.ts`
+  - `apps/dashboard/app/tokens/actions.ts`
+  - `apps/dashboard/lib/helpers.ts`
+  - `docs/progress.md`
+- what is still missing:
+  - the dashboard now handles auth-required and expired-session states much more consistently, but the direct deployment-detail route still falls back through a top-level redirect instead of exposing its own auth-aware unavailable state, and several server actions still redirect with coarse `no user context` style failures instead of explicit re-auth guidance
+- next recommended step:
+  - continue Phase 4 auth/user-model work by making direct deployment-detail access and the remaining server-action redirects auth-aware, then finish scrubbing the last env-token-first messaging and docs so per-user sessions read as the default operator workflow
+
+### Phase: Phase 4 dashboard auth gating and re-auth recovery (2026-03-26, top-level session-aware live pages)
+
+- what was built:
+  - taught the shared dashboard loader to distinguish auth-required states from genuine live-data outages so top-level pages can stop treating missing or expired auth like generic API failure
+  - added a reusable auth-required empty state with explicit sign-in and session-clear actions, then applied it to the top-level Projects, Deployments, and Operational Status routes instead of silently dropping into old demo/mock-mode when auth is missing
+  - updated the dashboard sign-in flow to preserve a safe in-app return target so sign-in and re-auth can send operators back to the page they were trying to access
+  - surfaced expired-session state in the global dashboard session controls so rejected session cookies are visible and easy to recover from
+  - kept the older sample-data fallback only for genuine live-data outage mode, so auth problems and upstream outages are now presented differently
+  - verified the slice with `npm --workspace @vcloudrunner/dashboard run typecheck` and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/helpers.ts`
+  - `apps/dashboard/lib/loaders.ts`
+  - `apps/dashboard/lib/dashboard-auth-navigation.ts`
+  - `apps/dashboard/components/dashboard-auth-required-state.tsx`
+  - `apps/dashboard/components/dashboard-session-controls.tsx`
+  - `apps/dashboard/app/sign-in/actions.ts`
+  - `apps/dashboard/app/sign-in/page.tsx`
+  - `apps/dashboard/app/projects/page.tsx`
+  - `apps/dashboard/app/deployments/page.tsx`
+  - `apps/dashboard/app/status/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - the top-level dashboard is now session-aware, but the same explicit auth-required / re-auth behavior is not yet applied consistently across every project-scoped live page, proxy flow, and token/env management edge case, and the broader user/team membership model is still token-centric
+- next recommended step:
+  - continue Phase 4 auth/user-model work by carrying the same explicit sign-in gating and return-to-page re-auth behavior through the remaining project-scoped pages and log/environment/token proxy paths, then reduce the remaining places that still frame `API_AUTH_TOKEN` as the normal operator path
 
 ### Phase: Phase 4 interactive dashboard session flow (2026-03-26, per-user sign-in and sign-out)
 
@@ -2149,7 +2461,7 @@ Last updated: 2026-03-26 (Phase 4 interactive dashboard session flow)
 
 ## 9) Testing Status
 
-- [~] Static checks attempted in current environment (shared-types `build`, API `typecheck`/`test`, dashboard `typecheck`, and worker `typecheck`/`test` passing as of 2026-03-26 after the service-source-root runtime follow-through; broader workspace validation still partial)
+- [~] Static checks attempted in current environment (shared-types `build`, API `typecheck`/`test`, dashboard `typecheck`/`lint`, and worker `typecheck`/`test` passing as of 2026-03-27 after the Phase 4 invitation-delivery closeout; broader workspace validation still partial)
 - [ ] End-to-end compose validation (blocked by missing Docker CLI in this environment)
 - [~] Typecheck/test execution with installed dependencies (shared-types, API, dashboard typecheck, and worker package verified; broader workspace install/validation still environment-dependent)
 
@@ -2157,4 +2469,5 @@ Last updated: 2026-03-26 (Phase 4 interactive dashboard session flow)
 
 ## Immediate Next Recommended Steps
 
-1. Continue Phase 4 auth/user-model work by making the live dashboard fully session-aware, replacing remaining auth-missing demo/mock fallbacks with explicit sign-in gating or sign-in CTAs and then tightening expired-session recovery.
+1. Treat the current four-phase MVP plan as complete and use the next planning session to choose the first post-phase roadmap slice from `docs/roadmap.md`.
+2. Before starting that next plan in a live environment, apply the pending invitation-related DB migrations and decide whether you want to configure the new invitation-delivery webhook or keep using manual claim-link sharing.

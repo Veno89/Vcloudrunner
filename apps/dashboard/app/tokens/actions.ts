@@ -3,14 +3,17 @@
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { createViewerContextFailureRedirect } from '@/lib/dashboard-action-auth';
+import { buildDashboardAccountSetupHref } from '@/lib/dashboard-auth-navigation';
 import { createApiToken, revokeApiToken, rotateApiToken, resolveViewerContext } from '@/lib/api';
+import { getDashboardRequestAuth } from '@/lib/dashboard-session';
 import { extractApiStatusCode } from '@/lib/helpers';
 
 function createTokenActionErrorMessage(action: 'create' | 'revoke' | 'rotate', error: unknown): string {
   const statusCode = extractApiStatusCode(error);
 
   if (statusCode === 401) {
-    return 'Token management is unauthorized. Check the active dashboard session, API_AUTH_TOKEN fallback, or the explicit local dev-auth bypass.';
+    return 'Token management is unauthorized. Sign in again with an active dashboard session, use API_AUTH_TOKEN only as a temporary fallback, or use the explicit local dev-auth bypass.';
   }
 
   if (statusCode === 403) {
@@ -33,11 +36,26 @@ function createTokenActionErrorMessage(action: 'create' | 'revoke' | 'rotate', e
 }
 
 export async function createApiTokenAction(formData: FormData) {
-  const { viewer } = await resolveViewerContext();
+  const requestAuth = getDashboardRequestAuth();
+  const { viewer, error: viewerContextError } = await resolveViewerContext();
 
   if (!viewer) {
-    redirect('/settings/tokens?status=error&message=No+user+context');
+    redirect(
+      createViewerContextFailureRedirect({
+        requestAuth,
+        ...(viewerContextError ? { error: viewerContextError } : {}),
+        redirectTo: '/settings/tokens',
+        fallbackPath: '/settings/tokens',
+        fallbackMessage: 'Token management is temporarily unavailable. Check dashboard/API connectivity and retry.'
+      })
+    );
     return;
+  }
+
+  if (!viewer.user) {
+    redirect(buildDashboardAccountSetupHref({
+      redirectTo: '/settings/tokens'
+    }));
   }
 
   const labelValue = formData.get('label');
@@ -83,11 +101,26 @@ export async function createApiTokenAction(formData: FormData) {
 }
 
 export async function revokeApiTokenAction(formData: FormData) {
-  const { viewer } = await resolveViewerContext();
+  const requestAuth = getDashboardRequestAuth();
+  const { viewer, error: viewerContextError } = await resolveViewerContext();
 
   if (!viewer) {
-    redirect('/settings/tokens?status=error&message=No+user+context');
+    redirect(
+      createViewerContextFailureRedirect({
+        requestAuth,
+        ...(viewerContextError ? { error: viewerContextError } : {}),
+        redirectTo: '/settings/tokens',
+        fallbackPath: '/settings/tokens',
+        fallbackMessage: 'Token revocation is temporarily unavailable. Check dashboard/API connectivity and retry.'
+      })
+    );
     return;
+  }
+
+  if (!viewer.user) {
+    redirect(buildDashboardAccountSetupHref({
+      redirectTo: '/settings/tokens'
+    }));
   }
 
   const tokenIdValue = formData.get('tokenId');
@@ -107,11 +140,26 @@ export async function revokeApiTokenAction(formData: FormData) {
 }
 
 export async function rotateApiTokenAction(formData: FormData) {
-  const { viewer } = await resolveViewerContext();
+  const requestAuth = getDashboardRequestAuth();
+  const { viewer, error: viewerContextError } = await resolveViewerContext();
 
   if (!viewer) {
-    redirect('/settings/tokens?status=error&message=No+user+context');
+    redirect(
+      createViewerContextFailureRedirect({
+        requestAuth,
+        ...(viewerContextError ? { error: viewerContextError } : {}),
+        redirectTo: '/settings/tokens',
+        fallbackPath: '/settings/tokens',
+        fallbackMessage: 'Token rotation is temporarily unavailable. Check dashboard/API connectivity and retry.'
+      })
+    );
     return;
+  }
+
+  if (!viewer.user) {
+    redirect(buildDashboardAccountSetupHref({
+      redirectTo: '/settings/tokens'
+    }));
   }
 
   const tokenIdValue = formData.get('tokenId');

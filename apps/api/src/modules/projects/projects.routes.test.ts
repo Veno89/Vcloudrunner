@@ -53,6 +53,17 @@ async function withProjectsRoutesApp(
     membershipRows: Array<{ role: string }>;
     accessibleProjects?: typeof project[];
     onCreateProjectInput?: (input: Record<string, unknown>) => void;
+    listProjectMembersResult?: Array<Record<string, unknown>>;
+    listProjectInvitationsResult?: Array<Record<string, unknown>>;
+    onGetProjectInvitationClaim?: (claimToken: string) => unknown;
+    onAcceptProjectInvitationClaim?: (input: Record<string, unknown>) => unknown;
+    onInviteProjectMember?: (input: Record<string, unknown>) => unknown;
+    onUpdateProjectInvitation?: (input: Record<string, unknown>) => unknown;
+    onRemoveProjectInvitation?: (input: Record<string, unknown>) => unknown;
+    onRedeliverProjectInvitation?: (input: Record<string, unknown>) => unknown;
+    onUpdateProjectMember?: (input: Record<string, unknown>) => unknown;
+    onRemoveProjectMember?: (input: Record<string, unknown>) => unknown;
+    onTransferProjectOwnership?: (input: Record<string, unknown>) => unknown;
   },
   run: (app: FastifyInstance) => Promise<void>
 ) {
@@ -80,6 +91,179 @@ async function withProjectsRoutesApp(
     };
   });
   t.mock.method(ProjectsService.prototype, 'getProjectById', async () => project);
+  t.mock.method(ProjectsService.prototype, 'listProjectMembers', async () => options.listProjectMembersResult ?? []);
+  t.mock.method(ProjectsService.prototype, 'listProjectInvitations', async () => options.listProjectInvitationsResult ?? []);
+  t.mock.method(ProjectsService.prototype, 'getProjectInvitationClaim', async (claimToken: string) => {
+    const result = options.onGetProjectInvitationClaim?.(claimToken);
+    return result ?? {
+      id: 'invite-claim-1',
+      projectId,
+      projectName: project.name,
+      projectSlug: project.slug,
+      email: 'pending@example.com',
+      claimToken,
+      role: 'viewer',
+      status: 'pending',
+      invitedBy: ownerUserId,
+      acceptedBy: null,
+      createdAt: '2026-03-26T00:00:00.000Z',
+      updatedAt: '2026-03-26T00:00:00.000Z',
+      acceptedAt: null,
+      cancelledAt: null,
+      invitedByUser: {
+        id: ownerUserId,
+        name: 'Owner User',
+        email: 'owner@example.com'
+      },
+      acceptedByUser: null
+    };
+  });
+  t.mock.method(ProjectsService.prototype, 'acceptProjectInvitationClaim', async (input: Record<string, unknown>) => {
+    const result = options.onAcceptProjectInvitationClaim?.(input);
+    return result ?? {
+      id: 'invite-claim-1',
+      projectId,
+      projectName: project.name,
+      projectSlug: project.slug,
+      email: 'pending@example.com',
+      claimToken: input.claimToken,
+      role: 'viewer',
+      status: 'accepted',
+      invitedBy: ownerUserId,
+      acceptedBy: options.actorUserId,
+      createdAt: '2026-03-26T00:00:00.000Z',
+      updatedAt: '2026-03-26T01:00:00.000Z',
+      acceptedAt: '2026-03-26T01:00:00.000Z',
+      cancelledAt: null,
+      invitedByUser: {
+        id: ownerUserId,
+        name: 'Owner User',
+        email: 'owner@example.com'
+      },
+      acceptedByUser: {
+        id: options.actorUserId,
+        name: 'Accepted User',
+        email: 'pending@example.com'
+      }
+    };
+  });
+  t.mock.method(ProjectsService.prototype, 'inviteProjectMember', async (input: Record<string, unknown>) => {
+    const result = options.onInviteProjectMember?.(input);
+    return result ?? {
+      kind: 'member',
+      member: {
+        id: 'member-1',
+        projectId,
+        userId: memberUserId,
+        role: 'viewer',
+        invitedBy: ownerUserId,
+        createdAt: '2026-03-26T00:00:00.000Z',
+        updatedAt: '2026-03-26T00:00:00.000Z',
+        isOwner: false,
+        user: {
+          id: memberUserId,
+          name: 'Member User',
+          email: 'member@example.com'
+        }
+      }
+    };
+  });
+  t.mock.method(ProjectsService.prototype, 'updateProjectInvitation', async (input: Record<string, unknown>) => {
+    const result = options.onUpdateProjectInvitation?.(input);
+    return result ?? {
+      id: 'invite-1',
+      projectId,
+      email: 'pending@example.com',
+      claimToken: 'claim-token-123',
+      role: 'editor',
+      status: 'pending',
+      invitedBy: ownerUserId,
+      acceptedBy: null,
+      createdAt: '2026-03-26T00:00:00.000Z',
+      updatedAt: '2026-03-26T01:00:00.000Z',
+      acceptedAt: null,
+      cancelledAt: null,
+      invitedByUser: {
+        id: ownerUserId,
+        name: 'Owner User',
+        email: 'owner@example.com'
+      },
+      acceptedByUser: null
+    };
+  });
+  t.mock.method(ProjectsService.prototype, 'removeProjectInvitation', async (input: Record<string, unknown>) => {
+    options.onRemoveProjectInvitation?.(input);
+  });
+  t.mock.method(ProjectsService.prototype, 'redeliverProjectInvitation', async (input: Record<string, unknown>) => {
+    const result = options.onRedeliverProjectInvitation?.(input);
+    return result ?? {
+      invitation: {
+        id: 'invite-1',
+        projectId,
+        email: 'pending@example.com',
+        claimToken: 'claim-token-123',
+        role: 'viewer',
+        status: 'pending',
+        invitedBy: ownerUserId,
+        acceptedBy: null,
+        createdAt: '2026-03-26T00:00:00.000Z',
+        updatedAt: '2026-03-26T01:00:00.000Z',
+        acceptedAt: null,
+        cancelledAt: null,
+        invitedByUser: {
+          id: ownerUserId,
+          name: 'Owner User',
+          email: 'owner@example.com'
+        },
+        acceptedByUser: null
+      },
+      delivery: {
+        status: 'delivered',
+        message: 'Invitation delivery request completed successfully.',
+        claimUrl: 'https://platform.example.com/invitations/claim-token-123',
+        attemptedAt: '2026-03-26T01:00:00.000Z'
+      }
+    };
+  });
+  t.mock.method(ProjectsService.prototype, 'updateProjectMemberRole', async (input: Record<string, unknown>) => {
+    const result = options.onUpdateProjectMember?.(input);
+    return result ?? {
+      id: 'member-1',
+      projectId,
+      userId: memberUserId,
+      role: 'admin',
+      invitedBy: ownerUserId,
+      createdAt: '2026-03-26T00:00:00.000Z',
+      updatedAt: '2026-03-26T00:00:00.000Z',
+      isOwner: false,
+      user: {
+        id: memberUserId,
+        name: 'Member User',
+        email: 'member@example.com'
+      }
+    };
+  });
+  t.mock.method(ProjectsService.prototype, 'removeProjectMember', async (input: Record<string, unknown>) => {
+    options.onRemoveProjectMember?.(input);
+  });
+  t.mock.method(ProjectsService.prototype, 'transferProjectOwnership', async (input: Record<string, unknown>) => {
+    const result = options.onTransferProjectOwnership?.(input);
+    return result ?? {
+      id: 'member-2',
+      projectId,
+      userId: memberUserId,
+      role: 'admin',
+      invitedBy: ownerUserId,
+      createdAt: '2026-03-26T00:00:00.000Z',
+      updatedAt: '2026-03-26T01:00:00.000Z',
+      isOwner: true,
+      user: {
+        id: memberUserId,
+        name: 'New Owner',
+        email: 'member@example.com'
+      }
+    };
+  });
   t.mock.method(mockDbClient, 'select', (fields: Record<string, unknown>) => {
     if (Object.prototype.hasOwnProperty.call(fields, 'userId')) {
       return buildSelectResult([]);
@@ -439,5 +623,692 @@ test('get project by id rejects non-members who are not the owner or admin', asy
 
     assert.equal(res.statusCode, 403);
     assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_PROJECT_ACCESS');
+  });
+});
+
+test('list project members allows project members with projects:read scope', async (t) => {
+  const members = [{
+    id: ownerUserId,
+    projectId,
+    userId: ownerUserId,
+    role: 'admin',
+    invitedBy: null,
+    createdAt: '2026-03-26T00:00:00.000Z',
+    updatedAt: '2026-03-26T00:00:00.000Z',
+    isOwner: true,
+    user: {
+      id: ownerUserId,
+      name: 'Owner User',
+      email: 'owner@example.com'
+    }
+  }];
+
+  await withProjectsRoutesApp(t, {
+    token: 'member-list-members-token-123',
+    actorUserId: memberUserId,
+    membershipRows: [{ role: 'viewer' }],
+    listProjectMembersResult: members
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/projects/${projectId}/members`,
+      headers: {
+        authorization: 'Bearer member-list-members-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(JSON.parse(res.body), { data: members });
+  });
+});
+
+test('list project members rejects non-members who are not the owner or admin', async (t) => {
+  await withProjectsRoutesApp(t, {
+    token: 'outsider-list-members-token-123',
+    actorUserId: outsiderUserId,
+    membershipRows: []
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/projects/${projectId}/members`,
+      headers: {
+        authorization: 'Bearer outsider-list-members-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_PROJECT_ACCESS');
+  });
+});
+
+test('list project invitations allows owner/project-admin access with projects:read scope', async (t) => {
+  const invitations = [{
+    id: 'invite-1',
+    projectId,
+    email: 'pending@example.com',
+    role: 'viewer',
+    invitedBy: ownerUserId,
+    createdAt: '2026-03-26T00:00:00.000Z',
+    updatedAt: '2026-03-26T00:00:00.000Z',
+    invitedByUser: {
+      id: ownerUserId,
+      name: 'Owner User',
+      email: 'owner@example.com'
+    }
+  }];
+
+  await withProjectsRoutesApp(t, {
+    token: 'owner-list-invitations-token-123',
+    actorUserId: ownerUserId,
+    scopes: ['projects:read'],
+    membershipRows: [],
+    listProjectInvitationsResult: invitations
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/projects/${projectId}/invitations`,
+      headers: {
+        authorization: 'Bearer owner-list-invitations-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(JSON.parse(res.body), { data: invitations });
+  });
+});
+
+test('list project invitations rejects project viewers without membership-management access', async (t) => {
+  await withProjectsRoutesApp(t, {
+    token: 'viewer-list-invitations-token-123',
+    actorUserId: memberUserId,
+    scopes: ['projects:read'],
+    membershipRows: [{ role: 'viewer' }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/projects/${projectId}/invitations`,
+      headers: {
+        authorization: 'Bearer viewer-list-invitations-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_PROJECT_MEMBERSHIP_MANAGEMENT');
+  });
+});
+
+test('get project invitation claim allows unauthenticated claim lookups by token', async (t) => {
+  const claimToken = 'claim-token-123';
+
+  await withProjectsRoutesApp(t, {
+    token: 'unused-claim-token-lookup-123',
+    actorUserId: ownerUserId,
+    membershipRows: [],
+    onGetProjectInvitationClaim: (inputClaimToken) => ({
+      id: 'invite-claim-1',
+      projectId,
+      projectName: project.name,
+      projectSlug: project.slug,
+      email: 'pending@example.com',
+      claimToken: inputClaimToken,
+      role: 'viewer',
+      status: 'pending',
+      invitedBy: ownerUserId,
+      acceptedBy: null,
+      createdAt: '2026-03-26T00:00:00.000Z',
+      updatedAt: '2026-03-26T00:00:00.000Z',
+      acceptedAt: null,
+      cancelledAt: null,
+      invitedByUser: {
+        id: ownerUserId,
+        name: 'Owner User',
+        email: 'owner@example.com'
+      },
+      acceptedByUser: null
+    })
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/project-invitations/claim/${claimToken}`
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(JSON.parse(res.body).data.claimToken, claimToken);
+  });
+});
+
+test('accept project invitation claim allows authenticated users without project scopes', async (t) => {
+  let capturedInput: Record<string, unknown> | null = null;
+  const claimToken = 'claim-token-123';
+
+  await withProjectsRoutesApp(t, {
+    token: 'accept-invitation-token-123',
+    actorUserId: memberUserId,
+    scopes: [],
+    membershipRows: [],
+    onAcceptProjectInvitationClaim: (input) => {
+      capturedInput = input;
+      return {
+        id: 'invite-claim-1',
+        projectId,
+        projectName: project.name,
+        projectSlug: project.slug,
+        email: 'pending@example.com',
+        claimToken,
+        role: 'viewer',
+        status: 'accepted',
+        invitedBy: ownerUserId,
+        acceptedBy: memberUserId,
+        createdAt: '2026-03-26T00:00:00.000Z',
+        updatedAt: '2026-03-26T01:00:00.000Z',
+        acceptedAt: '2026-03-26T01:00:00.000Z',
+        cancelledAt: null,
+        invitedByUser: {
+          id: ownerUserId,
+          name: 'Owner User',
+          email: 'owner@example.com'
+        },
+        acceptedByUser: {
+          id: memberUserId,
+          name: 'Member User',
+          email: 'pending@example.com'
+        }
+      };
+    }
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/project-invitations/claim/${claimToken}/accept`,
+      headers: {
+        authorization: 'Bearer accept-invitation-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(capturedInput, {
+      claimToken,
+      actorUserId: memberUserId
+    });
+  });
+});
+
+test('accept project invitation claim rejects requests without an authenticated actor', async (t) => {
+  const claimToken = 'claim-token-123';
+
+  await withProjectsRoutesApp(t, {
+    token: 'unused-claim-accept-123',
+    actorUserId: ownerUserId,
+    membershipRows: []
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/project-invitations/claim/${claimToken}/accept`
+    });
+
+    assert.equal(res.statusCode, 401);
+    assert.equal(JSON.parse(res.body).code, 'UNAUTHORIZED');
+  });
+});
+
+test('invite project member allows owner/project-admin access with projects:write scope', async (t) => {
+  let capturedInput: Record<string, unknown> | null = null;
+
+  await withProjectsRoutesApp(t, {
+    token: 'owner-invite-member-token-123',
+    actorUserId: ownerUserId,
+    scopes: ['projects:write'],
+    membershipRows: [],
+    onInviteProjectMember: (input) => {
+      capturedInput = input;
+      return {
+        kind: 'invitation',
+        invitation: {
+          id: 'invite-2',
+          projectId,
+          email: 'member@example.com',
+          role: 'editor',
+          invitedBy: ownerUserId,
+          createdAt: '2026-03-26T00:00:00.000Z',
+          updatedAt: '2026-03-26T00:00:00.000Z',
+          invitedByUser: null
+        }
+      };
+    }
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/projects/${projectId}/members`,
+      headers: {
+        authorization: 'Bearer owner-invite-member-token-123'
+      },
+      payload: {
+        email: 'member@example.com',
+        role: 'editor'
+      }
+    });
+
+    assert.equal(res.statusCode, 201);
+    assert.deepEqual(capturedInput, {
+      projectId,
+      email: 'member@example.com',
+      role: 'editor',
+      invitedBy: ownerUserId
+    });
+  });
+});
+
+test('invite project member rejects project viewers without membership-management access', async (t) => {
+  await withProjectsRoutesApp(t, {
+    token: 'viewer-invite-member-token-123',
+    actorUserId: memberUserId,
+    scopes: ['projects:write'],
+    membershipRows: [{ role: 'viewer' }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/projects/${projectId}/members`,
+      headers: {
+        authorization: 'Bearer viewer-invite-member-token-123'
+      },
+      payload: {
+        email: 'member@example.com',
+        role: 'viewer'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_PROJECT_MEMBERSHIP_MANAGEMENT');
+  });
+});
+
+test('update project invitation allows owner/project-admin access with projects:write scope', async (t) => {
+  let capturedInput: Record<string, unknown> | null = null;
+  const invitationId = '00000000-0000-0000-0000-000000000055';
+
+  await withProjectsRoutesApp(t, {
+    token: 'owner-update-invitation-token-123',
+    actorUserId: ownerUserId,
+    scopes: ['projects:write'],
+    membershipRows: [],
+    onUpdateProjectInvitation: (input) => {
+      capturedInput = input;
+      return {
+        id: invitationId,
+        projectId,
+        email: 'pending@example.com',
+        role: 'admin',
+        invitedBy: ownerUserId,
+        createdAt: '2026-03-26T00:00:00.000Z',
+        updatedAt: '2026-03-26T01:00:00.000Z',
+        invitedByUser: {
+          id: ownerUserId,
+          name: 'Owner User',
+          email: 'owner@example.com'
+        }
+      };
+    }
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/v1/projects/${projectId}/invitations/${invitationId}`,
+      headers: {
+        authorization: 'Bearer owner-update-invitation-token-123'
+      },
+      payload: {
+        role: 'admin'
+      }
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(capturedInput, {
+      projectId,
+      invitationId,
+      role: 'admin',
+      invitedBy: ownerUserId
+    });
+  });
+});
+
+test('update project invitation rejects project viewers without membership-management access', async (t) => {
+  const invitationId = '00000000-0000-0000-0000-000000000055';
+
+  await withProjectsRoutesApp(t, {
+    token: 'viewer-update-invitation-token-123',
+    actorUserId: memberUserId,
+    scopes: ['projects:write'],
+    membershipRows: [{ role: 'viewer' }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/v1/projects/${projectId}/invitations/${invitationId}`,
+      headers: {
+        authorization: 'Bearer viewer-update-invitation-token-123'
+      },
+      payload: {
+        role: 'editor'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_PROJECT_MEMBERSHIP_MANAGEMENT');
+  });
+});
+
+test('remove project invitation allows owner/project-admin access with projects:write scope', async (t) => {
+  let capturedInput: Record<string, unknown> | null = null;
+  const invitationId = '00000000-0000-0000-0000-000000000055';
+
+  await withProjectsRoutesApp(t, {
+    token: 'owner-remove-invitation-token-123',
+    actorUserId: ownerUserId,
+    scopes: ['projects:write'],
+    membershipRows: [],
+    onRemoveProjectInvitation: (input) => {
+      capturedInput = input;
+    }
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/v1/projects/${projectId}/invitations/${invitationId}`,
+      headers: {
+        authorization: 'Bearer owner-remove-invitation-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 204);
+    assert.deepEqual(capturedInput, {
+      projectId,
+      invitationId
+    });
+  });
+});
+
+test('remove project invitation rejects project viewers without membership-management access', async (t) => {
+  const invitationId = '00000000-0000-0000-0000-000000000055';
+
+  await withProjectsRoutesApp(t, {
+    token: 'viewer-remove-invitation-token-123',
+    actorUserId: memberUserId,
+    scopes: ['projects:write'],
+    membershipRows: [{ role: 'viewer' }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/v1/projects/${projectId}/invitations/${invitationId}`,
+      headers: {
+        authorization: 'Bearer viewer-remove-invitation-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_PROJECT_MEMBERSHIP_MANAGEMENT');
+  });
+});
+
+test('redeliver project invitation allows owner/project-admin access with projects:write scope', async (t) => {
+  let capturedInput: Record<string, unknown> | null = null;
+  const invitationId = '00000000-0000-0000-0000-000000000055';
+
+  await withProjectsRoutesApp(t, {
+    token: 'owner-redeliver-invitation-token-123',
+    actorUserId: ownerUserId,
+    scopes: ['projects:write'],
+    membershipRows: [],
+    onRedeliverProjectInvitation: (input) => {
+      capturedInput = input;
+      return {
+        invitation: {
+          id: invitationId,
+          projectId,
+          email: 'pending@example.com',
+          claimToken: 'claim-token-123',
+          role: 'viewer',
+          status: 'pending',
+          invitedBy: ownerUserId,
+          acceptedBy: null,
+          createdAt: '2026-03-26T00:00:00.000Z',
+          updatedAt: '2026-03-26T01:00:00.000Z',
+          acceptedAt: null,
+          cancelledAt: null,
+          invitedByUser: {
+            id: ownerUserId,
+            name: 'Owner User',
+            email: 'owner@example.com'
+          },
+          acceptedByUser: null
+        },
+        delivery: {
+          status: 'delivered',
+          message: 'Invitation delivery request completed successfully.',
+          claimUrl: 'https://platform.example.com/invitations/claim-token-123',
+          attemptedAt: '2026-03-26T01:00:00.000Z'
+        }
+      };
+    }
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/projects/${projectId}/invitations/${invitationId}/redeliver`,
+      headers: {
+        authorization: 'Bearer owner-redeliver-invitation-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(capturedInput, {
+      projectId,
+      invitationId
+    });
+    assert.equal(JSON.parse(res.body).data.delivery.status, 'delivered');
+  });
+});
+
+test('redeliver project invitation rejects project viewers without membership-management access', async (t) => {
+  const invitationId = '00000000-0000-0000-0000-000000000055';
+
+  await withProjectsRoutesApp(t, {
+    token: 'viewer-redeliver-invitation-token-123',
+    actorUserId: memberUserId,
+    scopes: ['projects:write'],
+    membershipRows: [{ role: 'viewer' }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/projects/${projectId}/invitations/${invitationId}/redeliver`,
+      headers: {
+        authorization: 'Bearer viewer-redeliver-invitation-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_PROJECT_MEMBERSHIP_MANAGEMENT');
+  });
+});
+
+test('update project member role allows owner/project-admin access with projects:write scope', async (t) => {
+  let capturedInput: Record<string, unknown> | null = null;
+
+  await withProjectsRoutesApp(t, {
+    token: 'owner-update-member-token-123',
+    actorUserId: ownerUserId,
+    scopes: ['projects:write'],
+    membershipRows: [],
+    onUpdateProjectMember: (input) => {
+      capturedInput = input;
+      return {
+        id: 'member-3',
+        projectId,
+        userId: memberUserId,
+        role: 'admin',
+        invitedBy: ownerUserId,
+        createdAt: '2026-03-26T00:00:00.000Z',
+        updatedAt: '2026-03-26T01:00:00.000Z',
+        isOwner: false,
+        user: {
+          id: memberUserId,
+          name: 'Member User',
+          email: 'member@example.com'
+        }
+      };
+    }
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/v1/projects/${projectId}/members/${memberUserId}`,
+      headers: {
+        authorization: 'Bearer owner-update-member-token-123'
+      },
+      payload: {
+        role: 'admin'
+      }
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(capturedInput, {
+      projectId,
+      userId: memberUserId,
+      role: 'admin'
+    });
+  });
+});
+
+test('update project member role rejects project viewers without membership-management access', async (t) => {
+  await withProjectsRoutesApp(t, {
+    token: 'viewer-update-member-token-123',
+    actorUserId: memberUserId,
+    scopes: ['projects:write'],
+    membershipRows: [{ role: 'viewer' }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/v1/projects/${projectId}/members/${memberUserId}`,
+      headers: {
+        authorization: 'Bearer viewer-update-member-token-123'
+      },
+      payload: {
+        role: 'editor'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_PROJECT_MEMBERSHIP_MANAGEMENT');
+  });
+});
+
+test('remove project member allows owner/project-admin access with projects:write scope', async (t) => {
+  let capturedInput: Record<string, unknown> | null = null;
+
+  await withProjectsRoutesApp(t, {
+    token: 'owner-remove-member-token-123',
+    actorUserId: ownerUserId,
+    scopes: ['projects:write'],
+    membershipRows: [],
+    onRemoveProjectMember: (input) => {
+      capturedInput = input;
+    }
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/v1/projects/${projectId}/members/${memberUserId}`,
+      headers: {
+        authorization: 'Bearer owner-remove-member-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 204);
+    assert.deepEqual(capturedInput, {
+      projectId,
+      userId: memberUserId
+    });
+  });
+});
+
+test('remove project member rejects project viewers without membership-management access', async (t) => {
+  await withProjectsRoutesApp(t, {
+    token: 'viewer-remove-member-token-123',
+    actorUserId: memberUserId,
+    scopes: ['projects:write'],
+    membershipRows: [{ role: 'viewer' }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/v1/projects/${projectId}/members/${memberUserId}`,
+      headers: {
+        authorization: 'Bearer viewer-remove-member-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_PROJECT_MEMBERSHIP_MANAGEMENT');
+  });
+});
+
+test('transfer project ownership allows current owners with projects:write scope', async (t) => {
+  let capturedInput: Record<string, unknown> | null = null;
+
+  await withProjectsRoutesApp(t, {
+    token: 'owner-transfer-ownership-token-123',
+    actorUserId: ownerUserId,
+    scopes: ['projects:write'],
+    membershipRows: [],
+    onTransferProjectOwnership: (input) => {
+      capturedInput = input;
+      return {
+        id: 'member-3',
+        projectId,
+        userId: memberUserId,
+        role: 'admin',
+        invitedBy: ownerUserId,
+        createdAt: '2026-03-26T00:00:00.000Z',
+        updatedAt: '2026-03-26T01:00:00.000Z',
+        isOwner: true,
+        user: {
+          id: memberUserId,
+          name: 'Member User',
+          email: 'member@example.com'
+        }
+      };
+    }
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/projects/${projectId}/ownership`,
+      headers: {
+        authorization: 'Bearer owner-transfer-ownership-token-123'
+      },
+      payload: {
+        userId: memberUserId
+      }
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(capturedInput, {
+      projectId,
+      userId: memberUserId
+    });
+    assert.equal(JSON.parse(res.body).data.isOwner, true);
+  });
+});
+
+test('transfer project ownership rejects project-admin members who are not the current owner', async (t) => {
+  await withProjectsRoutesApp(t, {
+    token: 'project-admin-transfer-ownership-token-123',
+    actorUserId: memberUserId,
+    scopes: ['projects:write'],
+    membershipRows: [{ role: 'admin' }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/projects/${projectId}/ownership`,
+      headers: {
+        authorization: 'Bearer project-admin-transfer-ownership-token-123'
+      },
+      payload: {
+        userId: outsiderUserId
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_PROJECT_OWNERSHIP_TRANSFER');
   });
 });

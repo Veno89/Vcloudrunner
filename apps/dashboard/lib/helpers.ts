@@ -1,6 +1,14 @@
 import type { DeploymentStatus } from '@vcloudrunner/shared-types';
 
 import type { ApiProject } from './api';
+import type { DashboardRequestAuth } from './dashboard-session';
+
+export interface DashboardAuthRequirement {
+  kind: 'sign-in-required' | 'session-expired' | 'access-denied';
+  title: string;
+  description: string;
+  actionLabel: string;
+}
 
 export function deriveDomain(project: ApiProject): string {
   return `${project.slug}.apps.platform.example.com`;
@@ -67,25 +75,79 @@ export function createProjectErrorReason(statusCode: number | null): string {
   return 'api_unavailable';
 }
 
+export function getDashboardAuthRequirement(input: {
+  requestAuth: DashboardRequestAuth;
+  error?: unknown;
+}): DashboardAuthRequirement | null {
+  const statusCode = extractApiStatusCode(input.error);
+
+  if (!input.requestAuth.hasAnyAuth) {
+    return {
+      kind: 'sign-in-required',
+      title: 'Sign in required',
+      description: 'Live dashboard data now requires an authenticated session. Sign in with a DB-backed API token to load your projects, deployments, and logs.',
+      actionLabel: 'Open Sign In'
+    };
+  }
+
+  if (statusCode === 401) {
+    if (input.requestAuth.tokenSource === 'session-cookie') {
+      return {
+        kind: 'session-expired',
+        title: 'Session expired',
+        description: 'Your current dashboard session token was rejected. Sign in again to restore live access, or clear the expired session before retrying.',
+        actionLabel: 'Sign In Again'
+      };
+    }
+
+    if (input.requestAuth.tokenSource === 'server-env-token') {
+      return {
+        kind: 'sign-in-required',
+        title: 'Dashboard session required',
+        description: 'The shared API_AUTH_TOKEN fallback was rejected. Sign in with your own API token to keep working in this browser, or refresh the server fallback configuration.',
+        actionLabel: 'Sign In'
+      };
+    }
+
+    return {
+      kind: 'sign-in-required',
+      title: 'Sign in required',
+      description: 'The current dashboard request could not be authenticated. Sign in with a valid API token, or use explicit local dev auth only in local development.',
+      actionLabel: 'Open Sign In'
+    };
+  }
+
+  if (statusCode === 403) {
+    return {
+      kind: 'access-denied',
+      title: 'Access denied',
+      description: 'The current dashboard identity is authenticated, but it does not have access to these resources. Sign in with a different token or widen the token scopes and project access.',
+      actionLabel: 'Sign In With Another Token'
+    };
+  }
+
+  return null;
+}
+
 export function describeDashboardLiveDataFailure(input: {
   error?: unknown;
   hasDemoUserId: boolean;
   hasApiAuthToken: boolean;
 }): string {
   if (!input.hasApiAuthToken && !input.hasDemoUserId) {
-    return 'Live dashboard data requires authenticated API context. Sign in with a dashboard session token, configure API_AUTH_TOKEN as a server fallback, or use explicit local dev auth with NEXT_PUBLIC_DEMO_USER_ID.';
+    return 'Live dashboard data now requires an authenticated session. Sign in with a dashboard session token, use API_AUTH_TOKEN only as a temporary server fallback, or use explicit local dev auth with NEXT_PUBLIC_DEMO_USER_ID.';
   }
 
   const statusCode = extractApiStatusCode(input.error);
 
   if (statusCode === 401) {
     return input.hasApiAuthToken
-      ? 'The current dashboard bearer token was rejected. Sign in again with a valid token, or use the explicit dev-auth bypass only for local-only testing.'
-      : 'Live dashboard user context could not be resolved. Sign in with a valid token, configure API_AUTH_TOKEN as a fallback, or use the explicit dev-auth bypass only for local-only testing.';
+      ? 'The current dashboard session or server fallback token was rejected. Sign in again with a valid token, or use the explicit dev-auth bypass only for local-only testing.'
+      : 'Live dashboard user context could not be resolved. Sign in with a valid token, use API_AUTH_TOKEN only as a temporary server fallback, or use the explicit dev-auth bypass only for local-only testing.';
   }
 
   if (statusCode === 403) {
-    return 'Dashboard token is authenticated but lacks access to the requested resources. Check token scopes and user/project access.';
+    return 'The current dashboard identity is authenticated but lacks access to the requested resources. Check token scopes and user/project access.';
   }
 
   return input.error instanceof Error ? input.error.message : 'Failed to fetch live API data.';
@@ -118,20 +180,28 @@ export function describePartialDashboardDeploymentFailure(input: {
 
 export function describeDashboardProxyFailure(input: {
   feature: string;
-  hasApiAuthToken: boolean;
+  requestAuth: DashboardRequestAuth;
   statusCode?: number | null;
   upstreamMessage?: string | null;
 }): string {
-  if (!input.hasApiAuthToken) {
-    return `Dashboard ${input.feature} requires an authenticated dashboard session or bearer-token fallback. Sign in with a valid token, or enable the explicit dev-auth bypass only for local-only testing.`;
+  if (!input.requestAuth.hasAnyAuth) {
+    return `Dashboard ${input.feature} requires an authenticated session. Sign in with a valid per-user token, or use API_AUTH_TOKEN only as a temporary server fallback.`;
   }
 
   if (input.statusCode === 401) {
-    return `Dashboard ${input.feature} is unauthorized. The current dashboard bearer token was rejected, or the explicit dev-auth bypass is disabled.`;
+    if (input.requestAuth.tokenSource === 'session-cookie') {
+      return `Dashboard ${input.feature} is unauthorized because the current session expired or was revoked. Sign in again and retry.`;
+    }
+
+    if (input.requestAuth.tokenSource === 'server-env-token') {
+      return `Dashboard ${input.feature} is unauthorized because the shared API_AUTH_TOKEN fallback was rejected. Sign in with your own token or refresh the server fallback configuration.`;
+    }
+
+    return `Dashboard ${input.feature} is unauthorized. Sign in with a valid token, or use the explicit dev-auth bypass only for local-only testing.`;
   }
 
   if (input.statusCode === 403) {
-    return `Dashboard ${input.feature} is authenticated but lacks access to the requested project or deployment logs.`;
+    return `Dashboard ${input.feature} is authenticated but lacks access to the requested project or deployment logs. Sign in with a different token or widen the current token scopes.`;
   }
 
   if (input.statusCode !== null && input.statusCode !== undefined && input.statusCode >= 500) {
@@ -161,7 +231,7 @@ export function createEnvironmentVariableActionErrorMessage(
   }
 
   if (statusCode === 401) {
-    return 'Environment management is unauthorized. Check the active dashboard session, API_AUTH_TOKEN fallback, or the explicit local dev-auth bypass.';
+    return 'Environment management is unauthorized. Sign in again with an active dashboard session, use API_AUTH_TOKEN only as a temporary fallback, or use the explicit local dev-auth bypass.';
   }
 
   if (statusCode === 403) {

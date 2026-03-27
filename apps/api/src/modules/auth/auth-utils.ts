@@ -4,6 +4,8 @@ import { hasScope, type TokenScope } from './auth-scopes.js';
 import { requireAuthContext, type AuthContext } from '../../plugins/auth-context.js';
 import {
   ForbiddenProjectAccessError,
+  ForbiddenProjectMembershipManagementError,
+  ForbiddenProjectOwnershipTransferError,
   ForbiddenTokenScopeError,
   ForbiddenUserAccessError,
   ProjectNotFoundError
@@ -58,4 +60,58 @@ export async function ensureProjectAccess(
   }
 
   return project;
+}
+
+export async function ensureProjectMembershipManagementAccess(
+  projectsService: ProjectsService,
+  input: { projectId: string; actor: ActorContext }
+) {
+  const project = await projectsService.getProjectById(input.projectId);
+  if (!project) {
+    throw new ProjectNotFoundError();
+  }
+
+  if (input.actor.role === 'admin' || project.userId === input.actor.userId) {
+    return project;
+  }
+
+  const membership = await projectsService.getMembership(
+    input.projectId,
+    input.actor.userId
+  );
+
+  if (!membership) {
+    throw new ForbiddenProjectAccessError();
+  }
+
+  if (membership.role !== 'admin') {
+    throw new ForbiddenProjectMembershipManagementError();
+  }
+
+  return project;
+}
+
+export async function ensureProjectOwnershipTransferAccess(
+  projectsService: ProjectsService,
+  input: { projectId: string; actor: ActorContext }
+) {
+  const project = await projectsService.getProjectById(input.projectId);
+  if (!project) {
+    throw new ProjectNotFoundError();
+  }
+
+  if (input.actor.role === 'admin' || project.userId === input.actor.userId) {
+    return project;
+  }
+
+  const membership = await projectsService.getMembership(
+    input.projectId,
+    input.actor.userId
+  );
+
+  if (!membership) {
+    throw new ForbiddenProjectAccessError();
+  }
+
+  throw new ForbiddenProjectOwnershipTransferError();
 }

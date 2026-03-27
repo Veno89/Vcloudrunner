@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DashboardUnavailableState } from '@/components/dashboard-unavailable-state';
 import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,13 +12,13 @@ import { FormSubmitButton } from '@/components/form-submit-button';
 import { ProjectSubnav } from '@/components/project-subnav';
 import { PageLayout } from '@/components/page-layout';
 import { EmptyState } from '@/components/empty-state';
-import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
 import {
   apiAuthToken,
   fetchProjectsForCurrentUser,
   resolveViewerContext,
   fetchEnvironmentVariables,
 } from '@/lib/api';
+import { getDashboardRequestAuth } from '@/lib/dashboard-session';
 import { describeDashboardLiveDataFailure } from '@/lib/helpers';
 import {
   saveProjectEnvironmentVariableAction,
@@ -35,17 +36,16 @@ interface ProjectEnvironmentPageProps {
 }
 
 export default async function ProjectEnvironmentPage({ params, searchParams }: ProjectEnvironmentPageProps) {
+  const requestAuth = getDashboardRequestAuth();
   const { viewer, error: viewerContextError } = await resolveViewerContext();
 
   if (!viewer) {
     return (
       <PageLayout>
-        <LiveDataUnavailableState
-          description={describeDashboardLiveDataFailure({
-            ...(viewerContextError ? { error: viewerContextError } : {}),
-            hasDemoUserId: false,
-            hasApiAuthToken: Boolean(apiAuthToken)
-          })}
+        <DashboardUnavailableState
+          requestAuth={requestAuth}
+          {...(viewerContextError ? { error: viewerContextError } : {})}
+          redirectTo={`/projects/${params.id}/environment`}
         />
       </PageLayout>
     );
@@ -185,13 +185,11 @@ export default async function ProjectEnvironmentPage({ params, searchParams }: P
   } catch (error) {
     return (
       <PageLayout>
-        <LiveDataUnavailableState
+        <DashboardUnavailableState
           title="Project environment unavailable"
-          description={describeDashboardLiveDataFailure({
-            error,
-            hasDemoUserId: Boolean(viewer.userId),
-            hasApiAuthToken: Boolean(apiAuthToken)
-          })}
+          requestAuth={requestAuth}
+          error={error}
+          redirectTo={`/projects/${params.id}/environment`}
         />
       </PageLayout>
     );

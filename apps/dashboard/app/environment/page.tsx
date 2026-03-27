@@ -9,7 +9,7 @@ import { ActionToast } from '@/components/action-toast';
 import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { PageLayout } from '@/components/page-layout';
 import { EmptyState } from '@/components/empty-state';
-import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
+import { DashboardUnavailableState } from '@/components/dashboard-unavailable-state';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import {
   apiAuthToken,
@@ -17,6 +17,7 @@ import {
   resolveViewerContext,
   fetchEnvironmentVariables,
 } from '@/lib/api';
+import { getDashboardRequestAuth } from '@/lib/dashboard-session';
 import { describeDashboardLiveDataFailure } from '@/lib/helpers';
 import Link from 'next/link';
 import { saveEnvironmentVariableAction, removeEnvironmentVariableAction } from './actions';
@@ -30,47 +31,68 @@ interface EnvironmentPageProps {
 }
 
 export default async function EnvironmentPage({ searchParams }: EnvironmentPageProps) {
+  const requestAuth = getDashboardRequestAuth();
   let projects: Array<{ id: string; name: string }> = [];
   let environmentVariables: Array<{ key: string; value: string }> = [];
   let selectedProjectId = '';
   let selectedProjectName = '';
+  let liveDataError: unknown | null = null;
   let liveDataErrorMessage: string | null = null;
   let environmentReadErrorMessage: string | null = null;
   const { viewer, error: viewerContextError } = await resolveViewerContext();
 
-  if (viewer) {
-    try {
-      const apiProjects = await fetchProjectsForCurrentUser();
-      projects = apiProjects.map((p) => ({ id: p.id, name: p.name }));
+  if (!viewer) {
+    return (
+      <PageLayout>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Environment Variables</h1>
+          <p className="text-sm text-muted-foreground">
+            Global shortcut for environment management. Prefer project-scoped view for day-to-day work.
+          </p>
+        </div>
 
-      const selected =
-        apiProjects.find((p) => p.id === searchParams?.envProjectId) ?? apiProjects[0];
+        <ActionToast
+          status={searchParams?.status}
+          message={searchParams?.message}
+          fallbackErrorMessage="Environment variable operation failed."
+        />
 
-      if (selected) {
-        selectedProjectId = selected.id;
-        selectedProjectName = selected.name;
-        try {
-          const envItems = await fetchEnvironmentVariables(selected.id);
-          environmentVariables = envItems.map((item) => ({ key: item.key, value: item.value }));
-        } catch (error) {
-          environmentReadErrorMessage = describeDashboardLiveDataFailure({
-            error,
-            hasDemoUserId: Boolean(viewer.userId),
-            hasApiAuthToken: Boolean(apiAuthToken)
-          });
-        }
+        <DashboardUnavailableState
+          title="Environment management unavailable"
+          requestAuth={requestAuth}
+          {...(viewerContextError ? { error: viewerContextError } : {})}
+          redirectTo="/environment"
+        />
+      </PageLayout>
+    );
+  }
+
+  try {
+    const apiProjects = await fetchProjectsForCurrentUser();
+    projects = apiProjects.map((p) => ({ id: p.id, name: p.name }));
+
+    const selected =
+      apiProjects.find((p) => p.id === searchParams?.envProjectId) ?? apiProjects[0];
+
+    if (selected) {
+      selectedProjectId = selected.id;
+      selectedProjectName = selected.name;
+      try {
+        const envItems = await fetchEnvironmentVariables(selected.id);
+        environmentVariables = envItems.map((item) => ({ key: item.key, value: item.value }));
+      } catch (error) {
+        environmentReadErrorMessage = describeDashboardLiveDataFailure({
+          error,
+          hasDemoUserId: Boolean(viewer.userId),
+          hasApiAuthToken: Boolean(apiAuthToken)
+        });
       }
-    } catch (error) {
-      liveDataErrorMessage = describeDashboardLiveDataFailure({
-        error,
-        hasDemoUserId: Boolean(viewer.userId),
-        hasApiAuthToken: Boolean(apiAuthToken)
-      });
     }
-  } else {
+  } catch (error) {
+    liveDataError = error;
     liveDataErrorMessage = describeDashboardLiveDataFailure({
-      ...(viewerContextError ? { error: viewerContextError } : {}),
-      hasDemoUserId: false,
+      error,
+      hasDemoUserId: Boolean(viewer.userId),
       hasApiAuthToken: Boolean(apiAuthToken)
     });
   }
@@ -205,11 +227,13 @@ export default async function EnvironmentPage({ searchParams }: EnvironmentPageP
           </div>
         </>
       ) : liveDataErrorMessage ? (
-        <LiveDataUnavailableState
+        <DashboardUnavailableState
           title="Environment management unavailable"
-          description={liveDataErrorMessage}
+          requestAuth={requestAuth}
+          {...(liveDataError ? { error: liveDataError } : {})}
           actionHref="/projects"
           actionLabel="Open Projects"
+          redirectTo="/environment"
         />
       ) : (
         <EmptyState
