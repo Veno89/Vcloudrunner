@@ -7,15 +7,19 @@ import { createViewerContextFailureRedirect } from '@/lib/dashboard-action-auth'
 import { buildDashboardAccountSetupHref } from '@/lib/dashboard-auth-navigation';
 import {
   createProject,
+  createProjectDomain,
   createDeployment,
+  fetchProjectDomains,
   inviteProjectMember,
   redeliverProjectInvitation,
+  removeProjectDomain,
   removeProjectInvitation,
   removeProjectMember,
   resolveViewerContext,
   transferProjectOwnership,
   updateProjectInvitation,
-  updateProjectMemberRole
+  updateProjectMemberRole,
+  verifyProjectDomain
 } from '@/lib/api';
 import {
   slugifyProjectName,
@@ -240,6 +244,118 @@ function createProjectInvitationRedeliveryErrorMessage(error: unknown): string {
   return 'Failed to redeliver pending invitation.';
 }
 
+function createProjectDomainErrorMessage(error: unknown): string {
+  const statusCode = extractApiStatusCode(error);
+
+  if (statusCode === 401) {
+    return 'Project domain management is unauthorized. Sign in again with an active dashboard session and retry.';
+  }
+
+  if (statusCode === 403) {
+    return 'You do not have permission to manage project domains for this project.';
+  }
+
+  if (statusCode === 404) {
+    return 'That project or domain record is no longer available.';
+  }
+
+  if (statusCode === 409) {
+    return 'That domain is already in use or reserved by the platform.';
+  }
+
+  if (statusCode === 400) {
+    return 'Enter a valid hostname without protocol or path, like api.example.com.';
+  }
+
+  return 'Failed to save project domain.';
+}
+
+function createProjectDomainRemovalErrorMessage(error: unknown): string {
+  const statusCode = extractApiStatusCode(error);
+
+  if (statusCode === 401) {
+    return 'Project domain removal is unauthorized. Sign in again with an active dashboard session and retry.';
+  }
+
+  if (statusCode === 403) {
+    return 'You do not have permission to remove project domains for this project.';
+  }
+
+  if (statusCode === 404) {
+    return 'That domain claim no longer exists.';
+  }
+
+  if (statusCode === 409) {
+    return 'Default platform hosts and domains attached to queued or building deployments cannot be removed until that deployment finishes or is cancelled.';
+  }
+
+  if (statusCode === 503) {
+    return 'The live route could not be detached right now. Retry shortly.';
+  }
+
+  return 'Failed to remove project domain.';
+}
+
+function createProjectDomainDiagnosticsRefreshErrorMessage(error: unknown): string {
+  const statusCode = extractApiStatusCode(error);
+
+  if (statusCode === 401) {
+    return 'Project domain diagnostics refresh is unauthorized. Sign in again with an active dashboard session and retry.';
+  }
+
+  if (statusCode === 403) {
+    return 'You do not have permission to inspect project domains for this project.';
+  }
+
+  if (statusCode === 404) {
+    return 'That project is no longer available.';
+  }
+
+  return 'Failed to refresh DNS and TLS checks.';
+}
+
+function createProjectDomainVerificationErrorMessage(error: unknown): string {
+  const statusCode = extractApiStatusCode(error);
+
+  if (statusCode === 401) {
+    return 'Project domain verification is unauthorized. Sign in again with an active dashboard session and retry.';
+  }
+
+  if (statusCode === 403) {
+    return 'You do not have permission to verify project domain claims for this project.';
+  }
+
+  if (statusCode === 404) {
+    return 'That domain claim no longer exists.';
+  }
+
+  return 'Failed to verify the project domain claim.';
+}
+
+function createProjectDomainVerificationSuccessMessage(input: {
+  host: string;
+  verificationStatus?: 'managed' | 'verified' | 'pending' | 'mismatch' | 'unknown';
+  claimState?: string;
+}) {
+  if (input.verificationStatus === 'verified' && input.claimState === 'healthy') {
+    return `Verified ${input.host}; claim, routing, and HTTPS now look healthy.`;
+  }
+
+  if (input.verificationStatus === 'verified') {
+    return `Verified ownership challenge for ${input.host}. Follow the next DNS/runtime step shown on the page.`;
+  }
+
+  if (input.verificationStatus === 'pending') {
+    return `The ownership TXT record for ${input.host} is still pending. Publish it and verify again.`;
+  }
+
+  if (input.verificationStatus === 'mismatch') {
+    return `The ownership TXT record for ${input.host} does not match the expected verification value yet.`;
+  }
+
+  return `Ownership verification for ${input.host} could not be completed right now. Retry shortly.`;
+}
+
 function createInvitationDeliverySuccessMessage(input: {
   email: string;
   delivery: {
@@ -323,6 +439,210 @@ export async function inviteProjectMemberAction(formData: FormData) {
     );
   } catch (error) {
     redirect(`${returnPath}?status=error&message=${encodeURIComponent(createProjectMemberInviteErrorMessage(error))}`);
+  }
+}
+
+export async function createProjectDomainAction(formData: FormData) {
+  const requestAuth = getDashboardRequestAuth();
+  const { viewer, error: viewerContextError } = await resolveViewerContext();
+  const projectIdValue = formData.get('projectId');
+  const returnPath = normalizeActionReturnPath(formData.get('returnPath'));
+
+  if (!viewer) {
+    redirect(
+      createViewerContextFailureRedirect({
+        requestAuth,
+        ...(viewerContextError ? { error: viewerContextError } : {}),
+        redirectTo: returnPath,
+        fallbackPath: returnPath,
+        fallbackMessage: 'Project domain management is temporarily unavailable. Check dashboard/API connectivity and retry.'
+      })
+    );
+    return;
+  }
+
+  if (!viewer.user) {
+    redirect(buildDashboardAccountSetupHref({
+      redirectTo: returnPath
+    }));
+  }
+
+  if (typeof projectIdValue !== 'string' || projectIdValue.length === 0) {
+    redirect(`${returnPath}?status=error&message=Invalid+project+domain+request`);
+    return;
+  }
+
+  const host = typeof formData.get('host') === 'string' ? String(formData.get('host')).trim() : '';
+  if (host.length === 0) {
+    redirect(`${returnPath}?status=error&message=Enter+a+valid+domain+host`);
+    return;
+  }
+
+  try {
+    const domain = await createProjectDomain(projectIdValue, { host });
+
+    revalidatePath(returnPath);
+    revalidatePath(`/projects/${projectIdValue}`);
+    revalidatePath('/projects');
+    redirect(
+      `${returnPath}?status=success&message=${encodeURIComponent(`Added ${domain.host} as a pending custom domain claim`)}` 
+    );
+  } catch (error) {
+    redirect(`${returnPath}?status=error&message=${encodeURIComponent(createProjectDomainErrorMessage(error))}`);
+  }
+}
+
+export async function removeProjectDomainAction(formData: FormData) {
+  const requestAuth = getDashboardRequestAuth();
+  const { viewer, error: viewerContextError } = await resolveViewerContext();
+  const projectIdValue = formData.get('projectId');
+  const domainIdValue = formData.get('domainId');
+  const domainHostValue = formData.get('domainHost');
+  const returnPath = normalizeActionReturnPath(formData.get('returnPath'));
+
+  if (!viewer) {
+    redirect(
+      createViewerContextFailureRedirect({
+        requestAuth,
+        ...(viewerContextError ? { error: viewerContextError } : {}),
+        redirectTo: returnPath,
+        fallbackPath: returnPath,
+        fallbackMessage: 'Project domain management is temporarily unavailable. Check dashboard/API connectivity and retry.'
+      })
+    );
+    return;
+  }
+
+  if (!viewer.user) {
+    redirect(buildDashboardAccountSetupHref({
+      redirectTo: returnPath
+    }));
+  }
+
+  if (
+    typeof projectIdValue !== 'string'
+    || projectIdValue.length === 0
+    || typeof domainIdValue !== 'string'
+    || domainIdValue.length === 0
+  ) {
+    redirect(`${returnPath}?status=error&message=Invalid+project+domain+removal`);
+    return;
+  }
+
+  const domainLabel =
+    typeof domainHostValue === 'string' && domainHostValue.trim().length > 0
+      ? domainHostValue.trim()
+      : 'domain';
+
+  try {
+    await removeProjectDomain(projectIdValue, domainIdValue);
+
+    revalidatePath(returnPath);
+    revalidatePath(`/projects/${projectIdValue}`);
+    revalidatePath('/projects');
+    redirect(
+      `${returnPath}?status=success&message=${encodeURIComponent(`Removed ${domainLabel} from this project`)}` 
+    );
+  } catch (error) {
+    redirect(`${returnPath}?status=error&message=${encodeURIComponent(createProjectDomainRemovalErrorMessage(error))}`);
+  }
+}
+
+export async function refreshProjectDomainDiagnosticsAction(formData: FormData) {
+  const requestAuth = getDashboardRequestAuth();
+  const { viewer, error: viewerContextError } = await resolveViewerContext();
+  const projectIdValue = formData.get('projectId');
+  const returnPath = normalizeActionReturnPath(formData.get('returnPath'));
+
+  if (!viewer) {
+    redirect(
+      createViewerContextFailureRedirect({
+        requestAuth,
+        ...(viewerContextError ? { error: viewerContextError } : {}),
+        redirectTo: returnPath,
+        fallbackPath: returnPath,
+        fallbackMessage: 'Project domain diagnostics are temporarily unavailable. Check dashboard/API connectivity and retry.'
+      })
+    );
+    return;
+  }
+
+  if (typeof projectIdValue !== 'string' || projectIdValue.length === 0) {
+    redirect(`${returnPath}?status=error&message=Invalid+project+domain+diagnostics+request`);
+    return;
+  }
+
+  try {
+    await fetchProjectDomains(projectIdValue, {
+      includeDiagnostics: true
+    });
+
+    revalidatePath(returnPath);
+    revalidatePath(`/projects/${projectIdValue}`);
+    revalidatePath('/projects');
+    redirect(`${returnPath}?status=success&message=${encodeURIComponent('Refreshed DNS and TLS checks for this project')}`);
+  } catch (error) {
+    redirect(`${returnPath}?status=error&message=${encodeURIComponent(createProjectDomainDiagnosticsRefreshErrorMessage(error))}`);
+  }
+}
+
+export async function verifyProjectDomainClaimAction(formData: FormData) {
+  const requestAuth = getDashboardRequestAuth();
+  const { viewer, error: viewerContextError } = await resolveViewerContext();
+  const projectIdValue = formData.get('projectId');
+  const domainIdValue = formData.get('domainId');
+  const domainHostValue = formData.get('domainHost');
+  const returnPath = normalizeActionReturnPath(formData.get('returnPath'));
+
+  if (!viewer) {
+    redirect(
+      createViewerContextFailureRedirect({
+        requestAuth,
+        ...(viewerContextError ? { error: viewerContextError } : {}),
+        redirectTo: returnPath,
+        fallbackPath: returnPath,
+        fallbackMessage: 'Project domain verification is temporarily unavailable. Check dashboard/API connectivity and retry.'
+      })
+    );
+    return;
+  }
+
+  if (!viewer.user) {
+    redirect(buildDashboardAccountSetupHref({
+      redirectTo: returnPath
+    }));
+  }
+
+  if (
+    typeof projectIdValue !== 'string'
+    || projectIdValue.length === 0
+    || typeof domainIdValue !== 'string'
+    || domainIdValue.length === 0
+  ) {
+    redirect(`${returnPath}?status=error&message=Invalid+project+domain+verification+request`);
+    return;
+  }
+
+  const domainLabel =
+    typeof domainHostValue === 'string' && domainHostValue.trim().length > 0
+      ? domainHostValue.trim()
+      : 'domain';
+
+  try {
+    const domain = await verifyProjectDomain(projectIdValue, domainIdValue);
+
+    revalidatePath(returnPath);
+    revalidatePath(`/projects/${projectIdValue}`);
+    revalidatePath('/projects');
+    redirect(
+      `${returnPath}?status=success&message=${encodeURIComponent(createProjectDomainVerificationSuccessMessage({
+        host: domain.host || domainLabel,
+        verificationStatus: domain.verificationStatus,
+        claimState: domain.claimState
+      }))}`
+    );
+  } catch (error) {
+    redirect(`${returnPath}?status=error&message=${encodeURIComponent(createProjectDomainVerificationErrorMessage(error))}`);
   }
 }
 

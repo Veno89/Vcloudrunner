@@ -25,6 +25,7 @@ import { AuthService } from '../modules/auth/auth.service.js';
 import { errorHandlerPlugin } from '../plugins/error-handler.js';
 import { redisConnection } from '../queue/redis.js';
 import { AlertMonitorService } from '../services/alert-monitor.service.js';
+import { ProjectDomainDiagnosticsRefreshService } from '../services/project-domain-diagnostics-refresh.service.js';
 import { WebhookProjectInvitationDeliveryService } from '../services/project-invitation-delivery.service.js';
 
 interface DeploymentQueueClient {
@@ -41,11 +42,17 @@ type AlertMonitorClient = Pick<
   'start' | 'stop' | 'getQueueMetrics' | 'getWorkerHealth'
 >;
 
+type ProjectDomainDiagnosticsRefreshClient = Pick<
+  ProjectDomainDiagnosticsRefreshService,
+  'start' | 'stop'
+>;
+
 interface BuildServerDependencies {
   dbClient?: DbClient;
   deploymentQueue?: DeploymentQueueClient;
   redisClient?: RedisClient;
   alertMonitor?: AlertMonitorClient;
+  projectDomainDiagnosticsRefresh?: ProjectDomainDiagnosticsRefreshClient;
 }
 
 type StatusCodeError = Error & {
@@ -94,6 +101,8 @@ export const buildServer = (dependencies: BuildServerDependencies = {}) => {
     dbClient,
     new WebhookProjectInvitationDeliveryService()
   );
+  const projectDomainDiagnosticsRefresh = dependencies.projectDomainDiagnosticsRefresh
+    ?? new ProjectDomainDiagnosticsRefreshService(projectsService, app.log);
   const apiTokensService = new ApiTokensService(dbClient);
   const deploymentsService = new DeploymentsService(dbClient, deploymentQueueClient);
   const environmentService = new EnvironmentService(dbClient);
@@ -151,10 +160,12 @@ export const buildServer = (dependencies: BuildServerDependencies = {}) => {
 
   app.addHook('onClose', async () => {
     alertMonitor.stop();
+    projectDomainDiagnosticsRefresh.stop();
     await Promise.allSettled([deploymentQueue.close(), redisClient.quit()]);
   });
 
   alertMonitor.start();
+  projectDomainDiagnosticsRefresh.start();
 
   app.register(async (routeApp) => {
     routeApp.get('/health', async () => ({ status: 'ok' }));

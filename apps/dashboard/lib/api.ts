@@ -3,7 +3,9 @@ import { getDashboardRequestAuth, type DashboardRequestAuth } from './dashboard-
 
 import type {
   DeploymentStatus,
-  ProjectServiceDefinition
+  ProjectServiceDefinition,
+  ProjectServiceExposure,
+  ProjectServiceKind
 } from '@vcloudrunner/shared-types';
 
 export interface ApiProject {
@@ -83,6 +85,73 @@ export type ApiProjectInviteResult =
 export interface ApiProjectInvitationRedeliveryResult {
   invitation: ApiProjectInvitation;
   delivery: ApiProjectInvitationDelivery;
+}
+
+export interface ApiProjectDomainEvent {
+  id: string;
+  projectId: string;
+  domainId: string;
+  kind: 'ownership' | 'tls';
+  previousStatus: string | null;
+  nextStatus: string;
+  detail: string;
+  createdAt: string;
+}
+
+export interface ApiProjectDomain {
+  id: string;
+  projectId: string;
+  deploymentId: string | null;
+  host: string;
+  targetPort: number;
+  createdAt: string;
+  updatedAt: string;
+  deploymentStatus: DeploymentStatus | null;
+  runtimeUrl: string | null;
+  serviceName: string | null;
+  serviceKind: ProjectServiceKind | null;
+  serviceExposure: ProjectServiceExposure | null;
+  routeStatus: 'active' | 'degraded' | 'stale' | 'pending';
+  statusDetail: string;
+  verificationStatus?: 'managed' | 'verified' | 'pending' | 'mismatch' | 'unknown';
+  verificationDetail?: string;
+  verificationCheckedAt?: string | null;
+  verificationStatusChangedAt?: string | null;
+  verificationVerifiedAt?: string | null;
+  ownershipStatus?: 'managed' | 'verified' | 'pending' | 'mismatch' | 'unknown';
+  ownershipDetail?: string;
+  tlsStatus?: 'ready' | 'pending' | 'invalid' | 'unknown';
+  tlsDetail?: string;
+  diagnosticsCheckedAt?: string | null;
+  diagnosticsFreshnessStatus?: 'fresh' | 'stale' | 'unchecked';
+  diagnosticsFreshnessDetail?: string;
+  claimState?:
+    | 'managed'
+    | 'publish-verification-record'
+    | 'fix-verification-record'
+    | 'configure-dns'
+    | 'fix-dns'
+    | 'refresh-checks'
+    | 'redeploy-public-service'
+    | 'wait-for-https'
+    | 'review-https'
+    | 'healthy';
+  claimTitle?: string;
+  claimDetail?: string;
+  claimDnsRecordType?: 'CNAME' | 'TXT' | null;
+  claimDnsRecordName?: string | null;
+  claimDnsRecordValue?: string | null;
+  verificationDnsRecordType?: 'TXT' | null;
+  verificationDnsRecordName?: string | null;
+  verificationDnsRecordValue?: string | null;
+  routingDnsRecordType?: 'CNAME' | null;
+  routingDnsRecordName?: string | null;
+  routingDnsRecordValue?: string | null;
+  ownershipStatusChangedAt?: string | null;
+  tlsStatusChangedAt?: string | null;
+  ownershipVerifiedAt?: string | null;
+  tlsReadyAt?: string | null;
+  recentEvents?: ApiProjectDomainEvent[];
 }
 
 export interface ApiDeployment {
@@ -507,6 +576,58 @@ export async function createProject(input: CreateProjectInput): Promise<ApiProje
 export async function fetchProjectMembers(projectId: string): Promise<ApiProjectMember[]> {
   const response = await fetchJson<ApiDataResponse<ApiProjectMember[]>>(
     `/v1/projects/${projectId}/members`
+  );
+
+  return response.data;
+}
+
+interface FetchProjectDomainsOptions {
+  includeDiagnostics?: boolean;
+}
+
+export async function fetchProjectDomains(
+  projectId: string,
+  options: FetchProjectDomainsOptions = {}
+): Promise<ApiProjectDomain[]> {
+  const query = new URLSearchParams();
+  if (options.includeDiagnostics) {
+    query.set('includeDiagnostics', 'true');
+  }
+
+  const response = await fetchJson<ApiDataResponse<ApiProjectDomain[]>>(
+    `/v1/projects/${projectId}/domains${query.size > 0 ? `?${query.toString()}` : ''}`
+  );
+
+  return response.data;
+}
+
+export async function createProjectDomain(
+  projectId: string,
+  input: {
+    host: string;
+  }
+): Promise<ApiProjectDomain> {
+  const response = await postJson<ApiDataResponse<ApiProjectDomain>>(
+    `/v1/projects/${projectId}/domains`,
+    {
+      host: input.host
+    }
+  );
+
+  return response.data;
+}
+
+export async function removeProjectDomain(projectId: string, domainId: string): Promise<void> {
+  await deleteRequest(`/v1/projects/${projectId}/domains/${domainId}`);
+}
+
+export async function verifyProjectDomain(
+  projectId: string,
+  domainId: string
+): Promise<ApiProjectDomain> {
+  const response = await postJson<ApiDataResponse<ApiProjectDomain>>(
+    `/v1/projects/${projectId}/domains/${domainId}/verify`,
+    {}
   );
 
   return response.data;

@@ -6,6 +6,7 @@ import {
   fetchProjectsForCurrentUser,
   resolveViewerContext,
   fetchDeploymentsForProject,
+  fetchProjectDomains,
   fetchQueueHealth,
   fetchWorkerHealth,
   type ApiProject,
@@ -13,13 +14,13 @@ import {
 } from './api';
 import { getDashboardRequestAuth } from './dashboard-session';
 import {
-  deriveDomain,
   getDashboardAuthRequirement,
   describeDashboardLiveDataFailure,
   describePartialDashboardDeploymentFailure,
   hasRequestedCancellation,
   type DashboardAuthRequirement
 } from './helpers';
+import { summarizeProjectDomains } from './project-domains';
 import {
   type DashboardStatusBadgeVariant,
   composeProjectStatus,
@@ -32,6 +33,7 @@ export interface MappedProject {
   name: string;
   repo: string;
   domain: string;
+  routeStatusSummary?: string;
   serviceSummary: string;
   serviceStatusSummary?: string;
   status: string;
@@ -156,6 +158,9 @@ export async function loadDashboardData(): Promise<DashboardData> {
         return items.map((deployment) => ({ deployment, project }));
       })
     );
+    const projectDomainsResult = await Promise.allSettled(
+      apiProjects.map(async (project) => fetchProjectDomains(project.id))
+    );
     const deploymentGroups = deploymentGroupsResult
       .filter((result): result is PromiseFulfilledResult<SortedDeploymentItem[]> => result.status === 'fulfilled')
       .map((result) => result.value);
@@ -178,6 +183,9 @@ export async function loadDashboardData(): Promise<DashboardData> {
     const deploymentGroupResultsByProjectId = new Map(
       apiProjects.map((project, index) => [project.id, deploymentGroupsResult[index]])
     );
+    const projectDomainsResultsByProjectId = new Map(
+      apiProjects.map((project, index) => [project.id, projectDomainsResult[index]])
+    );
 
     const projects = apiProjects.map((project) => {
       const publicService = getPrimaryProjectService(project.services);
@@ -186,13 +194,23 @@ export async function loadDashboardData(): Promise<DashboardData> {
           ? `1 service · public: ${publicService.name}`
           : `${project.services.length} services · public: ${publicService.name}`;
 
+      const projectDomainsStatus = projectDomainsResultsByProjectId.get(project.id);
+      const routeSummary = summarizeProjectDomains({
+        project,
+        domains:
+          projectDomainsStatus?.status === 'fulfilled'
+            ? projectDomainsStatus.value
+            : [],
+        domainsUnavailable: projectDomainsStatus?.status === 'rejected'
+      });
       const projectDeploymentResult = deploymentGroupResultsByProjectId.get(project.id);
       if (!projectDeploymentResult || projectDeploymentResult.status === 'rejected') {
         return {
           id: project.id,
           name: project.name,
           repo: project.gitRepositoryUrl,
-          domain: deriveDomain(project),
+          domain: routeSummary.host,
+          routeStatusSummary: routeSummary.label,
           serviceSummary,
           status: 'history unavailable',
           statusVariant: 'warning' as const,
@@ -210,7 +228,8 @@ export async function loadDashboardData(): Promise<DashboardData> {
         id: project.id,
         name: project.name,
         repo: project.gitRepositoryUrl,
-        domain: deriveDomain(project),
+        domain: routeSummary.host,
+        routeStatusSummary: routeSummary.label,
         serviceSummary,
         serviceStatusSummary: formatProjectServiceStatusSummary(projectServiceStatuses),
         status: composedProjectStatus.label,

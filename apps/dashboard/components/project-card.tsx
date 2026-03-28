@@ -6,6 +6,7 @@ interface ProjectCardProps {
   name: string;
   repo: string;
   domain: string;
+  routeStatusSummary?: string;
   serviceSummary?: string;
   serviceStatusSummary?: string;
   status: string;
@@ -16,6 +17,7 @@ export function ProjectCard({
   name,
   repo,
   domain,
+  routeStatusSummary,
   serviceSummary,
   serviceStatusSummary,
   status,
@@ -32,6 +34,9 @@ export function ProjectCard({
       <CardContent className="space-y-1 text-xs">
         <p className="truncate text-muted-foreground">{repo}</p>
         <p className="truncate text-primary">{domain}</p>
+        {routeStatusSummary ? (
+          <p className="truncate text-muted-foreground">{routeStatusSummary}</p>
+        ) : null}
         {serviceSummary ? <p className="truncate text-muted-foreground">{serviceSummary}</p> : null}
         {serviceStatusSummary ? (
           <p className="truncate text-muted-foreground">{serviceStatusSummary}</p>

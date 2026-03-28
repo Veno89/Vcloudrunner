@@ -19,6 +19,7 @@ import { ActionToast } from '@/components/action-toast';
 import { PageLayout } from '@/components/page-layout';
 import {
   apiAuthToken,
+  fetchProjectDomains,
   fetchProjectsForCurrentUser,
   fetchDeploymentsForProject,
   fetchProjectInvitations,
@@ -40,6 +41,7 @@ import {
   createProjectServiceStatuses,
   formatProjectServiceStatusBreakdown
 } from '@/lib/project-service-status';
+import { summarizeProjectDomains } from '@/lib/project-domains';
 import { deployProjectAction } from '@/app/deployments/actions';
 import {
   inviteProjectMemberAction,
@@ -86,10 +88,11 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
       notFound();
     }
 
-    const [deploymentsResult, environmentVariablesResult, projectMembersResult] = await Promise.allSettled([
+    const [deploymentsResult, environmentVariablesResult, projectMembersResult, projectDomainsResult] = await Promise.allSettled([
       fetchDeploymentsForProject(project.id),
       fetchEnvironmentVariables(project.id),
       fetchProjectMembers(project.id),
+      fetchProjectDomains(project.id),
     ]);
     const deployments =
       deploymentsResult.status === 'fulfilled' ? deploymentsResult.value : [];
@@ -97,6 +100,8 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
       environmentVariablesResult.status === 'fulfilled' ? environmentVariablesResult.value : [];
     const projectMembers =
       projectMembersResult.status === 'fulfilled' ? projectMembersResult.value : [];
+    const projectDomains =
+      projectDomainsResult.status === 'fulfilled' ? projectDomainsResult.value : [];
     const deploymentReadErrorMessage =
       deploymentsResult.status === 'rejected'
         ? describeDashboardLiveDataFailure({
@@ -121,10 +126,19 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
             hasApiAuthToken: Boolean(apiAuthToken)
           })
         : null;
+    const projectDomainsReadErrorMessage =
+      projectDomainsResult.status === 'rejected'
+        ? describeDashboardLiveDataFailure({
+            error: projectDomainsResult.reason,
+            hasDemoUserId: Boolean(viewer.userId),
+            hasApiAuthToken: Boolean(apiAuthToken)
+          })
+        : null;
     const partialOutageDetail = [
       deploymentReadErrorMessage ? `Deployment history unavailable. ${deploymentReadErrorMessage}` : null,
       environmentReadErrorMessage ? `Environment variables unavailable. ${environmentReadErrorMessage}` : null,
-      projectMembersReadErrorMessage ? `Project members unavailable. ${projectMembersReadErrorMessage}` : null
+      projectMembersReadErrorMessage ? `Project members unavailable. ${projectMembersReadErrorMessage}` : null,
+      projectDomainsReadErrorMessage ? `Project domains unavailable. ${projectDomainsReadErrorMessage}` : null
     ]
       .filter((message): message is string => Boolean(message))
       .join(' ');
@@ -133,6 +147,11 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
       .slice()
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
     const primaryService = getPrimaryProjectService(project.services);
+    const routeSummary = summarizeProjectDomains({
+      project,
+      domains: projectDomains,
+      domainsUnavailable: Boolean(projectDomainsReadErrorMessage)
+    });
     const serviceStatuses = createProjectServiceStatuses(project.services, sortedDeployments);
     const serviceStatusesByName = new Map(
       serviceStatuses.map((serviceStatus) => [serviceStatus.service.name, serviceStatus])
@@ -200,7 +219,10 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
             <p className="text-sm text-muted-foreground">{project.gitRepositoryUrl}</p>
-            <p className="text-sm text-primary">{project.slug}.apps.platform.example.com</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <p className="text-sm text-primary">{routeSummary.host}</p>
+              <Badge variant={routeSummary.variant}>{routeSummary.label}</Badge>
+            </div>
             <p className="text-sm text-muted-foreground">
               {project.services.length} service{project.services.length === 1 ? '' : 's'} configured.
               Primary public service: <span className="font-medium text-foreground">{primaryService.name}</span>
@@ -314,6 +336,9 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
             </Button>
             <Button asChild size="sm" variant="outline">
               <Link href={`/projects/${project.id}/deployments`}>Open Deployments</Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/projects/${project.id}/domains`}>Open Domains</Link>
             </Button>
           </CardContent>
         </Card>

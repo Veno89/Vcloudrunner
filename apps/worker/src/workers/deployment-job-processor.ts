@@ -36,6 +36,7 @@ export interface StateServiceLike {
     hostPort: number | null;
     internalPort: number;
     runtimeUrl: string | null;
+    routeHosts?: string[];
   }): Promise<void>;
   markFailed(deploymentId: string, message: string): Promise<void>;
 }
@@ -99,6 +100,22 @@ function describeDeploymentService(job: DeploymentJobPayload) {
   const serviceExposure = job.serviceExposure ?? 'public';
 
   return `service ${serviceName} (${serviceKind}/${serviceExposure})`;
+}
+
+function createDefaultProjectRouteHost(projectSlug: string) {
+  return `${projectSlug}.${env.PLATFORM_DOMAIN}`;
+}
+
+function getDesiredPublicRouteHosts(job: DeploymentJobPayload) {
+  const defaultHost = createDefaultProjectRouteHost(job.projectSlug);
+  const additionalHosts = Array.isArray(job.publicRouteHosts)
+    ? job.publicRouteHosts
+      .filter((host): host is string => typeof host === 'string')
+      .map((host) => host.trim())
+      .filter((host) => host.length > 0 && host !== defaultHost)
+    : [];
+
+  return [defaultHost, ...additionalHosts];
 }
 
 async function appendLogBestEffort(
@@ -182,25 +199,27 @@ async function cleanupStartedRuntimeBestEffort(
   }
 }
 
-async function cleanupRouteBestEffort(
+async function cleanupRoutesBestEffort(
   dependencies: Required<DeploymentJobProcessorDependencies>,
   input: {
     deploymentId: string;
     correlationId: string;
-    host: string;
+    hosts: string[];
     reason: 'post-run-failure' | 'cancellation-after-post-run-failure';
   }
 ) {
-  try {
-    await dependencies.ingressManager.deleteRoute({ host: input.host });
-  } catch (error) {
-    dependencies.logger.warn('deployment route cleanup failed after post-run error', {
-      deploymentId: input.deploymentId,
-      correlationId: input.correlationId,
-      host: input.host,
-      reason: input.reason,
-      message: getErrorMessage(error)
-    });
+  for (const host of [...new Set(input.hosts)]) {
+    try {
+      await dependencies.ingressManager.deleteRoute({ host });
+    } catch (error) {
+      dependencies.logger.warn('deployment route cleanup failed after post-run error', {
+        deploymentId: input.deploymentId,
+        correlationId: input.correlationId,
+        host,
+        reason: input.reason,
+        message: getErrorMessage(error)
+      });
+    }
   }
 }
 
@@ -243,7 +262,7 @@ export function createDeploymentJobProcessor(
   return async (job: DeploymentJobLike) => {
     const correlationId = job.data.correlationId ?? `queue-job:${job.id ?? 'unknown'}`;
     let runtimeResult: RuntimeExecutionResult | null = null;
-    let configuredRouteHost: string | null = null;
+    let configuredRouteHosts: string[] = [];
 
     if (await dependencies.stateService.isCancellationRequested(job.data.deploymentId)) {
       try {
@@ -372,11 +391,12 @@ export function createDeploymentJobProcessor(
         return;
       }
 
-      configuredRouteHost = await configureRouteIfNeeded(dependencies, {
+      const routeConfig = await configureRoutesIfNeeded(dependencies, {
         job,
         result,
         correlationId
       });
+      configuredRouteHosts = routeConfig.configuredHosts;
 
       await dependencies.stateService.markRunning({
         deploymentId: job.data.deploymentId,
@@ -386,7 +406,8 @@ export function createDeploymentJobProcessor(
         imageTag: result.imageTag,
         hostPort: result.hostPort,
         internalPort: result.internalPort,
-        runtimeUrl: configuredRouteHost ? result.runtimeUrl : null
+        runtimeUrl: routeConfig.runtimeUrl,
+        routeHosts: routeConfig.persistedHosts
       });
 
       await appendLogBestEffort(dependencies, {
@@ -440,11 +461,11 @@ export function createDeploymentJobProcessor(
           cleanupFailure = cleanupResult.error;
         }
 
-        if (configuredRouteHost) {
-          await cleanupRouteBestEffort(dependencies, {
+        if (configuredRouteHosts.length > 0) {
+          await cleanupRoutesBestEffort(dependencies, {
             deploymentId: job.data.deploymentId,
             correlationId,
-            host: configuredRouteHost,
+            hosts: configuredRouteHosts,
             reason: cancellationRequested ? 'cancellation-after-post-run-failure' : 'post-run-failure'
           });
         }
@@ -594,7 +615,7 @@ export function createDeploymentJobProcessor(
   };
 }
 
-async function configureRouteIfNeeded(
+async function configureRoutesIfNeeded(
   dependencies: Required<DeploymentJobProcessorDependencies>,
   input: {
     job: DeploymentJobLike;
@@ -613,41 +634,72 @@ async function configureRouteIfNeeded(
       stage: 'route-config-skipped',
       warningMessage: 'deployment post-run log append failed; continuing deployment'
     });
-    return null;
+    return {
+      configuredHosts: [],
+      persistedHosts: [],
+      runtimeUrl: null
+    };
   }
 
   if (input.result.hostPort === null) {
-    return null;
+    return {
+      configuredHosts: [],
+      persistedHosts: [],
+      runtimeUrl: null
+    };
   }
 
-  const host = `${input.job.data.projectSlug}.${env.PLATFORM_DOMAIN}`;
-  try {
-    await dependencies.ingressManager.upsertRoute({ host, upstreamPort: input.result.hostPort });
+  const desiredHosts = getDesiredPublicRouteHosts(input.job.data);
+  const configuredHosts: string[] = [];
+
+  for (const host of desiredHosts) {
+    try {
+      await dependencies.ingressManager.upsertRoute({ host, upstreamPort: input.result.hostPort });
+      configuredHosts.push(host);
+    } catch (error) {
+      const message = getErrorMessage(error);
+      dependencies.logger.warn('failed to configure caddy route; continuing deployment', {
+        deploymentId: input.job.data.deploymentId,
+        correlationId: input.correlationId,
+        host,
+        upstreamPort: input.result.hostPort,
+        message
+      });
+      await appendLogBestEffort(dependencies, {
+        deploymentId: input.job.data.deploymentId,
+        correlationId: input.correlationId,
+        message: `Route configuration skipped for ${host} (${message}). Container remains available on mapped port ${input.result.hostPort}.`,
+        level: 'warn',
+        stage: 'route-config-skipped',
+        warningMessage: 'deployment post-run log append failed; continuing deployment'
+      });
+    }
+  }
+
+  if (configuredHosts.length > 0) {
     await appendLogBestEffort(dependencies, {
       deploymentId: input.job.data.deploymentId,
       correlationId: input.correlationId,
-      message: `Route configured for ${host}`,
+      message:
+        configuredHosts.length === 1
+          ? `Route configured for ${configuredHosts[0]}`
+          : `Routes configured for ${configuredHosts.join(', ')}`,
       stage: 'route-configured',
       warningMessage: 'deployment post-run log append failed; continuing deployment'
     });
-    return host;
-  } catch (error) {
-    const message = getErrorMessage(error);
-    dependencies.logger.warn('failed to configure caddy route; continuing deployment', {
-      deploymentId: input.job.data.deploymentId,
-      correlationId: input.correlationId,
-      host,
-      upstreamPort: input.result.hostPort,
-      message
-    });
-    await appendLogBestEffort(dependencies, {
-      deploymentId: input.job.data.deploymentId,
-      correlationId: input.correlationId,
-      message: `Route configuration skipped (${message}). Container remains available on mapped port ${input.result.hostPort}.`,
-      level: 'warn',
-      stage: 'route-config-skipped',
-      warningMessage: 'deployment post-run log append failed; continuing deployment'
-    });
-    return null;
   }
+
+  const defaultHost = desiredHosts[0] ?? null;
+  const persistedHosts = defaultHost
+    ? [defaultHost, ...configuredHosts.filter((host) => host !== defaultHost)]
+    : [];
+  const preferredHost = defaultHost && configuredHosts.includes(defaultHost)
+    ? defaultHost
+    : configuredHosts[0] ?? null;
+
+  return {
+    configuredHosts,
+    persistedHosts,
+    runtimeUrl: preferredHost ? `http://${preferredHost}` : null
+  };
 }

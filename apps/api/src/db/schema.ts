@@ -38,6 +38,34 @@ export const projectInvitationStatus = pgEnum('project_invitation_status', [
   'cancelled'
 ]);
 
+export const projectDomainOwnershipStatus = pgEnum('project_domain_ownership_status', [
+  'managed',
+  'verified',
+  'pending',
+  'mismatch',
+  'unknown'
+]);
+
+export const projectDomainVerificationStatus = pgEnum('project_domain_verification_status', [
+  'managed',
+  'verified',
+  'pending',
+  'mismatch',
+  'unknown'
+]);
+
+export const projectDomainTlsStatus = pgEnum('project_domain_tls_status', [
+  'ready',
+  'pending',
+  'invalid',
+  'unknown'
+]);
+
+export const projectDomainEventKind = pgEnum('project_domain_event_kind', [
+  'ownership',
+  'tls'
+]);
+
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
   email: varchar('email', { length: 320 }).notNull(),
@@ -135,10 +163,41 @@ export const domains = pgTable('domains', {
   deploymentId: uuid('deployment_id').references(() => deployments.id),
   host: varchar('host', { length: 255 }).notNull(),
   targetPort: integer('target_port').notNull(),
+  verificationToken: varchar('verification_token', { length: 96 }),
+  verificationStatus: projectDomainVerificationStatus('verification_status'),
+  verificationDetail: text('verification_detail'),
+  verificationCheckedAt: timestamp('verification_checked_at', { withTimezone: true }),
+  verificationStatusChangedAt: timestamp('verification_status_changed_at', { withTimezone: true }),
+  verificationVerifiedAt: timestamp('verification_verified_at', { withTimezone: true }),
+  ownershipStatus: projectDomainOwnershipStatus('ownership_status'),
+  ownershipDetail: text('ownership_detail'),
+  tlsStatus: projectDomainTlsStatus('tls_status'),
+  tlsDetail: text('tls_detail'),
+  diagnosticsCheckedAt: timestamp('diagnostics_checked_at', { withTimezone: true }),
+  ownershipStatusChangedAt: timestamp('ownership_status_changed_at', { withTimezone: true }),
+  tlsStatusChangedAt: timestamp('tls_status_changed_at', { withTimezone: true }),
+  ownershipVerifiedAt: timestamp('ownership_verified_at', { withTimezone: true }),
+  tlsReadyAt: timestamp('tls_ready_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 }, (table) => ({
   domainsHostUnique: uniqueIndex('domains_host_unique').on(table.host)
+}));
+
+export const projectDomainEvents = pgTable('project_domain_events', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  domainId: uuid('domain_id').notNull().references(() => domains.id, { onDelete: 'cascade' }),
+  kind: projectDomainEventKind('kind').notNull(),
+  previousStatus: varchar('previous_status', { length: 32 }),
+  nextStatus: varchar('next_status', { length: 32 }).notNull(),
+  detail: text('detail').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+}, (table) => ({
+  projectDomainEventsDomainCreatedIdx: index('project_domain_events_domain_created_idx')
+    .on(table.domainId, table.createdAt),
+  projectDomainEventsProjectCreatedIdx: index('project_domain_events_project_created_idx')
+    .on(table.projectId, table.createdAt)
 }));
 
 export const deploymentLogs = pgTable('deployment_logs', {

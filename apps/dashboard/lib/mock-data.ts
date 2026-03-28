@@ -3,6 +3,7 @@ export const projects: Array<{
   name: string;
   repo: string;
   domain: string;
+  routeStatusSummary?: string;
   serviceSummary: string;
   serviceStatusSummary?: string;
   status: string;
@@ -13,6 +14,7 @@ export const projects: Array<{
     name: 'landing-api',
     repo: 'https://github.com/example/landing-api',
     domain: 'landing-api.apps.platform.example.com',
+    routeStatusSummary: 'route active',
     serviceSummary: '1 service · public: app',
     serviceStatusSummary: 'app running',
     status: 'healthy',
@@ -23,6 +25,7 @@ export const projects: Array<{
     name: 'worker-demo',
     repo: 'https://github.com/example/worker-demo',
     domain: 'worker-demo.apps.platform.example.com',
+    routeStatusSummary: 'route pending',
     serviceSummary: '2 services · public: frontend',
     serviceStatusSummary: 'frontend building | worker no deployments',
     status: 'deploying',

@@ -53,8 +53,18 @@ async function withProjectsRoutesApp(
     membershipRows: Array<{ role: string }>;
     accessibleProjects?: typeof project[];
     onCreateProjectInput?: (input: Record<string, unknown>) => void;
+    listProjectDomainsResult?: Array<Record<string, unknown>>;
+    onListProjectDomains?: (
+      projectId: string,
+      options?: {
+        includeDiagnostics?: boolean;
+      }
+    ) => unknown;
     listProjectMembersResult?: Array<Record<string, unknown>>;
     listProjectInvitationsResult?: Array<Record<string, unknown>>;
+    onCreateProjectDomain?: (input: Record<string, unknown>) => unknown;
+    onRemoveProjectDomain?: (input: Record<string, unknown>) => unknown;
+    onVerifyProjectDomainClaim?: (input: Record<string, unknown>) => unknown;
     onGetProjectInvitationClaim?: (claimToken: string) => unknown;
     onAcceptProjectInvitationClaim?: (input: Record<string, unknown>) => unknown;
     onInviteProjectMember?: (input: Record<string, unknown>) => unknown;
@@ -91,6 +101,89 @@ async function withProjectsRoutesApp(
     };
   });
   t.mock.method(ProjectsService.prototype, 'getProjectById', async () => project);
+  t.mock.method(
+    ProjectsService.prototype,
+    'listProjectDomains',
+    async (
+      requestedProjectId: string,
+      listOptions?: {
+        includeDiagnostics?: boolean;
+      }
+    ) => {
+      const result = options.onListProjectDomains?.(requestedProjectId, listOptions);
+      return result ?? options.listProjectDomainsResult ?? [];
+    }
+  );
+  t.mock.method(ProjectsService.prototype, 'createProjectDomain', async (input: Record<string, unknown>) => {
+    const result = options.onCreateProjectDomain?.(input);
+    return result ?? {
+      id: 'domain-1',
+      projectId,
+      deploymentId: null,
+      host: input.host,
+      targetPort: 3000,
+      createdAt: '2026-03-27T10:00:00.000Z',
+      updatedAt: '2026-03-27T10:00:00.000Z',
+      deploymentStatus: null,
+      runtimeUrl: null,
+      serviceName: 'app',
+      serviceKind: 'web',
+      serviceExposure: 'public',
+      routeStatus: 'pending',
+      statusDetail: 'This custom domain is claimed for the project, but it is not yet attached to an active deployment route. Redeploy the public service to activate it.'
+    };
+  });
+  t.mock.method(ProjectsService.prototype, 'removeProjectDomain', async (input: Record<string, unknown>) => {
+    options.onRemoveProjectDomain?.(input);
+  });
+  t.mock.method(ProjectsService.prototype, 'verifyProjectDomainClaim', async (input: Record<string, unknown>) => {
+    const result = options.onVerifyProjectDomainClaim?.(input);
+    return result ?? {
+      id: 'domain-1',
+      projectId,
+      deploymentId: null,
+      host: 'api.example.com',
+      targetPort: 3000,
+      verificationStatus: 'pending',
+      verificationDetail: 'Publish the TXT ownership challenge and retry verification.',
+      verificationCheckedAt: '2026-03-28T12:00:00.000Z',
+      verificationStatusChangedAt: '2026-03-28T12:00:00.000Z',
+      verificationVerifiedAt: null,
+      ownershipStatus: 'pending',
+      ownershipDetail: 'Routing DNS has not been verified yet.',
+      tlsStatus: 'pending',
+      tlsDetail: 'TLS will be checked after routing is active.',
+      diagnosticsCheckedAt: '2026-03-28T12:00:00.000Z',
+      diagnosticsFreshnessStatus: 'fresh',
+      diagnosticsFreshnessDetail: 'Stored verification, DNS, and TLS checks are within the current freshness window.',
+      claimState: 'publish-verification-record',
+      claimTitle: 'Publish verification TXT',
+      claimDetail: 'Create the TXT ownership challenge record and verify again.',
+      claimDnsRecordType: 'TXT',
+      claimDnsRecordName: '_vcloudrunner.api.example.com',
+      claimDnsRecordValue: 'vcloudrunner-verify=challenge-token',
+      verificationDnsRecordType: 'TXT',
+      verificationDnsRecordName: '_vcloudrunner.api.example.com',
+      verificationDnsRecordValue: 'vcloudrunner-verify=challenge-token',
+      routingDnsRecordType: 'CNAME',
+      routingDnsRecordName: 'api.example.com',
+      routingDnsRecordValue: 'example-project.platform.local',
+      recentEvents: [],
+      ownershipStatusChangedAt: null,
+      tlsStatusChangedAt: null,
+      ownershipVerifiedAt: null,
+      tlsReadyAt: null,
+      createdAt: '2026-03-27T10:00:00.000Z',
+      updatedAt: '2026-03-28T12:00:00.000Z',
+      deploymentStatus: null,
+      runtimeUrl: null,
+      serviceName: 'app',
+      serviceKind: 'web',
+      serviceExposure: 'public',
+      routeStatus: 'pending',
+      statusDetail: 'This custom domain is claimed for the project, but it is not yet attached to an active deployment route. Redeploy the public service to activate it.'
+    };
+  });
   t.mock.method(ProjectsService.prototype, 'listProjectMembers', async () => options.listProjectMembersResult ?? []);
   t.mock.method(ProjectsService.prototype, 'listProjectInvitations', async () => options.listProjectInvitationsResult ?? []);
   t.mock.method(ProjectsService.prototype, 'getProjectInvitationClaim', async (claimToken: string) => {
@@ -356,6 +449,261 @@ test('create project rejects tokens missing projects:write scope', async (t) => 
 
     assert.equal(res.statusCode, 403);
     assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_TOKEN_SCOPE');
+  });
+});
+
+test('list project domains returns the persisted route status payload', async (t) => {
+  await withProjectsRoutesApp(t, {
+    token: 'member-project-domains-token-123',
+    actorUserId: ownerUserId,
+    scopes: ['projects:read'],
+    membershipRows: [],
+    listProjectDomainsResult: [{
+      id: 'domain-1',
+      projectId,
+      deploymentId: 'deployment-1',
+      host: 'example-project.apps.platform.example.com',
+      targetPort: 3100,
+      createdAt: '2026-03-27T10:00:00.000Z',
+      updatedAt: '2026-03-27T10:05:00.000Z',
+      deploymentStatus: 'running',
+      runtimeUrl: 'http://example-project.apps.platform.example.com',
+      serviceName: 'app',
+      serviceKind: 'web',
+      serviceExposure: 'public',
+      routeStatus: 'active',
+      statusDetail: 'Route is active and serving traffic from the current running deployment.'
+    }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/projects/${projectId}/domains`,
+      headers: {
+        authorization: 'Bearer member-project-domains-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(JSON.parse(res.body), {
+      data: [{
+        id: 'domain-1',
+        projectId,
+        deploymentId: 'deployment-1',
+        host: 'example-project.apps.platform.example.com',
+        targetPort: 3100,
+        createdAt: '2026-03-27T10:00:00.000Z',
+        updatedAt: '2026-03-27T10:05:00.000Z',
+        deploymentStatus: 'running',
+        runtimeUrl: 'http://example-project.apps.platform.example.com',
+        serviceName: 'app',
+        serviceKind: 'web',
+        serviceExposure: 'public',
+        routeStatus: 'active',
+        statusDetail: 'Route is active and serving traffic from the current running deployment.'
+      }]
+    });
+  });
+});
+
+test('list project domains only includes DNS and TLS diagnostics when requested', async (t) => {
+  let capturedProjectId: string | null = null;
+  let capturedOptions: { includeDiagnostics?: boolean } | undefined;
+
+  await withProjectsRoutesApp(t, {
+    token: 'member-project-domains-diagnostics-token-123',
+    actorUserId: ownerUserId,
+    scopes: ['projects:read'],
+    membershipRows: [],
+    onListProjectDomains: (requestedProjectId, options) => {
+      capturedProjectId = requestedProjectId;
+      capturedOptions = options;
+      return [{
+        id: 'domain-1',
+        projectId,
+        deploymentId: 'deployment-1',
+        host: 'example-project.apps.platform.example.com',
+        targetPort: 3100,
+        createdAt: '2026-03-27T10:00:00.000Z',
+        updatedAt: '2026-03-27T10:05:00.000Z',
+        deploymentStatus: 'running',
+        runtimeUrl: 'http://example-project.apps.platform.example.com',
+        serviceName: 'app',
+        serviceKind: 'web',
+        serviceExposure: 'public',
+        routeStatus: 'active',
+        statusDetail: 'Route is active and serving traffic from the current running deployment.',
+        ownershipStatus: 'managed',
+        ownershipDetail: 'This is the platform-managed default host for the project.',
+        tlsStatus: 'ready',
+        tlsDetail: 'HTTPS is reachable and the current certificate validated successfully.'
+      }];
+    }
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/projects/${projectId}/domains?includeDiagnostics=true`,
+      headers: {
+        authorization: 'Bearer member-project-domains-diagnostics-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(capturedProjectId, projectId);
+    assert.deepEqual(capturedOptions, {
+      includeDiagnostics: true
+    });
+    assert.equal(JSON.parse(res.body).data[0]?.tlsStatus, 'ready');
+  });
+});
+
+test('create project domain stores a pending custom domain claim', async (t) => {
+  let capturedInput: Record<string, unknown> | null = null;
+
+  await withProjectsRoutesApp(t, {
+    token: 'member-project-domain-create-token-123',
+    actorUserId: ownerUserId,
+    scopes: ['projects:write'],
+    membershipRows: [{ role: 'admin' }],
+    onCreateProjectDomain: (input) => {
+      capturedInput = input;
+      return {
+        id: 'domain-create-1',
+        projectId,
+        deploymentId: null,
+        host: input.host,
+        targetPort: 3000,
+        createdAt: '2026-03-27T11:00:00.000Z',
+        updatedAt: '2026-03-27T11:00:00.000Z',
+        deploymentStatus: null,
+        runtimeUrl: null,
+        serviceName: 'app',
+        serviceKind: 'web',
+        serviceExposure: 'public',
+        routeStatus: 'pending',
+        statusDetail: 'This custom domain is claimed for the project, but it is not yet attached to an active deployment route. Redeploy the public service to activate it.'
+      };
+    }
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/projects/${projectId}/domains`,
+      headers: {
+        authorization: 'Bearer member-project-domain-create-token-123'
+      },
+      payload: {
+        host: 'api.example.com'
+      }
+    });
+
+    assert.equal(res.statusCode, 201);
+    assert.deepEqual(capturedInput, {
+      projectId,
+      host: 'api.example.com'
+    });
+    assert.equal(JSON.parse(res.body).data.routeStatus, 'pending');
+  });
+});
+
+test('remove project domain deletes a custom domain claim', async (t) => {
+  const removedInputs: Array<Record<string, unknown>> = [];
+
+  await withProjectsRoutesApp(t, {
+    token: 'member-project-domain-remove-token-123',
+    actorUserId: ownerUserId,
+    scopes: ['projects:write'],
+    membershipRows: [{ role: 'admin' }],
+    onRemoveProjectDomain: (input) => {
+      removedInputs.push(input);
+    }
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/v1/projects/${projectId}/domains/10000000-0000-0000-0000-000000000099`,
+      headers: {
+        authorization: 'Bearer member-project-domain-remove-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 204);
+    assert.deepEqual(removedInputs, [{
+      projectId,
+      domainId: '10000000-0000-0000-0000-000000000099'
+    }]);
+  });
+});
+
+test('verify project domain claim refreshes the targeted custom domain', async (t) => {
+  let capturedInput: Record<string, unknown> | null = null;
+
+  await withProjectsRoutesApp(t, {
+    token: 'member-project-domain-verify-token-123',
+    actorUserId: ownerUserId,
+    scopes: ['projects:write'],
+    membershipRows: [{ role: 'admin' }],
+    onVerifyProjectDomainClaim: (input) => {
+      capturedInput = input;
+      return {
+        id: 'domain-verify-1',
+        projectId,
+        deploymentId: null,
+        host: 'api.example.com',
+        targetPort: 3000,
+        verificationStatus: 'verified',
+        verificationDetail: 'Ownership challenge verified through TXT record _vcloudrunner.api.example.com.',
+        verificationCheckedAt: '2026-03-28T12:00:00.000Z',
+        verificationStatusChangedAt: '2026-03-28T12:00:00.000Z',
+        verificationVerifiedAt: '2026-03-28T12:00:00.000Z',
+        ownershipStatus: 'pending',
+        ownershipDetail: 'No routing DNS records were found yet.',
+        tlsStatus: 'pending',
+        tlsDetail: 'TLS will be checked after this host is attached to a running deployment route.',
+        diagnosticsCheckedAt: '2026-03-28T12:00:00.000Z',
+        diagnosticsFreshnessStatus: 'fresh',
+        diagnosticsFreshnessDetail: 'Stored verification, DNS, and TLS checks are within the current freshness window.',
+        claimState: 'configure-dns',
+        claimTitle: 'Configure DNS',
+        claimDetail: 'Create a CNAME from api.example.com to example-project.platform.local.',
+        claimDnsRecordType: 'CNAME',
+        claimDnsRecordName: 'api.example.com',
+        claimDnsRecordValue: 'example-project.platform.local',
+        verificationDnsRecordType: 'TXT',
+        verificationDnsRecordName: '_vcloudrunner.api.example.com',
+        verificationDnsRecordValue: 'vcloudrunner-verify=challenge-token',
+        routingDnsRecordType: 'CNAME',
+        routingDnsRecordName: 'api.example.com',
+        routingDnsRecordValue: 'example-project.platform.local',
+        recentEvents: [],
+        ownershipStatusChangedAt: null,
+        tlsStatusChangedAt: null,
+        ownershipVerifiedAt: null,
+        tlsReadyAt: null,
+        createdAt: '2026-03-27T10:00:00.000Z',
+        updatedAt: '2026-03-28T12:00:00.000Z',
+        deploymentStatus: null,
+        runtimeUrl: null,
+        serviceName: 'app',
+        serviceKind: 'web',
+        serviceExposure: 'public',
+        routeStatus: 'pending',
+        statusDetail: 'This custom domain is claimed for the project, but it is not yet attached to an active deployment route. Redeploy the public service to activate it.'
+      };
+    }
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/projects/${projectId}/domains/10000000-0000-0000-0000-000000000099/verify`,
+      headers: {
+        authorization: 'Bearer member-project-domain-verify-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(capturedInput, {
+      projectId,
+      domainId: '10000000-0000-0000-0000-000000000099'
+    });
+    assert.equal(JSON.parse(res.body).data.verificationStatus, 'verified');
+    assert.equal(JSON.parse(res.body).data.claimState, 'configure-dns');
   });
 });
 

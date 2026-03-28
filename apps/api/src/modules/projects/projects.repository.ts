@@ -1,9 +1,26 @@
 import { and, asc, desc, eq, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import type { ProjectServiceDefinition } from '@vcloudrunner/shared-types';
+import type {
+  ProjectServiceDefinition,
+  ProjectServiceExposure,
+  ProjectServiceKind
+} from '@vcloudrunner/shared-types';
+import type {
+  ProjectDomainVerificationStatus,
+  ProjectDomainOwnershipStatus,
+  ProjectDomainTlsStatus
+} from '../../services/project-domain-diagnostics.service.js';
 
 import type { DbClient } from '../../db/client.js';
-import { projectInvitations, projectMembers, projects, users } from '../../db/schema.js';
+import {
+  deployments,
+  domains,
+  projectDomainEvents,
+  projectInvitations,
+  projectMembers,
+  projects,
+  users
+} from '../../db/schema.js';
 
 export interface CreateProjectInput {
   userId: string;
@@ -60,6 +77,83 @@ export interface ProjectInvitationClaimRecord extends ProjectInvitationRecord {
   projectSlug: string;
 }
 
+export interface ProjectDomainRecord {
+  id: string;
+  projectId: string;
+  deploymentId: string | null;
+  host: string;
+  targetPort: number;
+  verificationToken: string | null;
+  verificationStatus: ProjectDomainVerificationStatus | null;
+  verificationDetail: string | null;
+  verificationCheckedAt: Date | null;
+  verificationStatusChangedAt: Date | null;
+  verificationVerifiedAt: Date | null;
+  ownershipStatus: ProjectDomainOwnershipStatus | null;
+  ownershipDetail: string | null;
+  tlsStatus: ProjectDomainTlsStatus | null;
+  tlsDetail: string | null;
+  diagnosticsCheckedAt: Date | null;
+  ownershipStatusChangedAt: Date | null;
+  tlsStatusChangedAt: Date | null;
+  ownershipVerifiedAt: Date | null;
+  tlsReadyAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  deploymentStatus: 'queued' | 'building' | 'running' | 'failed' | 'stopped' | null;
+  runtimeUrl: string | null;
+  serviceName: string | null;
+  serviceKind: ProjectServiceKind | null;
+  serviceExposure: ProjectServiceExposure | null;
+}
+
+export interface ProjectDomainEventRecord {
+  id: string;
+  projectId: string;
+  domainId: string;
+  kind: 'ownership' | 'tls';
+  previousStatus: string | null;
+  nextStatus: string;
+  detail: string;
+  createdAt: Date;
+}
+
+export interface CreateProjectDomainInput {
+  projectId: string;
+  host: string;
+  targetPort: number;
+  verificationToken: string | null;
+}
+
+export interface CreateProjectDomainEventInput {
+  projectId: string;
+  domainId: string;
+  kind: 'ownership' | 'tls';
+  previousStatus: string | null;
+  nextStatus: string;
+  detail: string;
+  createdAt: Date;
+}
+
+export interface UpdateProjectDomainDiagnosticsInput {
+  projectId: string;
+  domainId: string;
+  verificationStatus: ProjectDomainVerificationStatus;
+  verificationDetail: string;
+  verificationCheckedAt: Date;
+  verificationStatusChangedAt: Date | null;
+  verificationVerifiedAt: Date | null;
+  ownershipStatus: ProjectDomainOwnershipStatus;
+  ownershipDetail: string;
+  tlsStatus: ProjectDomainTlsStatus;
+  tlsDetail: string;
+  diagnosticsCheckedAt: Date;
+  ownershipStatusChangedAt: Date | null;
+  tlsStatusChangedAt: Date | null;
+  ownershipVerifiedAt: Date | null;
+  tlsReadyAt: Date | null;
+}
+
 const invitedByUsers = alias(users, 'project_invitation_invited_by_users');
 const acceptedByUsers = alias(users, 'project_invitation_accepted_by_users');
 
@@ -75,6 +169,40 @@ function toRelatedUser(input: {
         email: input.email ?? 'unknown@example.com'
       }
     : null;
+}
+
+function toDeploymentServiceMetadata(input: {
+  serviceName: string | null;
+  metadata: unknown;
+}) {
+  if (!input.metadata || typeof input.metadata !== 'object' || Array.isArray(input.metadata)) {
+    return {
+      serviceName: input.serviceName,
+      serviceKind: null,
+      serviceExposure: null
+    } satisfies Pick<ProjectDomainRecord, 'serviceName' | 'serviceKind' | 'serviceExposure'>;
+  }
+
+  const service = (input.metadata as { service?: unknown }).service;
+  if (!service || typeof service !== 'object' || Array.isArray(service)) {
+    return {
+      serviceName: input.serviceName,
+      serviceKind: null,
+      serviceExposure: null
+    } satisfies Pick<ProjectDomainRecord, 'serviceName' | 'serviceKind' | 'serviceExposure'>;
+  }
+
+  const serviceName = typeof (service as { name?: unknown }).name === 'string'
+    ? (service as { name: string }).name
+    : input.serviceName;
+  const kind = (service as { kind?: unknown }).kind;
+  const exposure = (service as { exposure?: unknown }).exposure;
+
+  return {
+    serviceName,
+    serviceKind: kind === 'web' || kind === 'worker' ? kind : null,
+    serviceExposure: exposure === 'public' || exposure === 'internal' ? exposure : null
+  } satisfies Pick<ProjectDomainRecord, 'serviceName' | 'serviceKind' | 'serviceExposure'>;
 }
 
 export class ProjectsRepository {
@@ -332,6 +460,324 @@ export class ProjectsRepository {
         email: invitation.acceptedByUserEmail
       })
     })) satisfies ProjectInvitationRecord[];
+  }
+
+  async listDomains(projectId: string): Promise<ProjectDomainRecord[]> {
+    const records = await this.db
+      .select({
+        id: domains.id,
+        projectId: domains.projectId,
+        deploymentId: domains.deploymentId,
+        host: domains.host,
+        targetPort: domains.targetPort,
+        verificationToken: domains.verificationToken,
+        verificationStatus: domains.verificationStatus,
+        verificationDetail: domains.verificationDetail,
+        verificationCheckedAt: domains.verificationCheckedAt,
+        verificationStatusChangedAt: domains.verificationStatusChangedAt,
+        verificationVerifiedAt: domains.verificationVerifiedAt,
+        ownershipStatus: domains.ownershipStatus,
+        ownershipDetail: domains.ownershipDetail,
+        tlsStatus: domains.tlsStatus,
+        tlsDetail: domains.tlsDetail,
+        diagnosticsCheckedAt: domains.diagnosticsCheckedAt,
+        ownershipStatusChangedAt: domains.ownershipStatusChangedAt,
+        tlsStatusChangedAt: domains.tlsStatusChangedAt,
+        ownershipVerifiedAt: domains.ownershipVerifiedAt,
+        tlsReadyAt: domains.tlsReadyAt,
+        createdAt: domains.createdAt,
+        updatedAt: domains.updatedAt,
+        deploymentStatus: deployments.status,
+        runtimeUrl: deployments.runtimeUrl,
+        serviceName: deployments.serviceName,
+        deploymentMetadata: deployments.metadata
+      })
+      .from(domains)
+      .leftJoin(deployments, eq(deployments.id, domains.deploymentId))
+      .where(eq(domains.projectId, projectId))
+      .orderBy(asc(domains.host), desc(domains.updatedAt));
+
+    return records.map((record) => ({
+      id: record.id,
+      projectId: record.projectId,
+      deploymentId: record.deploymentId,
+      host: record.host,
+      targetPort: record.targetPort,
+      verificationToken: record.verificationToken,
+      verificationStatus: record.verificationStatus,
+      verificationDetail: record.verificationDetail,
+      verificationCheckedAt: record.verificationCheckedAt,
+      verificationStatusChangedAt: record.verificationStatusChangedAt,
+      verificationVerifiedAt: record.verificationVerifiedAt,
+      ownershipStatus: record.ownershipStatus,
+      ownershipDetail: record.ownershipDetail,
+      tlsStatus: record.tlsStatus,
+      tlsDetail: record.tlsDetail,
+      diagnosticsCheckedAt: record.diagnosticsCheckedAt,
+      ownershipStatusChangedAt: record.ownershipStatusChangedAt,
+      tlsStatusChangedAt: record.tlsStatusChangedAt,
+      ownershipVerifiedAt: record.ownershipVerifiedAt,
+      tlsReadyAt: record.tlsReadyAt,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+      deploymentStatus: record.deploymentStatus,
+      runtimeUrl: record.runtimeUrl,
+      ...toDeploymentServiceMetadata({
+        serviceName: record.serviceName,
+        metadata: record.deploymentMetadata
+      })
+    })) satisfies ProjectDomainRecord[];
+  }
+
+  async createDomain(input: CreateProjectDomainInput): Promise<ProjectDomainRecord> {
+    const [record] = await this.db
+      .insert(domains)
+      .values({
+        projectId: input.projectId,
+        host: input.host,
+        targetPort: input.targetPort,
+        verificationToken: input.verificationToken,
+        deploymentId: null
+      })
+      .returning();
+
+    return {
+      id: record.id,
+      projectId: record.projectId,
+      deploymentId: record.deploymentId,
+      host: record.host,
+      targetPort: record.targetPort,
+      verificationToken: record.verificationToken,
+      verificationStatus: record.verificationStatus,
+      verificationDetail: record.verificationDetail,
+      verificationCheckedAt: record.verificationCheckedAt,
+      verificationStatusChangedAt: record.verificationStatusChangedAt,
+      verificationVerifiedAt: record.verificationVerifiedAt,
+      ownershipStatus: record.ownershipStatus,
+      ownershipDetail: record.ownershipDetail,
+      tlsStatus: record.tlsStatus,
+      tlsDetail: record.tlsDetail,
+      diagnosticsCheckedAt: record.diagnosticsCheckedAt,
+      ownershipStatusChangedAt: record.ownershipStatusChangedAt,
+      tlsStatusChangedAt: record.tlsStatusChangedAt,
+      ownershipVerifiedAt: record.ownershipVerifiedAt,
+      tlsReadyAt: record.tlsReadyAt,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+      deploymentStatus: null,
+      runtimeUrl: null,
+      serviceName: null,
+      serviceKind: null,
+      serviceExposure: null
+    } satisfies ProjectDomainRecord;
+  }
+
+  async findDomainById(projectId: string, domainId: string): Promise<ProjectDomainRecord | null> {
+    const records = await this.db
+      .select({
+        id: domains.id,
+        projectId: domains.projectId,
+        deploymentId: domains.deploymentId,
+        host: domains.host,
+        targetPort: domains.targetPort,
+        verificationToken: domains.verificationToken,
+        verificationStatus: domains.verificationStatus,
+        verificationDetail: domains.verificationDetail,
+        verificationCheckedAt: domains.verificationCheckedAt,
+        verificationStatusChangedAt: domains.verificationStatusChangedAt,
+        verificationVerifiedAt: domains.verificationVerifiedAt,
+        ownershipStatus: domains.ownershipStatus,
+        ownershipDetail: domains.ownershipDetail,
+        tlsStatus: domains.tlsStatus,
+        tlsDetail: domains.tlsDetail,
+        diagnosticsCheckedAt: domains.diagnosticsCheckedAt,
+        ownershipStatusChangedAt: domains.ownershipStatusChangedAt,
+        tlsStatusChangedAt: domains.tlsStatusChangedAt,
+        ownershipVerifiedAt: domains.ownershipVerifiedAt,
+        tlsReadyAt: domains.tlsReadyAt,
+        createdAt: domains.createdAt,
+        updatedAt: domains.updatedAt,
+        deploymentStatus: deployments.status,
+        runtimeUrl: deployments.runtimeUrl,
+        serviceName: deployments.serviceName,
+        deploymentMetadata: deployments.metadata
+      })
+      .from(domains)
+      .leftJoin(deployments, eq(deployments.id, domains.deploymentId))
+      .where(and(
+        eq(domains.projectId, projectId),
+        eq(domains.id, domainId)
+      ))
+      .limit(1);
+
+    const record = records[0];
+    if (!record) {
+      return null;
+    }
+
+    return {
+      id: record.id,
+      projectId: record.projectId,
+      deploymentId: record.deploymentId,
+      host: record.host,
+      targetPort: record.targetPort,
+      verificationToken: record.verificationToken,
+      verificationStatus: record.verificationStatus,
+      verificationDetail: record.verificationDetail,
+      verificationCheckedAt: record.verificationCheckedAt,
+      verificationStatusChangedAt: record.verificationStatusChangedAt,
+      verificationVerifiedAt: record.verificationVerifiedAt,
+      ownershipStatus: record.ownershipStatus,
+      ownershipDetail: record.ownershipDetail,
+      tlsStatus: record.tlsStatus,
+      tlsDetail: record.tlsDetail,
+      diagnosticsCheckedAt: record.diagnosticsCheckedAt,
+      ownershipStatusChangedAt: record.ownershipStatusChangedAt,
+      tlsStatusChangedAt: record.tlsStatusChangedAt,
+      ownershipVerifiedAt: record.ownershipVerifiedAt,
+      tlsReadyAt: record.tlsReadyAt,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+      deploymentStatus: record.deploymentStatus,
+      runtimeUrl: record.runtimeUrl,
+      ...toDeploymentServiceMetadata({
+        serviceName: record.serviceName,
+        metadata: record.deploymentMetadata
+      })
+    } satisfies ProjectDomainRecord;
+  }
+
+  async removeDomain(projectId: string, domainId: string) {
+    const rows = await this.db
+      .delete(domains)
+      .where(and(
+        eq(domains.projectId, projectId),
+        eq(domains.id, domainId)
+      ))
+      .returning({ id: domains.id });
+
+    return rows[0] ?? null;
+  }
+
+  async updateDomainDiagnostics(input: UpdateProjectDomainDiagnosticsInput) {
+    const [record] = await this.db
+      .update(domains)
+      .set({
+        verificationStatus: input.verificationStatus,
+        verificationDetail: input.verificationDetail,
+        verificationCheckedAt: input.verificationCheckedAt,
+        verificationStatusChangedAt: input.verificationStatusChangedAt,
+        verificationVerifiedAt: input.verificationVerifiedAt,
+        ownershipStatus: input.ownershipStatus,
+        ownershipDetail: input.ownershipDetail,
+        tlsStatus: input.tlsStatus,
+        tlsDetail: input.tlsDetail,
+        diagnosticsCheckedAt: input.diagnosticsCheckedAt,
+        ownershipStatusChangedAt: input.ownershipStatusChangedAt,
+        tlsStatusChangedAt: input.tlsStatusChangedAt,
+        ownershipVerifiedAt: input.ownershipVerifiedAt,
+        tlsReadyAt: input.tlsReadyAt
+      })
+      .where(and(
+        eq(domains.projectId, input.projectId),
+        eq(domains.id, input.domainId)
+      ))
+      .returning({ id: domains.id });
+
+    return record ?? null;
+  }
+
+  async addDomainEvents(input: CreateProjectDomainEventInput[]) {
+    if (input.length === 0) {
+      return [];
+    }
+
+    return this.db
+      .insert(projectDomainEvents)
+      .values(input.map((event) => ({
+        projectId: event.projectId,
+        domainId: event.domainId,
+        kind: event.kind,
+        previousStatus: event.previousStatus,
+        nextStatus: event.nextStatus,
+        detail: event.detail,
+        createdAt: event.createdAt
+      })))
+      .returning({ id: projectDomainEvents.id });
+  }
+
+  async listRecentDomainEvents(input: {
+    projectId: string;
+    limitPerDomain: number;
+  }): Promise<ProjectDomainEventRecord[]> {
+    const result = await this.db.execute(sql<{
+      id: string;
+      project_id: string;
+      domain_id: string;
+      kind: 'ownership' | 'tls';
+      previous_status: string | null;
+      next_status: string;
+      detail: string;
+      created_at: Date;
+    }>`
+      select id, project_id, domain_id, kind, previous_status, next_status, detail, created_at
+      from (
+        select
+          ${projectDomainEvents.id} as id,
+          ${projectDomainEvents.projectId} as project_id,
+          ${projectDomainEvents.domainId} as domain_id,
+          ${projectDomainEvents.kind} as kind,
+          ${projectDomainEvents.previousStatus} as previous_status,
+          ${projectDomainEvents.nextStatus} as next_status,
+          ${projectDomainEvents.detail} as detail,
+          ${projectDomainEvents.createdAt} as created_at,
+          row_number() over (
+            partition by ${projectDomainEvents.domainId}
+            order by ${projectDomainEvents.createdAt} desc
+          ) as row_num
+        from ${projectDomainEvents}
+        where ${projectDomainEvents.projectId} = ${input.projectId}
+      ) recent_domain_events
+      where row_num <= ${input.limitPerDomain}
+      order by domain_id asc, created_at desc
+    `);
+
+    return result.rows.map((row: {
+      id: string;
+      project_id: string;
+      domain_id: string;
+      kind: 'ownership' | 'tls';
+      previous_status: string | null;
+      next_status: string;
+      detail: string;
+      created_at: Date;
+    }) => ({
+      id: row.id,
+      projectId: row.project_id,
+      domainId: row.domain_id,
+      kind: row.kind,
+      previousStatus: row.previous_status,
+      nextStatus: row.next_status,
+      detail: row.detail,
+      createdAt: row.created_at
+    })) satisfies ProjectDomainEventRecord[];
+  }
+
+  async listProjectIdsForDomainDiagnosticsRefresh(input: {
+    staleBefore: Date;
+    limit: number;
+  }) {
+    const result = await this.db.execute(sql<{ project_id: string }>`
+      select project_id
+      from ${domains}
+      where diagnostics_checked_at is null
+         or diagnostics_checked_at < ${input.staleBefore}
+      group by project_id
+      order by min(coalesce(diagnostics_checked_at, created_at)) asc
+      limit ${input.limit}
+    `);
+
+    return result.rows.map((row: { project_id: string }) => row.project_id);
   }
 
   async findPersistedUserByEmail(email: string) {

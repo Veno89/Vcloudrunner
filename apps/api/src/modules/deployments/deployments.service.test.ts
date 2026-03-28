@@ -34,6 +34,7 @@ const createdDeployment = {
 
 function buildService(overrides?: {
   projectResult?: typeof project | null;
+  domainsResult?: Array<{ host: string }>;
   createResult?: { id: string } | null;
   createError?: unknown;
   envVarsResult?: Array<{ key: string; encryptedValue: string }>;
@@ -76,6 +77,8 @@ function buildService(overrides?: {
       findById: async () => Object.prototype.hasOwnProperty.call(overrides ?? {}, 'projectResult')
         ? (overrides?.projectResult ?? null)
         : project
+      ,
+      listDomains: async () => overrides?.domainsResult ?? []
     } as never,
     deploymentsRepository: {
       createIfNoActiveDeployment: async (input: Record<string, unknown>) => {
@@ -473,6 +476,9 @@ test('createDeployment uses the primary public service runtime defaults and queu
     memoryMb: 1024,
     cpuMillicores: 500
   });
+  assert.deepEqual(queuedFrontendPayload.publicRouteHosts, [
+    'demo-project.platform.local'
+  ]);
   assert.deepEqual(queuedFrontendPayload.env, {
     VCLOUDRUNNER_PROJECT_SLUG: 'demo-project',
     VCLOUDRUNNER_PROJECT_SERVICE_NAMES: 'worker,frontend',
@@ -609,6 +615,7 @@ test('createDeployment uses an explicitly requested named service and its runtim
     memoryMb: 768,
     cpuMillicores: 700
   });
+  assert.deepEqual(queuedWorkerPayload.publicRouteHosts, []);
   assert.deepEqual(queuedWorkerPayload.env, {
     DATABASE_URL: 'postgres://internal-db',
     VCLOUDRUNNER_PROJECT_SLUG: 'demo-project',
@@ -690,6 +697,33 @@ test('createDeployment lets explicit deployment runtime override the primary ser
     memoryMb: 1024,
     cpuMillicores: 900
   });
+});
+
+test('createDeployment includes claimed custom domains for the public service route snapshot', async () => {
+  let enqueuePayload: Record<string, unknown> | null = null;
+
+  const service = buildService({
+    domainsResult: [
+      { host: 'demo-project.platform.local' },
+      { host: 'app.example.com' },
+      { host: 'www.example.com' }
+    ],
+    onEnqueue: (payload) => {
+      enqueuePayload = payload;
+    }
+  });
+
+  await service.createDeployment({
+    projectId: project.id,
+    correlationId: 'corr-routes-1'
+  });
+
+  assert.ok(enqueuePayload);
+  assert.deepEqual((enqueuePayload as { publicRouteHosts: string[] }).publicRouteHosts, [
+    'demo-project.platform.local',
+    'app.example.com',
+    'www.example.com'
+  ]);
 });
 
 

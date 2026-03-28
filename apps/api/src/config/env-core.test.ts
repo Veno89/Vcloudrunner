@@ -57,18 +57,27 @@ test('parseEnv defaults blank numeric strings instead of coercing them to zero',
     PORT: '   ',
     API_RATE_LIMIT_MAX: '',
     ALERT_MONITOR_INTERVAL_MS: ' ',
-    DEPLOYMENT_DEFAULT_MEMORY_MB: ''
+    DEPLOYMENT_DEFAULT_MEMORY_MB: '',
+    PROJECT_DOMAIN_DIAGNOSTICS_REFRESH_INTERVAL_MS: '',
+    PROJECT_DOMAIN_DIAGNOSTICS_BATCH_SIZE: ' '
   });
 
   assert.equal(env.PORT, 4000);
   assert.equal(env.API_RATE_LIMIT_MAX, 120);
   assert.equal(env.ALERT_MONITOR_INTERVAL_MS, 30000);
   assert.equal(env.DEPLOYMENT_DEFAULT_MEMORY_MB, 512);
+  assert.equal(env.PROJECT_DOMAIN_DIAGNOSTICS_REFRESH_INTERVAL_MS, 300000);
+  assert.equal(env.PROJECT_DOMAIN_DIAGNOSTICS_BATCH_SIZE, 10);
 });
 
 test('parseEnv defaults invitation delivery settings to the local platform host with delivery disabled', () => {
   const env = parseEnv(REQUIRED_ENV);
 
+  assert.equal(env.PLATFORM_DOMAIN, 'platform.local');
+  assert.equal(env.CADDY_ADMIN_URL, 'http://localhost:2019');
+  assert.equal(env.PROJECT_DOMAIN_DIAGNOSTICS_REFRESH_INTERVAL_MS, 300000);
+  assert.equal(env.PROJECT_DOMAIN_DIAGNOSTICS_STALE_MS, 1800000);
+  assert.equal(env.PROJECT_DOMAIN_DIAGNOSTICS_BATCH_SIZE, 10);
   assert.equal(env.INVITATION_CLAIM_BASE_URL, 'http://platform.example.com');
   assert.equal(env.INVITATION_DELIVERY_WEBHOOK_URL, '');
   assert.equal(env.INVITATION_DELIVERY_WEBHOOK_AUTH_TOKEN, '');

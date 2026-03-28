@@ -21,6 +21,7 @@ export interface SuccessInput {
   runtimeUrl: string | null;
   projectId: string;
   projectSlug: string;
+  routeHosts?: string[];
 }
 
 interface DeploymentControlRow {
@@ -38,6 +39,7 @@ interface RunningContainerRow {
   container_id: string;
   project_slug: string;
   runtime_url: string | null;
+  route_hosts: string[];
 }
 
 interface ArchiveCandidateRow {
@@ -91,15 +93,19 @@ export class DeploymentStateRepository {
           [input.deploymentId, input.containerId, input.imageTag, input.internalPort, input.hostPort]
         );
 
-        await this.pool.query(
-          `insert into domains (project_id, deployment_id, host, target_port)
-           values ($1, $2, $3, $4)
-           on conflict (host) do update
-           set deployment_id = excluded.deployment_id,
-               target_port = excluded.target_port,
-               updated_at = now()`,
-          [input.projectId, input.deploymentId, `${input.projectSlug}.${env.PLATFORM_DOMAIN}`, input.hostPort]
-        );
+        const routeHosts = input.routeHosts ?? [`${input.projectSlug}.${env.PLATFORM_DOMAIN}`];
+
+        for (const host of routeHosts) {
+          await this.pool.query(
+            `insert into domains (project_id, deployment_id, host, target_port)
+             values ($1, $2, $3, $4)
+             on conflict (host) do update
+             set deployment_id = excluded.deployment_id,
+                 target_port = excluded.target_port,
+                 updated_at = now()`,
+            [input.projectId, input.deploymentId, host, input.hostPort]
+          );
+        }
       }
 
       await this.pool.query('commit');
@@ -215,11 +221,20 @@ export class DeploymentStateRepository {
 
   async listRunningDeploymentContainers() {
     const result = await this.pool.query(
-      `select d.id as deployment_id, c.container_id, p.slug as project_slug, d.runtime_url
+      `select d.id as deployment_id,
+              c.container_id,
+              p.slug as project_slug,
+              d.runtime_url,
+              coalesce(
+                array_agg(dom.host order by dom.host) filter (where dom.host is not null),
+                array[]::text[]
+              ) as route_hosts
        from deployments d
        join containers c on c.deployment_id = d.id
        join projects p on p.id = d.project_id
+       left join domains dom on dom.deployment_id = d.id
        where d.status = 'running'
+       group by d.id, c.container_id, p.slug, d.runtime_url
        order by d.updated_at asc`,
       []
     );

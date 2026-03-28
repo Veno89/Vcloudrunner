@@ -115,8 +115,11 @@ export class DeploymentStateService {
             row.deployment_id,
             'STATE_RECONCILIATION: container not found or not running on worker startup'
           );
-          if (row.runtime_url) {
-            const host = `${row.project_slug}.${env.PLATFORM_DOMAIN}`;
+          const routeHosts = row.route_hosts.length > 0
+            ? row.route_hosts
+            : [`${row.project_slug}.${env.PLATFORM_DOMAIN}`];
+
+          for (const host of routeHosts) {
             try {
               await this.ingressManager.deleteRoute({ host });
             } catch (error) {

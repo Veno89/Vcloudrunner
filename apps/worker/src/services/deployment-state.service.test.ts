@@ -263,6 +263,7 @@ test('reconcileRunningDeployments continues after one container check fails', as
         container_id: string;
         project_slug: string;
         runtime_url: string | null;
+        route_hosts: string[];
       }>>;
     };
     markFailed: (deploymentId: string, message: string) => Promise<void>;
@@ -279,13 +280,15 @@ test('reconcileRunningDeployments continues after one container check fails', as
         deployment_id: 'dep-skip',
         container_id: 'container-skip',
         project_slug: 'project-skip',
-        runtime_url: 'http://project-skip.example.test'
+        runtime_url: 'http://project-skip.example.test',
+        route_hosts: []
       },
       {
         deployment_id: 'dep-reconcile',
         container_id: 'container-reconcile',
         project_slug: 'project-reconcile',
-        runtime_url: 'http://project-reconcile.example.test'
+        runtime_url: 'http://project-reconcile.example.test',
+        route_hosts: []
       }
     ]
   };
@@ -323,6 +326,7 @@ test('reconcileRunningDeployments removes the public route after marking a missi
         container_id: string;
         project_slug: string;
         runtime_url: string | null;
+        route_hosts: string[];
       }>>;
     };
     markFailed: (deploymentId: string, message: string) => Promise<void>;
@@ -338,7 +342,8 @@ test('reconcileRunningDeployments removes the public route after marking a missi
         deployment_id: 'dep-reconcile',
         container_id: 'container-reconcile',
         project_slug: 'project-reconcile',
-        runtime_url: 'http://project-reconcile.example.test'
+        runtime_url: 'http://project-reconcile.example.test',
+        route_hosts: [`project-reconcile.${env.PLATFORM_DOMAIN}`]
       }
     ]
   };
@@ -351,6 +356,56 @@ test('reconcileRunningDeployments removes the public route after marking a missi
   assert.equal(reconciledCount, 1);
   assert.deepEqual(failedDeployments, ['dep-reconcile']);
   assert.deepEqual(deletedHosts, [`project-reconcile.${env.PLATFORM_DOMAIN}`]);
+});
+
+test('reconcileRunningDeployments removes every persisted route host for a missing runtime', async () => {
+  const deletedHosts: string[] = [];
+  const service = createService({
+    pool: new MockPool(),
+    ingressManager: {
+      async deleteRoute(input) {
+        deletedHosts.push(input.host);
+      }
+    }
+  }) as unknown as {
+    repository: {
+      listRunningDeploymentContainers: () => Promise<Array<{
+        deployment_id: string;
+        container_id: string;
+        project_slug: string;
+        runtime_url: string | null;
+        route_hosts: string[];
+      }>>;
+    };
+    markFailed: (deploymentId: string, message: string) => Promise<void>;
+    reconcileRunningDeployments: (
+      isContainerRunning: (containerId: string) => Promise<boolean>
+    ) => Promise<number>;
+  };
+
+  service.repository = {
+    listRunningDeploymentContainers: async () => [
+      {
+        deployment_id: 'dep-reconcile',
+        container_id: 'container-reconcile',
+        project_slug: 'project-reconcile',
+        runtime_url: 'http://project-reconcile.example.test',
+        route_hosts: [
+          `project-reconcile.${env.PLATFORM_DOMAIN}`,
+          'app.example.com'
+        ]
+      }
+    ]
+  };
+  service.markFailed = async () => undefined;
+
+  const reconciledCount = await service.reconcileRunningDeployments(async () => false);
+
+  assert.equal(reconciledCount, 1);
+  assert.deepEqual(deletedHosts, [
+    `project-reconcile.${env.PLATFORM_DOMAIN}`,
+    'app.example.com'
+  ]);
 });
 
 test('reconcileRunningDeployments still counts a deployment reconciled when route cleanup fails', async () => {
@@ -370,6 +425,7 @@ test('reconcileRunningDeployments still counts a deployment reconciled when rout
         container_id: string;
         project_slug: string;
         runtime_url: string | null;
+        route_hosts: string[];
       }>>;
     };
     markFailed: (deploymentId: string, message: string) => Promise<void>;
@@ -384,7 +440,8 @@ test('reconcileRunningDeployments still counts a deployment reconciled when rout
         deployment_id: 'dep-reconcile',
         container_id: 'container-reconcile',
         project_slug: 'project-reconcile',
-        runtime_url: 'http://project-reconcile.example.test'
+        runtime_url: 'http://project-reconcile.example.test',
+        route_hosts: [`project-reconcile.${env.PLATFORM_DOMAIN}`]
       }
     ]
   };

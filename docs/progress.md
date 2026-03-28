@@ -1,6 +1,6 @@
 # Vcloudrunner MVP Progress Tracker
 
-Last updated: 2026-03-27 (Phase 4 invitation delivery closeout)
+Last updated: 2026-03-28 (Roadmap DNS challenge claim loop)
 
 ## Legend
 
@@ -10,7 +10,7 @@ Last updated: 2026-03-27 (Phase 4 invitation delivery closeout)
 
 
 
-## Phase Status Snapshot (2026-03-27)
+## Phase Status Snapshot (2026-03-28)
 
 - **Phase 1: Critical stabilization** — ~99% complete
   - done: deployment concurrency invariant (service + DB), queue enqueue failure mapping/state correction, deployment-create env-resolution failure correction so decrypt/read failures no longer strand active deployments, queued-cancel race/idempotency hardening, safer compose defaults, production dev-auth startup guard, stricter bootstrap token startup validation, strict env-boolean parsing for auth/ingress and worker archive-lifecycle flags, strict numeric env parsing for API/worker runtime settings so blank strings no longer coerce to `0`, telemetry startup that now honors the same boolean env semantics as the validated config layer, explicit rejection of invalid credentials during dev-auth fallback flows, root auth/error plugin inheritance fix, host-run worker `.env` loading that now matches the documented app-local override flow, cwd-independent repo-root env resolution for API/worker startup and API `drizzle-kit` commands, aligned `drizzle-kit` env loading/fail-fast behavior with the API runtime, pinned compose API dev auth off independently from local host-run `.env` settings, stricter Redis queue URL parsing so explicit database paths must be integer indexes instead of silently coercing invalid values, broader API auth/deployment regression coverage, fuller api-token route access coverage, and clearer dashboard auth/config failure states
@@ -21,12 +21,308 @@ Last updated: 2026-03-27 (Phase 4 invitation delivery closeout)
 - **Phase 3: UI/UX trust and polish** — ~100% complete
   - done: route architecture, loading/error boundaries, action feedback helpers, clearer deployment error messages, stopped-status consistency, in-context failure handling, live-data unavailable/degraded states across the dashboard, platform-health visibility even when project-scoped live data is unavailable, clearer status-page behavior under partial outages, more truthful platform-health badge semantics, preserved worker stale/unavailable distinctions, more accurate demo-mode/live-data messaging on top-level pages, timeout-bounded dashboard live-data/log-proxy fetching so hung upstream calls degrade into explicit timeout states instead of hanging route rendering, overlap-safe client-side queue-health polling for operational widgets, pending-aware/visibility-aware auto-refresh loops for deployment and log views, visibility-aware live log streaming with replay-safe resume behavior plus in-panel reconnect recovery, terminal-state-aware log streaming so stopped/failed deployments now keep historical logs visible without pretending to be actively streaming, terminal-state-aware log auto-refresh so stopped/failed deployments no longer keep polling the route while saying no new live logs are expected, partial-outage-aware global deployment/history loaders so one failing project no longer blanks top-level dashboard views, partial-outage-aware project detail panels so deployment or environment read failures no longer take down the full project page, project-scoped deployment/environment/log routes that now stay usable when their secondary live-data reads fail, a global environment shortcut that now stays live when the selected project’s variable read fails, deployment detail routing that no longer turns partial-outage misses into false not-found states, token settings that now keep creation available when the token inventory read fails, deployment detail pages that now explicitly disclose surrounding history outages when the current deployment remains available, status-page outcome summaries that now stay terminal-only, truthful operational-card labeling for running-deployment recency, and cancellation-requested deployment states that now show an explicit `cancelling` cue plus updated queued/building/stopped guidance across detail, summary, log-selector, project-overview, operational-metric, global-filter, and plain-text detail surfaces instead of masquerading as normal in-progress work
   - left (~0%): core UI/UX trust and polish goals are complete; only optional future polish remains
-- **Phase 4: Extensibility and platform maturity** — ~99% complete
+- **Phase 4: Extensibility and platform maturity** — ~100% complete
   - done: API route and service composition (removing module-level singletons in favor of injected factories in fastify plugins), runtime and deployment lifecycle seams exist, basic domain boundaries are in place, worker runtime execution plus runtime-health inspection now share an adapter/factory seam instead of hard-wiring bootstrap reconciliation to Docker, worker ingress management now also goes through an explicit seam instead of naming `CaddyService` directly, lifecycle event emission now depends on an event-sink seam instead of a raw webhook-emitter function, archive upload request/auth logic now goes through a dedicated provider seam instead of living inside deployment state management, that archive upload request/auth layer is now further split into provider-specific `http`/`s3`/`gcs`/`azure` adapters behind a registry-driven selector instead of one branching class, deployment-log archive encoding/compression now also goes through a dedicated archive-builder seam instead of living inline inside the state service, worker outbound HTTP transport now also goes through a shared client seam instead of letting Caddy route updates, lifecycle webhooks, archive uploads, and GCS token exchange each hand-roll their own timeout and fetch logic, worker archive-upload composition now also goes through dedicated factories instead of letting the configured provider, GCS auth adapter, and configured uploader self-compose registries or HTTP clients inline, worker shell command execution now goes through a deployment-command-runner seam instead of living inline inside runtime orchestration, worker container/network lifecycle now also goes through a runtime-manager seam instead of binding `DeploymentRunner` straight to `dockerode`, worker Caddy service plus Docker runtime executor/inspector/manager composition now also goes through dedicated adapter-specific factories instead of letting those concrete infrastructure adapters self-compose outbound HTTP, deployment-runner, or Docker-client dependencies inside their constructors, worker workspace preparation/cleanup now goes through a workspace-manager seam instead of living inline inside runtime orchestration, build-file repository inspection now goes through a repository-file-inspector seam instead of letting Dockerfile detection shell out to git directly, build-system resolver, Dockerfile detector, and configured image-builder composition now also go through dedicated factories instead of self-composing detector lists, repository inspectors, command runners, or resolvers inside their constructors, local archive file handling now also goes through a deployment-log-archive-store seam instead of living inline inside deployment state management, build-system resolution now also goes through a dedicated resolver seam instead of letting `DeploymentRunner` call a static detector registry directly, the default build-detector list now also goes through a dedicated detector factory instead of being hard-wired inline inside the configured resolver, raw process-launch behavior for repository inspection and shell deployment commands now also goes through a shared exec-file runner seam instead of naming `execFile` separately inside each adapter, repository clone plus image-build orchestration now also goes through a deployment-image-builder seam instead of living inline inside `DeploymentRunner`, archive upload transport/retry behavior now also goes through a deployment-log-archive-uploader seam instead of living inline inside deployment state management, worker deployment-state construction now also goes through a factory seam instead of being named directly in the job processor and bootstrap composition roots, BullMQ deployment-worker construction now also goes through a dedicated factory seam instead of being hard-wired inline at the worker module boundary, deployment-worker default processor composition now also goes through a dedicated configured factory instead of letting the general worker factory self-compose a processor inline, worker bootstrap lifecycle composition now also goes through a dedicated configured factory instead of being wired inline in `index.ts`, worker background-scheduler plus heartbeat-Redis construction now also goes through a dedicated factory seam instead of being wired inline in the bootstrap entrypoint, deployment-state repository construction now also goes through a dedicated factory seam instead of being named directly inside state-service composition, deployment-state repository default queryable composition now also goes through a dedicated configured factory instead of letting the repository self-compose its database pool inside the constructor, deployment-state database-queryable / `pg` pool construction now also goes through a dedicated factory seam instead of living inline inside the repository, deployment-runner construction now also goes through a dedicated factory seam instead of being named directly inside the Docker runtime executor, deployment-runner default workspace/image/runtime collaborator composition now also goes through a dedicated configured factory instead of letting the runner self-compose those defaults inside its constructor, deployment-job-processor default dependency wiring now also goes through a dedicated factory seam instead of naming runtime/state/ingress/event/logger defaults inline inside the processor module, deployment-state-service default repository/ingress/archive collaborator wiring now also goes through a dedicated factory seam instead of being named inline inside the service constructor, Docker client construction now also goes through a shared factory seam instead of being named directly inside the Docker-backed runtime manager and inspector adapters, and duplicated worker runtime-family selection now also goes through a shared resolver seam instead of being repeated inline across the runtime executor, runtime inspector, and container-runtime-manager factories, while archive providers now use provider-native AWS/Azure SDK upload adapters plus `google-auth-library`-backed GCS token resolution instead of hand-rolled signing/token flows, and deployment-state service construction now also lives in a dedicated configured factory so the class itself no longer self-composes default collaborators, while heartbeat Redis, repository-file-inspector, deployment-state-queryable, Docker-client, outbound HTTP, Caddy service, webhook listener, ingress manager, deployment-log archive builder/store, and HTTP archive-provider default construction now also live behind dedicated configured or adapter-specific factories instead of being instantiated inline around the worker service graph, and worker queue Redis connection defaults now also go through dedicated configured and override-friendly factory seams instead of living as a module-level boundary constant
   - done recently: projects now carry explicit service-definition contracts with one primary public service plus internal-only services, the worker build/runtime path honors the selected service root for workspace preparation, Dockerfile detection, Docker build context, and runtime project paths, deployments can now explicitly target named services with a per-project/per-service active-deployment invariant instead of a project-wide active lock, the API now generates `VCLOUDRUNNER_SERVICE_*` discovery env vars plus stable internal hostnames for each project service, the worker runtime now attaches matching Docker network aliases for those generated service hosts, runtime/ingress behavior now only exposes public web services, the dashboard now composes project status from per-service deployment state while surfacing each service's current deployment status, latest deployment, and internal host through project and deployment views, the dashboard now resolves its live user context through an authenticated `/v1/auth/me` API path instead of treating `NEXT_PUBLIC_DEMO_USER_ID` as the primary identity source, the authenticated actor payload now reports auth source plus persisted user profile details when available, Settings now includes a dedicated account/session surface instead of keeping auth state only in the overview, the dashboard now supports an interactive per-user sign-in/sign-out flow backed by an httpOnly session cookie that overrides the old shared env-token fallback, top-level dashboard routes now distinguish sign-in-required / session-expired states from true live-data outages while returning re-auth flows to the operator's original page, the remaining project-scoped pages plus global logs/environment/token surfaces now use the same auth-aware unavailable handling while live log streaming and log-export proxy messaging steer operators back into session re-auth instead of silently normalizing env-token fallback, direct deployment-detail access plus the remaining project/token server-action viewer-resolution failures now also redirect through the same auth-aware session recovery path instead of generic top-level redirects or `no user context` handling, the platform now has its first real persisted-user bootstrap path so authenticated bootstrap/dev actors can create a stored profile and move into DB-backed token workflows without staying stuck in token-only identity, sign-in / session-controls / project-create / token-management flows now treat account setup as the normal bridge out of bootstrap/dev identity instead of leaving those actors stranded in half-configured write paths, the first persisted project-membership groundwork now exists through owner-membership seeding, member listing, existing-user invites, and a project detail members surface with invite controls, owners/admins/project-admins can now update non-owner member roles or remove non-owner memberships directly from the project page through the same persisted project-membership model, the platform now stores pending project invitations for non-persisted emails while automatically accepting matching invitations when that user completes account setup with the same email, pending invitations can now be refreshed or cancelled directly from the dashboard while account-setup success feedback names accepted project memberships more clearly, invitation records now preserve `pending` / `accepted` / `cancelled` history with shareable claim links plus a dedicated dashboard claim page instead of disappearing on acceptance or cancellation, and project ownership can now be transferred explicitly to an existing member while keeping that operation owner-only and leaving the previous owner behind as a normal admin member
   - left (~0%): the current four-phase MVP plan is complete; broader auth/team maturity, richer outbound delivery providers, runtime adapter expansion, and advanced day-2 tooling now belong to the next planning pass rather than the original phase checklist
 
 ## Implementation Log
+
+### Phase: Roadmap DNS challenge claim loop (2026-03-28, persisted TXT ownership challenge + explicit verify flow)
+
+- what was built:
+  - added a persisted per-domain TXT ownership challenge model for custom hosts, including stored verification tokens plus verification status/detail/timestamp state on the `domains` record, so custom-domain claims now have a first-class challenge contract instead of relying only on passive guidance
+  - extended the project-domain diagnostics path to verify ownership through a `_vcloudrunner.<host>` TXT record while still separately checking routing DNS and HTTPS readiness, letting the platform distinguish claim verification, ingress-target DNS, and certificate health as separate steps in the domain lifecycle
+  - added an explicit `POST /v1/projects/:projectId/domains/:domainId/verify` flow plus dashboard action/UI support, so operators can verify a single host on demand and get concrete claim-completion feedback instead of only running a broad refresh and inferring the result
+  - updated the Domains page to show the TXT ownership challenge record, the routing CNAME target, richer claim-state badges, and per-host verify/recheck controls, so the dashboard now exposes the full manual challenge loop end to end
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/drizzle/0014_project_domain_verification.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/services/project-domain-diagnostics.service.ts`
+  - `apps/api/src/services/project-domain-diagnostics.service.test.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/modules/projects/projects.routes.ts`
+  - `apps/api/src/modules/projects/projects.routes.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-domains.ts`
+  - `apps/dashboard/app/projects/actions.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - custom-domain claims now have a real TXT verification loop, but certificate issuance/renewal still only appears as best-effort HTTPS diagnostics rather than a richer managed lifecycle with clearer certificate state progression and recovery guidance
+- next recommended step:
+  - continue roadmap item 3 by deepening certificate issuance/renewal lifecycle tracking and operator guidance on top of the now-complete TXT claim loop, so certificate problems become as explicit and actionable as claim verification
+### Phase: Roadmap guided domain claim workflow (2026-03-28, operator-facing DNS action guidance)
+
+- what was built:
+  - extended the project-domain diagnostics API model with explicit claim guidance derived from the current route, DNS ownership, TLS status, and diagnostics freshness, so each host now reports a concrete next-step state like `configure-dns`, `fix-dns`, `wait-for-https`, `redeploy-public-service`, or `healthy`
+  - taught the project-domain service layer to attach recommended DNS record instructions for custom hosts, including the expected record type, host label, and target value when the operator still needs to point the domain at the platform
+  - surfaced that guidance on the dashboard Domains page with claim-state badges, operator-facing “Claim guide” messaging, and explicit DNS record instructions instead of leaving operators to infer the next action from raw DNS/TLS status alone
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-domains.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - the platform now guides operators through the manual domain-claim path, but it still does not run a real DNS challenge/claim loop with stored verification tokens, explicit claim-state progression, or managed certificate issuance/renewal workflows beyond best-effort HTTPS diagnostics
+- next recommended step:
+  - continue roadmap item 3 by turning the guided claim model into a real DNS challenge/claim loop with explicit ownership-token generation, verification-state progression, and operator-facing claim completion feedback
+### Phase: Roadmap domain diagnostics event history (2026-03-28, persisted DNS/TLS transition log)
+
+- what was built:
+  - added a persisted `project_domain_events` history model that records DNS and HTTPS status transitions per domain, so the platform now keeps a lightweight event trail instead of only the latest/current domain state
+  - updated the project-domain diagnostics refresh path to write ownership and TLS events whenever a host moves into a new status, including the first recorded state and later drift/regression transitions
+  - surfaced recent domain activity on the dashboard Domains page so each host now shows a short DNS/HTTPS transition timeline alongside the current freshness and drift messaging
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/drizzle/0013_project_domain_events.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-domains.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - project-domain diagnostics now include recent transition history, but the platform still does not run a fuller DNS challenge/claim workflow and still does not model certificate issuance/renewal as a richer managed lifecycle beyond best-effort HTTPS state observation
+- next recommended step:
+  - continue roadmap item 3 by deciding whether to turn the current event/history model into a more guided DNS claim workflow, or to move directly into a real DNS challenge/claim loop with operator-facing verification instructions and claim-state progression
+
+### Phase: Roadmap domain diagnostics drift surfacing (2026-03-28, current-status timing + regression visibility)
+
+- what was built:
+  - extended stored project-domain diagnostics state with `ownership_status_changed_at` and `tls_status_changed_at`, so the platform now tracks when the current DNS and HTTPS status first began instead of only storing the latest status value
+  - updated the project-domain diagnostics persistence flow so those status-change timestamps are backfilled on the first recorded state, preserved while a host stays in the same state, and reset when DNS/TLS move into a new status during later refreshes
+  - surfaced that history on the dashboard Domains page with drift/regression summaries plus per-host timeline messaging like current-state duration, DNS drift after prior verification, and HTTPS regression after prior healthy checks
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/drizzle/0012_project_domain_status_history.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-domains.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - project-domain diagnostics now show freshness plus status-duration/regression timing, but the platform still only stores the current/latest domain state rather than a fuller certificate issuance/renewal or ownership event history, and there is still no explicit DNS challenge/claim workflow beyond guidance plus best-effort verification
+- next recommended step:
+  - continue roadmap item 3 by choosing between a fuller certificate/ownership event history model and a real DNS challenge/claim loop, depending on whether operator visibility or claim automation is the more valuable next milestone
+
+### Phase: Roadmap domain diagnostics freshness surfacing (2026-03-28, explicit fresh/stale/unchecked host checks)
+
+- what was built:
+  - extended the project-domain API response model with explicit diagnostics freshness state derived from `diagnostics_checked_at`, so stored DNS and TLS results now distinguish `fresh`, `stale`, and `unchecked` instead of treating all recorded status as equally current
+  - updated the project-domain service layer so freshness is applied consistently to fallback reads and live refresh writes, keeping the API contract aligned with the same staleness window already used by the background diagnostics refresher
+  - surfaced diagnostics freshness badges, operator-facing freshness detail, and top-level stale/unrecorded counts on the dashboard Domains page, so latest-known DNS and certificate state is now visibly qualified instead of reading like guaranteed live truth
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-domains.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - project-domain diagnostics are now freshness-aware, but the platform still only stores the latest-known DNS/TLS state rather than a fuller certificate issuance/renewal or ownership-history timeline, and there is still no explicit DNS challenge/claim workflow beyond guidance plus best-effort verification
+- next recommended step:
+  - continue roadmap item 3 by deciding whether to deepen the freshness-aware model into explicit certificate/ownership history and drift surfacing, or move into a fuller DNS challenge/claim loop if that is the more valuable next platform milestone
+
+### Phase: Roadmap recurring domain diagnostics refresh (2026-03-28, background DNS/TLS reconciliation + last-known-good timing)
+
+- what was built:
+  - added an API-side `ProjectDomainDiagnosticsRefreshService` that periodically refreshes stale project-domain diagnostics in bounded batches, so DNS and TLS state no longer depend only on someone opening the Domains page or clicking the manual refresh action
+  - extended stored domain lifecycle state with `ownership_verified_at` and `tls_ready_at`, preserving the last-known successful DNS verification and last healthy HTTPS check even when a host later drifts into mismatch, pending, or invalid states
+  - refactored the project-domain diagnostics path so the dashboard refresh action and the background refresher now share the same `ProjectsService` persistence flow instead of maintaining separate update logic
+  - updated the Domains page to show the last-known DNS verification and HTTPS healthy timestamps alongside the latest diagnostics status, and clarified that diagnostics now refresh automatically in the background while still supporting on-demand checks
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/drizzle/0011_project_domain_diagnostics_lifecycle.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/config/env-core.ts`
+  - `apps/api/src/config/env-core.test.ts`
+  - `apps/api/.env.example`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/server/build-server.ts`
+  - `apps/api/src/server/build-server.test.ts`
+  - `apps/api/src/services/project-domain-diagnostics-refresh.service.ts`
+  - `apps/api/src/services/project-domain-diagnostics-refresh.service.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - the platform now has recurring diagnostics and last-known-good timing, but it still only stores the latest known lifecycle state rather than a fuller certificate issuance/renewal history, and there is still no explicit DNS challenge/ownership workflow beyond guidance plus best-effort verification
+- next recommended step:
+  - continue roadmap item 3 by deciding how far the platform model should go beyond latest-known host state: either add explicit certificate/ownership history and richer freshness surfacing, or move into a fuller DNS challenge/claim loop if that better fits the next platform milestone
+
+### Phase: Roadmap active custom-domain detach (2026-03-28, explicit live-route deactivation for removals)
+
+- what was built:
+  - replaced the old API-side "active custom domains cannot be removed yet" guard with an explicit live-route detach path for non-default hosts that are already attached to a deployment, so operators can now remove active custom domains without waiting for a redeploy or manual database cleanup
+  - added an API-side Caddy admin route-deactivation service plus configuration plumbing (`CADDY_ADMIN_URL` in the API env/compose config), letting the control plane delete the live reverse-proxy host before it removes the domain claim from the database
+  - kept the safety guard for queued/building deployments, because those jobs already carry a snapshotted `publicRouteHosts` list and could otherwise republish a just-removed host later in the same in-flight deployment
+  - updated the dashboard Domains page and removal messaging so running or stale custom hosts can be removed directly, while queued/building hosts now explain that removal has to wait for the deployment to finish or be cancelled
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/src/services/project-domain-route.service.ts`
+  - `apps/api/src/services/project-domain-route.service.test.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/server/domain-errors.ts`
+  - `apps/api/src/config/env-core.ts`
+  - `apps/api/.env.example`
+  - `apps/dashboard/app/projects/actions.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docker-compose.yml`
+  - `docs/progress.md`
+- what is still missing:
+  - DNS ownership and certificate state are now stored and removable routes can be detached safely, but certificate/verification data is still refreshed on demand rather than by a recurring reconciliation loop, and there is still no richer certificate issuance/renewal history beyond the latest recorded status
+- next recommended step:
+  - continue roadmap item 3 by building on the stored diagnostics model with richer certificate lifecycle tracking plus background DNS/TLS refresh/reconciliation instead of on-demand checks only
+
+### Phase: Roadmap persisted domain diagnostics state (2026-03-28, stored DNS/TLS status + on-demand refresh)
+
+- what was built:
+  - extended the `domains` model with persisted ownership status, ownership detail, TLS status, TLS detail, and `diagnostics_checked_at`, so project-domain health is now part of first-class platform state instead of existing only as ephemeral read-time probes
+  - updated the project-domain service flow so normal reads return stored diagnostics with safe fallbacks, while `includeDiagnostics=true` now performs a live DNS/TLS inspection and persists the refreshed state back onto each domain record for later reads
+  - added a dashboard-side “Refresh Checks” action on the Domains page, so operators can explicitly refresh DNS and certificate checks on demand while the page otherwise renders the stored status plus the last recorded refresh time
+  - kept route activation and detach behavior unchanged for this slice: active custom hosts still publish through the current ingress path, but the platform now has durable per-host verification/TLS status that can support the next removal/deactivation workflow cleanly
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/drizzle/0010_project_domain_diagnostics.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/app/projects/actions.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - active custom domains still cannot be detached safely through an explicit route-deactivation workflow, and certificate/verification state is still refreshed on demand rather than through background reconciliation or a richer certificate-history model
+- next recommended step:
+  - continue roadmap item 3 by adding live-route deactivation for active custom domains so removal no longer depends on the current safety guard, then follow with richer certificate lifecycle tracking on top of the stored diagnostics model
+
+### Phase: Roadmap domain diagnostics follow-through (2026-03-28, DNS ownership + TLS visibility)
+
+- what was built:
+  - added a best-effort domain diagnostics service on the API that inspects public DNS resolution and HTTPS reachability for project hosts, so the control plane can now distinguish platform-managed hosts, verified custom DNS, pending/mismatched DNS, and basic TLS readiness/validation problems per host
+  - extended `GET /v1/projects/:projectId/domains` with an opt-in `includeDiagnostics=true` mode, keeping the default route payload lightweight for general project dashboards while allowing the dedicated Domains page to request richer DNS/TLS state without turning every project listing into live network probes
+  - updated the dashboard Domains page to request those diagnostics explicitly and surface them through readable DNS/TLS badges plus operator-facing detail text alongside the existing route/deployment status, so claimed custom domains no longer stop at a generic `pending` story
+  - kept the diagnostics slice non-authoritative and read-time only for now: route activation is unchanged, but operators can finally see whether a host is unconfigured, pointed at the wrong target, waiting on HTTPS, or already serving a valid certificate
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/src/services/project-domain-diagnostics.service.ts`
+  - `apps/api/src/services/project-domain-diagnostics.service.test.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/modules/projects/projects.routes.ts`
+  - `apps/api/src/modules/projects/projects.routes.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-domains.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - DNS ownership and TLS are still derived from best-effort read-time probes rather than persisted platform state, there is still no explicit DNS challenge/claim loop or certificate issuance history, and active custom domains still rely on the current removal guard instead of a full route-detach workflow
+- next recommended step:
+  - continue roadmap item 3 by turning host diagnostics into first-class platform state: add explicit DNS verification / certificate lifecycle tracking where possible, then add live-route deactivation so active custom domains can be detached safely instead of remaining guarded
+
+### Phase: Roadmap custom-domain activation groundwork (2026-03-27, deployment route snapshots + worker ingress publish)
+
+- what was built:
+  - extended deployment queue payloads so the API now snapshots the public route host set for public-service deploys, including the reserved default host plus any claimed custom domains, instead of leaving the worker hard-wired to a single generated hostname
+  - updated worker route activation so public deploys now publish every queued host through Caddy, persist the default host plus successfully activated custom hosts back onto the deployment/domain model, and clean up all configured hosts together during post-run failure handling and startup reconciliation
+  - tightened domain lifecycle safety so custom domains now become live on the next successful public-service deployment, pending custom hosts stay truthful when per-host activation fails, and active/in-flight custom domains are blocked from removal until explicit live-route deactivation exists
+  - refreshed the dashboard Domains page guidance and controls to match the new behavior: claimed custom domains publish on the next successful deploy, while live custom routes remain visible but temporarily non-removable
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/worker run typecheck`, `npm --workspace @vcloudrunner/worker test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `packages/shared-types/src/index.ts`
+  - `apps/api/src/modules/deployments/deployments.service.ts`
+  - `apps/api/src/modules/deployments/deployments.service.test.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/modules/projects/projects.routes.test.ts`
+  - `apps/api/src/server/domain-errors.ts`
+  - `apps/worker/src/workers/deployment-job-processor.ts`
+  - `apps/worker/src/workers/deployment-job-processor.test.ts`
+  - `apps/worker/src/services/deployment-state.repository.ts`
+  - `apps/worker/src/services/deployment-state.repository.test.ts`
+  - `apps/worker/src/services/deployment-state.service.ts`
+  - `apps/worker/src/services/deployment-state.service.test.ts`
+  - `apps/dashboard/app/projects/actions.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - DNS ownership, certificate issuance/renewal, and explicit per-host TLS/problem state are still not first-class, and active custom domains currently rely on a safety guard instead of a full live-route deactivation/removal workflow
+- next recommended step:
+  - continue roadmap item 3 by adding DNS ownership plus TLS/certificate state on top of the now-live custom-host activation path, then follow with explicit live-route deactivation so active custom domains can be detached safely instead of remaining guarded
+
+### Phase: Roadmap domains management groundwork (2026-03-27, custom-domain claim add/remove + pending state)
+
+- what was built:
+  - added the first write-side project-domain workflow on the API through `POST /v1/projects/:projectId/domains` and `DELETE /v1/projects/:projectId/domains/:domainId`, so owners/admins/project-admins can now claim or remove custom hosts directly from the control plane instead of treating routing as read-only metadata
+  - extended project-domain state modeling with an explicit `pending` route status for claimed-but-not-yet-activated hosts, so undeployed custom domains no longer masquerade as healthy routing before ingress and TLS activation exist
+  - taught the dashboard Domains page to manage custom domains with role-aware add/remove controls, clearer operator guidance about the current claim-first workflow, and explicit distinction between the reserved default platform host and removable custom hosts
+  - introduced `PLATFORM_DOMAIN` into the API config layer so the control plane can consistently protect the platform-managed default hostname namespace while continuing to compute the expected generated host for each project
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/.env.example`
+  - `apps/api/src/config/env-core.ts`
+  - `apps/api/src/config/env-core.test.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/modules/projects/projects.routes.ts`
+  - `apps/api/src/modules/projects/projects.routes.test.ts`
+  - `apps/api/src/server/domain-errors.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-domains.ts`
+  - `apps/dashboard/app/projects/actions.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - custom domains are stored as project claims today, but deployment payloads, worker ingress activation, and certificate lifecycle still only understand the default generated host; there is no DNS verification or first-class TLS status yet
+- next recommended step:
+  - continue roadmap item 3 by wiring claimed custom domains into deployment/runtime ingress activation, then add TLS/certificate state so the dashboard can distinguish claimed, active, and certificate-problem hosts
+
+### Phase: Roadmap domains/routing visibility foundation (2026-03-27, real route status + project domains dashboard)
+
+- what was built:
+  - added a real project-domain read path on the API through `GET /v1/projects/:projectId/domains`, backed by persisted `domains` rows and joined deployment metadata so the control plane can now describe each published host with its target deployment, target port, runtime URL, and service metadata instead of leaving route visibility implicit
+  - introduced computed route states (`active`, `degraded`, `stale`) in the project service layer so the dashboard can distinguish healthy public routing from running-without-runtime-url cases and stale host records that still point at stopped or failed deployments
+  - added a dedicated project Domains page plus project-subnav entry in the dashboard, showing published hosts, route state, deployment linkage, runtime URL visibility, and service/exposure metadata for the current project's public routing surface
+  - replaced the old hardcoded project hostname guess on the main dashboard surfaces with the real route summary when available, so project cards and the project overview now surface actual route state while still falling back to the expected default host when no route has been published yet
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/modules/projects/projects.routes.ts`
+  - `apps/api/src/modules/projects/projects.routes.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/loaders.ts`
+  - `apps/dashboard/lib/project-domains.ts`
+  - `apps/dashboard/lib/mock-data.ts`
+  - `apps/dashboard/components/project-card.tsx`
+  - `apps/dashboard/components/project-subnav.tsx`
+  - `apps/dashboard/app/projects/page.tsx`
+  - `apps/dashboard/app/projects/[id]/page.tsx`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - the current domains slice is visibility-first and still read-only: there is no project-side add/remove domain workflow, no custom-domain claim/DNS verification loop, no first-class TLS/certificate state, and the runtime routing model is still centered on one default public host per project
+- next recommended step:
+  - continue roadmap item 3 by adding the first write-side domain workflow: project-scoped domain add/remove management with explicit claimed/pending/active guidance, then surface TLS/certificate state once the platform can manage more than the default generated host
 
 ### Phase: Phase 4 invitation delivery closeout (2026-03-27, outbound webhook delivery + redelivery controls)
 
@@ -2461,7 +2757,7 @@ Last updated: 2026-03-27 (Phase 4 invitation delivery closeout)
 
 ## 9) Testing Status
 
-- [~] Static checks attempted in current environment (shared-types `build`, API `typecheck`/`test`, dashboard `typecheck`/`lint`, and worker `typecheck`/`test` passing as of 2026-03-27 after the Phase 4 invitation-delivery closeout; broader workspace validation still partial)
+- [~] Static checks attempted in current environment (shared-types `build`, API `typecheck`/`test`, and dashboard `typecheck`/`lint` passing as of 2026-03-28 after the roadmap DNS challenge claim loop, while worker `typecheck`/`test` remains previously green from the earlier roadmap domains/routing slices; broader workspace validation is still partial)
 - [ ] End-to-end compose validation (blocked by missing Docker CLI in this environment)
 - [~] Typecheck/test execution with installed dependencies (shared-types, API, dashboard typecheck, and worker package verified; broader workspace install/validation still environment-dependent)
 
@@ -2469,5 +2765,5 @@ Last updated: 2026-03-27 (Phase 4 invitation delivery closeout)
 
 ## Immediate Next Recommended Steps
 
-1. Treat the current four-phase MVP plan as complete and use the next planning session to choose the first post-phase roadmap slice from `docs/roadmap.md`.
-2. Before starting that next plan in a live environment, apply the pending invitation-related DB migrations and decide whether you want to configure the new invitation-delivery webhook or keep using manual claim-link sharing.
+1. Continue roadmap item 3 by deepening certificate issuance/renewal lifecycle tracking and operator guidance on top of the now-complete TXT claim loop.
+2. After that, decide whether the next follow-through should keep pushing domains/TLS maturity or move to the next broader roadmap area such as managed databases or richer operator tooling.

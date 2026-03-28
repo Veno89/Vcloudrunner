@@ -1,4 +1,5 @@
 import {
+  isPublicWebServiceTarget,
   normalizeProjectServices,
   resolveProjectService,
   type DeploymentJobPayload,
@@ -61,6 +62,26 @@ function isSingleActiveDeploymentUniqueViolation(error: unknown) {
     constraint: SINGLE_ACTIVE_DEPLOYMENT_INDEX,
     table: 'deployments'
   });
+}
+
+function createDefaultProjectDomainHost(projectSlug: string) {
+  return `${projectSlug}.${env.PLATFORM_DOMAIN}`;
+}
+
+function buildPublicRouteHosts(input: {
+  projectSlug: string;
+  claimedHosts: readonly string[];
+}) {
+  const defaultHost = createDefaultProjectDomainHost(input.projectSlug);
+  const hosts = [defaultHost];
+
+  for (const host of input.claimedHosts) {
+    if (host !== defaultHost) {
+      hosts.push(host);
+    }
+  }
+
+  return hosts;
 }
 
 interface DeploymentsServiceDependencies {
@@ -153,12 +174,19 @@ export class DeploymentsService {
       const decryptedEnv = Object.fromEntries(
         envVars.map((item) => [item.key, this.cryptoService.decrypt(item.encryptedValue)])
       );
+      const claimedHosts = await this.projectsRepository.listDomains(project.id);
       const discoveryEnv = createProjectServiceDiscoveryEnv({
         projectSlug: project.slug,
         services,
         selectedService,
         defaultContainerPort: env.DEPLOYMENT_DEFAULT_CONTAINER_PORT
       });
+      const publicRouteHosts = isPublicWebServiceTarget(selectedService)
+        ? buildPublicRouteHosts({
+            projectSlug: project.slug,
+            claimedHosts: claimedHosts.map((domain) => domain.host)
+          })
+        : [];
 
       payload = {
         deploymentId: deployment.id,
@@ -172,6 +200,7 @@ export class DeploymentsService {
         serviceKind: selectedService.kind,
         serviceSourceRoot: selectedService.sourceRoot,
         serviceExposure: selectedService.exposure,
+        publicRouteHosts,
         env: {
           ...decryptedEnv,
           ...discoveryEnv

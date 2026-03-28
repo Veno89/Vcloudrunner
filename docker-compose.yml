@@ -36,6 +36,7 @@ services:
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/vcloudrunner
       REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required and must be >=32 chars}
+      CADDY_ADMIN_URL: http://caddy:2019
       DEPLOYMENT_DEFAULT_CONTAINER_PORT: 3000
       DEPLOYMENT_DEFAULT_MEMORY_MB: 512
       DEPLOYMENT_DEFAULT_CPU_MILLICORES: 500

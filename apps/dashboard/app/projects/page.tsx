@@ -89,6 +89,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
                 name={project.name}
                 repo={project.repo}
                 domain={project.domain}
+                routeStatusSummary={project.routeStatusSummary}
                 serviceSummary={project.serviceSummary}
                 serviceStatusSummary={project.serviceStatusSummary}
                 status={project.status}

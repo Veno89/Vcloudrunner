@@ -37,6 +37,8 @@ function createBuildServerDependencies(options?: {
   let redisQuitCalls = 0;
   let alertStartCalls = 0;
   let alertStopCalls = 0;
+  let domainRefreshStartCalls = 0;
+  let domainRefreshStopCalls = 0;
 
   const deploymentQueue = {
     async close() {
@@ -90,16 +92,28 @@ function createBuildServerDependencies(options?: {
     }
   };
 
+  const projectDomainDiagnosticsRefresh = {
+    start() {
+      domainRefreshStartCalls += 1;
+    },
+    stop() {
+      domainRefreshStopCalls += 1;
+    }
+  };
+
   return {
     deploymentQueue,
     redisClient,
     alertMonitor,
+    projectDomainDiagnosticsRefresh,
     getCounts() {
       return {
         queueCloseCalls,
         redisQuitCalls,
         alertStartCalls,
-        alertStopCalls
+        alertStopCalls,
+        domainRefreshStartCalls,
+        domainRefreshStopCalls
       };
     }
   };
@@ -125,7 +139,9 @@ test('buildServer exposes health endpoint with request id and closes injected de
     queueCloseCalls: 1,
     redisQuitCalls: 1,
     alertStartCalls: 1,
-    alertStopCalls: 1
+    alertStopCalls: 1,
+    domainRefreshStartCalls: 1,
+    domainRefreshStopCalls: 1
   });
 });
 
@@ -552,6 +568,8 @@ test('buildServer still closes cleanly when queue and redis shutdown hooks fail'
     queueCloseCalls: 1,
     redisQuitCalls: 1,
     alertStartCalls: 1,
-    alertStopCalls: 1
+    alertStopCalls: 1,
+    domainRefreshStartCalls: 1,
+    domainRefreshStopCalls: 1
   });
 });

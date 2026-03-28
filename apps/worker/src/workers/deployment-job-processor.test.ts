@@ -271,6 +271,7 @@ test('processor keeps successful deployments successful when route warning log a
 
   assert.equal(markRunningCalls.length, 1);
   assert.equal(markRunningCalls[0]?.runtimeUrl, null);
+  assert.deepEqual(markRunningCalls[0]?.routeHosts, [expectedRouteHost]);
   assert.deepEqual(stateFailures, []);
   assert.equal(warnings.length, 2);
   assert.equal(warnings[0]?.message, 'failed to configure caddy route; continuing deployment');
@@ -322,6 +323,139 @@ test('processor persists runtimeUrl only when public route configuration succeed
   assert.equal(markRunningCalls.length, 1);
   assert.equal(markRunningCalls[0]?.runtimeUrl, null);
   assert.equal(markRunningCalls[0]?.hostPort, 3100);
+  assert.deepEqual(markRunningCalls[0]?.routeHosts, [expectedRouteHost]);
+});
+
+test('processor configures the default and claimed custom route hosts for public services', async () => {
+  const routeCalls: Array<Record<string, unknown>> = [];
+  const markRunningCalls: Array<Record<string, unknown>> = [];
+
+  const processJob = createDeploymentJobProcessor({
+    runtimeExecutor: {
+      run: async () => ({
+        containerId: 'container-123',
+        containerName: 'container-name',
+        imageTag: 'image-tag',
+        hostPort: 3100,
+        runtimeUrl: 'http://demo-project.example.test',
+        internalPort: 3000,
+        projectPath: 'repo'
+      }),
+      cleanupCancelledRun: async () => undefined
+    },
+    stateService: {
+      isCancellationRequested: async () => false,
+      markStopped: async () => undefined,
+      markBuilding: async () => undefined,
+      appendLog: async () => undefined,
+      markRunning: async (input) => {
+        markRunningCalls.push(input as unknown as Record<string, unknown>);
+      },
+      markFailed: async () => undefined
+    },
+    ingressManager: createIngressManagerStub({
+      upsertRoute: async (input) => {
+        routeCalls.push(input as unknown as Record<string, unknown>);
+      }
+    }),
+    logger: {
+      info: () => undefined,
+      warn: () => undefined,
+      error: () => undefined
+    },
+    eventSink: { emit: () => undefined }
+  });
+
+  await processJob(createJob({
+    publicRouteHosts: [
+      expectedRouteHost,
+      'app.example.com',
+      'www.example.com'
+    ]
+  }));
+
+  assert.deepEqual(routeCalls.map((call) => call.host), [
+    expectedRouteHost,
+    'app.example.com',
+    'www.example.com'
+  ]);
+  assert.equal(markRunningCalls.length, 1);
+  assert.equal(markRunningCalls[0]?.runtimeUrl, `http://${expectedRouteHost}`);
+  assert.deepEqual(markRunningCalls[0]?.routeHosts, [
+    expectedRouteHost,
+    'app.example.com',
+    'www.example.com'
+  ]);
+});
+
+test('processor keeps failed custom routes pending while preserving successful public hosts', async () => {
+  const warnings: Array<{ message: string; metadata?: Record<string, unknown> }> = [];
+  const routeCalls: Array<Record<string, unknown>> = [];
+  const markRunningCalls: Array<Record<string, unknown>> = [];
+
+  const processJob = createDeploymentJobProcessor({
+    runtimeExecutor: {
+      run: async () => ({
+        containerId: 'container-123',
+        containerName: 'container-name',
+        imageTag: 'image-tag',
+        hostPort: 3100,
+        runtimeUrl: 'http://demo-project.example.test',
+        internalPort: 3000,
+        projectPath: 'repo'
+      }),
+      cleanupCancelledRun: async () => undefined
+    },
+    stateService: {
+      isCancellationRequested: async () => false,
+      markStopped: async () => undefined,
+      markBuilding: async () => undefined,
+      appendLog: async () => undefined,
+      markRunning: async (input) => {
+        markRunningCalls.push(input as unknown as Record<string, unknown>);
+      },
+      markFailed: async () => undefined
+    },
+    ingressManager: createIngressManagerStub({
+      upsertRoute: async (input) => {
+        routeCalls.push(input as unknown as Record<string, unknown>);
+        if (input.host === 'www.example.com') {
+          throw new Error('caddy unavailable');
+        }
+      }
+    }),
+    logger: {
+      info: () => undefined,
+      warn: (message, metadata) => {
+        warnings.push({ message, metadata });
+      },
+      error: () => undefined
+    },
+    eventSink: { emit: () => undefined }
+  });
+
+  await processJob(createJob({
+    publicRouteHosts: [
+      expectedRouteHost,
+      'app.example.com',
+      'www.example.com'
+    ]
+  }));
+
+  assert.deepEqual(routeCalls.map((call) => call.host), [
+    expectedRouteHost,
+    'app.example.com',
+    'www.example.com'
+  ]);
+  assert.equal(markRunningCalls.length, 1);
+  assert.equal(markRunningCalls[0]?.runtimeUrl, `http://${expectedRouteHost}`);
+  assert.deepEqual(markRunningCalls[0]?.routeHosts, [
+    expectedRouteHost,
+    'app.example.com'
+  ]);
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0]?.message, 'failed to configure caddy route; continuing deployment');
+  assert.equal(warnings[0]?.metadata?.host, 'www.example.com');
 });
 
 test('processor skips public route configuration for non-public services', async () => {
@@ -377,6 +511,7 @@ test('processor skips public route configuration for non-public services', async
   assert.equal(markRunningCalls.length, 1);
   assert.equal(markRunningCalls[0]?.runtimeUrl, null);
   assert.equal(markRunningCalls[0]?.hostPort, 3100);
+  assert.deepEqual(markRunningCalls[0]?.routeHosts, []);
   assert.ok(
     appendMessages.includes(
       'Public route skipped for service worker (worker/internal) because it is not a public web service.'

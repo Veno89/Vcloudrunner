@@ -145,6 +145,7 @@ export interface DeploymentJobPayload {
   serviceKind?: ProjectServiceKind;
   serviceSourceRoot?: string;
   serviceExposure?: ProjectServiceExposure;
+  publicRouteHosts?: string[];
   env: Record<string, string>;
   runtime: DeploymentRuntimeConfig;
 }

@@ -13,6 +13,7 @@ export function ProjectSubnav({ projectId }: ProjectSubnavProps) {
 
   const items = [
     { href: `/projects/${projectId}`, label: 'Overview' },
+    { href: `/projects/${projectId}/domains`, label: 'Domains' },
     { href: `/projects/${projectId}/deployments`, label: 'Deployments' },
     { href: `/projects/${projectId}/environment`, label: 'Environment' },
     { href: `/projects/${projectId}/logs`, label: 'Logs' },

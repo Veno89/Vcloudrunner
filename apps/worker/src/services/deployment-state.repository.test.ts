@@ -33,7 +33,8 @@ const successInput = {
   hostPort: 3100,
   runtimeUrl: 'https://demo.example.test',
   projectId: 'proj-123',
-  projectSlug: 'demo-project'
+  projectSlug: 'demo-project',
+  routeHosts: [`demo-project.${env.PLATFORM_DOMAIN}`]
 };
 
 test('markRunning rolls back and rethrows the original write error', async () => {
@@ -58,6 +59,45 @@ test('markRunning rolls back and rethrows the original write error', async () =>
     `demo-project.${env.PLATFORM_DOMAIN}`,
     3100
   ]);
+});
+
+test('markRunning persists every activated route host when custom domains are configured', async () => {
+  const pool = new MockPool();
+  const repository = new DeploymentStateRepository(pool);
+
+  await repository.markRunning({
+    ...successInput,
+    routeHosts: [
+      `demo-project.${env.PLATFORM_DOMAIN}`,
+      'app.example.com',
+      'www.example.com'
+    ]
+  });
+
+  assert.equal(pool.queries.length, 7);
+  assert.equal(pool.queries[0]?.text, 'begin');
+  assert.match(pool.queries[1]?.text ?? '', /update deployments/i);
+  assert.match(pool.queries[2]?.text ?? '', /insert into containers/i);
+  assert.match(pool.queries[3]?.text ?? '', /insert into domains/i);
+  assert.deepEqual(pool.queries[3]?.params, [
+    'proj-123',
+    'dep-123',
+    `demo-project.${env.PLATFORM_DOMAIN}`,
+    3100
+  ]);
+  assert.deepEqual(pool.queries[4]?.params, [
+    'proj-123',
+    'dep-123',
+    'app.example.com',
+    3100
+  ]);
+  assert.deepEqual(pool.queries[5]?.params, [
+    'proj-123',
+    'dep-123',
+    'www.example.com',
+    3100
+  ]);
+  assert.equal(pool.queries[6]?.text, 'commit');
 });
 
 test('markRunning preserves the original write error when rollback also fails', async () => {

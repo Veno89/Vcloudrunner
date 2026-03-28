@@ -94,6 +94,48 @@ export class ProjectSlugTakenError extends DomainError {
   }
 }
 
+export class ProjectDomainAlreadyExistsError extends DomainError {
+  constructor() {
+    super('PROJECT_DOMAIN_ALREADY_EXISTS', 'Project domain is already in use', 409);
+  }
+}
+
+export class ProjectDomainNotFoundError extends DomainError {
+  constructor() {
+    super('PROJECT_DOMAIN_NOT_FOUND', 'Project domain not found', 404);
+  }
+}
+
+export class ProjectDomainReservedError extends DomainError {
+  constructor() {
+    super(
+      'PROJECT_DOMAIN_RESERVED',
+      'Platform-managed default hosts cannot be claimed manually',
+      409
+    );
+  }
+}
+
+export class ProjectDomainRemovalNotAllowedError extends DomainError {
+  constructor() {
+    super(
+      'PROJECT_DOMAIN_REMOVAL_NOT_ALLOWED',
+      'Project domains attached to queued or building deployments cannot be removed until that deployment finishes or is cancelled',
+      409
+    );
+  }
+}
+
+export class ProjectDomainDeactivationFailedError extends DomainError {
+  constructor(host: string) {
+    super(
+      'PROJECT_DOMAIN_DEACTIVATION_FAILED',
+      `The live route for ${host} could not be detached right now`,
+      503
+    );
+  }
+}
+
 export class UserEmailTakenError extends DomainError {
   constructor() {
     super('USER_EMAIL_TAKEN', 'Email is already in use by another user', 409);

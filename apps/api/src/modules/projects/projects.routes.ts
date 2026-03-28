@@ -88,6 +88,10 @@ const projectByIdParamsSchema = z.object({
   projectId: z.string().uuid()
 });
 
+const projectDomainsQuerySchema = z.object({
+  includeDiagnostics: z.enum(['true', 'false']).optional()
+});
+
 const projectMemberByIdParamsSchema = z.object({
   projectId: z.string().uuid(),
   memberUserId: z.string().uuid()
@@ -98,8 +102,25 @@ const projectInvitationByIdParamsSchema = z.object({
   invitationId: z.string().uuid()
 });
 
+const projectDomainByIdParamsSchema = z.object({
+  projectId: z.string().uuid(),
+  domainId: z.string().uuid()
+});
+
 const projectInvitationClaimParamsSchema = z.object({
   claimToken: z.string().trim().min(8).max(64).regex(/^[a-z0-9-]+$/i)
+});
+
+const createProjectDomainSchema = z.object({
+  host: z.string()
+    .trim()
+    .toLowerCase()
+    .min(4)
+    .max(253)
+    .regex(
+      /^(?=.{1,253}$)(?!-)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i,
+      'host must be a valid DNS hostname without protocol or path'
+    )
 });
 
 const projectMemberRoleSchema = z.enum(['viewer', 'editor', 'admin']);
@@ -183,6 +204,67 @@ export const createProjectsRoutes = (
     const members = await projectsService.listProjectMembers(projectId);
 
     return { data: members };
+  });
+
+  app.get('/projects/:projectId/domains', async (request) => {
+    const actor = requireActor(request);
+    const { projectId } = projectByIdParamsSchema.parse(request.params);
+    const { includeDiagnostics } = projectDomainsQuerySchema.parse(request.query ?? {});
+
+    requireScope(actor, 'projects:read');
+    await ensureProjectAccess(projectsService, { projectId, actor });
+
+    const domains = await projectsService.listProjectDomains(projectId, {
+      includeDiagnostics: includeDiagnostics === 'true'
+    });
+
+    return { data: domains };
+  });
+
+  app.post('/projects/:projectId/domains', async (request, reply) => {
+    const actor = requireActor(request);
+    const { projectId } = projectByIdParamsSchema.parse(request.params);
+    const payload = createProjectDomainSchema.parse(request.body);
+
+    requireScope(actor, 'projects:write');
+    await ensureProjectMembershipManagementAccess(projectsService, { projectId, actor });
+
+    const domain = await projectsService.createProjectDomain({
+      projectId,
+      host: payload.host
+    });
+
+    return reply.code(201).send({ data: domain });
+  });
+
+  app.delete('/projects/:projectId/domains/:domainId', async (request, reply) => {
+    const actor = requireActor(request);
+    const { projectId, domainId } = projectDomainByIdParamsSchema.parse(request.params);
+
+    requireScope(actor, 'projects:write');
+    await ensureProjectMembershipManagementAccess(projectsService, { projectId, actor });
+
+    await projectsService.removeProjectDomain({
+      projectId,
+      domainId
+    });
+
+    return reply.code(204).send();
+  });
+
+  app.post('/projects/:projectId/domains/:domainId/verify', async (request) => {
+    const actor = requireActor(request);
+    const { projectId, domainId } = projectDomainByIdParamsSchema.parse(request.params);
+
+    requireScope(actor, 'projects:write');
+    await ensureProjectMembershipManagementAccess(projectsService, { projectId, actor });
+
+    const domain = await projectsService.verifyProjectDomainClaim({
+      projectId,
+      domainId
+    });
+
+    return { data: domain };
   });
 
   app.get('/projects/:projectId/invitations', async (request) => {
