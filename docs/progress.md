@@ -1,6 +1,6 @@
 # Vcloudrunner MVP Progress Tracker
 
-Last updated: 2026-03-28 (Roadmap DNS challenge claim loop)
+Last updated: 2026-03-29 (Managed Postgres operations batch)
 
 ## Legend
 
@@ -10,7 +10,7 @@ Last updated: 2026-03-28 (Roadmap DNS challenge claim loop)
 
 
 
-## Phase Status Snapshot (2026-03-28)
+## Phase Status Snapshot (2026-03-29)
 
 - **Phase 1: Critical stabilization** — ~99% complete
   - done: deployment concurrency invariant (service + DB), queue enqueue failure mapping/state correction, deployment-create env-resolution failure correction so decrypt/read failures no longer strand active deployments, queued-cancel race/idempotency hardening, safer compose defaults, production dev-auth startup guard, stricter bootstrap token startup validation, strict env-boolean parsing for auth/ingress and worker archive-lifecycle flags, strict numeric env parsing for API/worker runtime settings so blank strings no longer coerce to `0`, telemetry startup that now honors the same boolean env semantics as the validated config layer, explicit rejection of invalid credentials during dev-auth fallback flows, root auth/error plugin inheritance fix, host-run worker `.env` loading that now matches the documented app-local override flow, cwd-independent repo-root env resolution for API/worker startup and API `drizzle-kit` commands, aligned `drizzle-kit` env loading/fail-fast behavior with the API runtime, pinned compose API dev auth off independently from local host-run `.env` settings, stricter Redis queue URL parsing so explicit database paths must be integer indexes instead of silently coercing invalid values, broader API auth/deployment regression coverage, fuller api-token route access coverage, and clearer dashboard auth/config failure states
@@ -28,6 +28,346 @@ Last updated: 2026-03-28 (Roadmap DNS challenge claim loop)
 
 ## Implementation Log
 
+### Phase: Managed Postgres operations batch (2026-03-29, persisted runtime health + health-aware reconcile + credential rotation + operator guidance)
+
+- what was built:
+  - extended the managed Postgres control-plane model with persisted runtime-health telemetry, including current health state/detail, health timing, consecutive failure tracking, and credential-rotation timing, so the platform now distinguishes “provisioned” from “runtime healthy” instead of treating those as the same thing
+  - taught the managed Postgres provisioner seam to run runtime credential health checks and safe credential rotation with rollback-on-verification-failure, keeping the API truthfully aware of unreachable runtimes, rejected credentials, and post-rotation redeploy requirements instead of only reporting database-creation success
+  - upgraded managed database reconcile to refresh both provisioning state and runtime-health state together, so a ready database now comes back with an explicit runtime-health result instead of a stale provisioning-only status
+  - added a dedicated credential-rotation API route and dashboard action, keeping that write path behind the same project-admin membership-management boundary as other managed database controls instead of burying password changes inside generic reconcile behavior
+  - expanded the dashboard Databases page and shared summary helpers to surface provisioning badges, runtime-health badges, last-check / last-healthy / last-error timing, persistent failure counts, rotation timing, and operator-facing warnings about redeploys plus the still-missing backup/restore automation
+  - refreshed the top-level README operator notes and API endpoint inventory to document runtime-health-aware reconcile, credential rotation, and the current backup/restore limitation for managed Postgres
+  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `README.md`
+  - `apps/api/drizzle/0025_managed_project_database_operations.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/server/domain-errors.ts`
+  - `apps/api/src/services/managed-postgres-provisioner.service.ts`
+  - `apps/api/src/modules/project-databases/project-databases.repository.ts`
+  - `apps/api/src/modules/project-databases/project-databases.routes.ts`
+  - `apps/api/src/modules/project-databases/project-databases.routes.test.ts`
+  - `apps/api/src/modules/project-databases/project-databases.service.ts`
+  - `apps/api/src/modules/project-databases/project-databases.service.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-databases.ts`
+  - `apps/dashboard/app/projects/[id]/databases/actions.ts`
+  - `apps/dashboard/app/projects/[id]/databases/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - managed Postgres now has a much more truthful lifecycle surface, but backup scheduling, restore workflow, storage sizing controls, and longer-horizon incident/audit visibility are still missing
+  - only managed Postgres is modeled today; MongoDB and Redis still belong to later managed-data slices after the Postgres lifecycle is sturdier
+- next recommended step:
+  - continue managed databases v1 with backup scheduling / restore scaffolding plus operator-facing recovery/audit visibility for managed Postgres before expanding the managed-data surface to MongoDB or Redis
+
+### Phase: Managed Postgres groundwork batch (2026-03-29, first-class project database model + configurable provisioning seam + linked-service env injection + dashboard surface)
+
+- what was built:
+  - added the first managed-data resource model to the control plane with persisted `project_databases` plus per-service links, so projects can now carry first-class managed Postgres resources instead of relying only on hand-managed environment variables
+  - added a configurable managed Postgres provisioner seam backed by `MANAGED_POSTGRES_ADMIN_URL` plus runtime host/port/ssl settings, so the API can create logical databases and roles when admin access is configured while still reporting truthful `pending_config`, `ready`, and `failed` states when it is not
+  - added project-scoped managed database API routes for list/create/reconcile/delete and linked-service updates, keeping them behind the existing project access and project-admin membership-management boundaries instead of burying database actions inside generic project route logic
+  - taught deployment creation to inject generated managed Postgres connection variables into the selected service when that service is linked to a ready managed database, so linked services now receive stable keys like `<NAME>_DATABASE_URL` automatically on deploy without copying secrets into the normal env-variable store
+  - extended the worker runtime path with optional shared-platform network attachment and pinned the compose default network name to `vcloudrunner-platform`, so the generated managed Postgres connection strings are truthful for the bundled single-node stack instead of assuming unreachable control-plane hostnames
+  - added a dedicated project Databases page plus project-overview/subnav surfacing in the dashboard, including create/retry/delete actions, linked-service controls, generated env-key visibility, and masked credential / connection-string display
+  - refreshed the top-level README, architecture notes, compose env wiring, and app-local env examples to document the new managed Postgres operator flow and config knobs
+  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/worker run typecheck`, `npm.cmd --workspace @vcloudrunner/worker test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `README.md`
+  - `docs/architecture.md`
+  - `docker-compose.yml`
+  - `apps/api/.env.example`
+  - `apps/api/drizzle/0024_managed_project_databases.sql`
+  - `apps/api/src/config/env-core.ts`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/server/build-server.ts`
+  - `apps/api/src/server/domain-errors.ts`
+  - `apps/api/src/services/managed-postgres-provisioner.service.ts`
+  - `apps/api/src/modules/project-databases/project-databases.repository.ts`
+  - `apps/api/src/modules/project-databases/project-databases.routes.ts`
+  - `apps/api/src/modules/project-databases/project-databases.routes.test.ts`
+  - `apps/api/src/modules/project-databases/project-databases.service.ts`
+  - `apps/api/src/modules/project-databases/project-databases.service.test.ts`
+  - `apps/api/src/modules/deployments/deployments.service.ts`
+  - `apps/api/src/modules/deployments/deployments.service.test.ts`
+  - `apps/worker/.env.example`
+  - `apps/worker/src/config/env-core.ts`
+  - `apps/worker/src/services/deployment-runner.ts`
+  - `apps/worker/src/services/deployment-runner.test.ts`
+  - `apps/worker/src/services/runtime/container-runtime-manager.ts`
+  - `apps/worker/src/services/runtime/docker-container-runtime-manager.ts`
+  - `apps/worker/src/services/runtime/docker-container-runtime-manager.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-databases.ts`
+  - `apps/dashboard/components/project-subnav.tsx`
+  - `apps/dashboard/app/projects/[id]/page.tsx`
+  - `apps/dashboard/app/projects/[id]/databases/actions.ts`
+  - `apps/dashboard/app/projects/[id]/databases/page.tsx`
+  - `packages/shared-types/src/index.ts`
+  - `docs/progress.md`
+- what is still missing:
+  - managed databases now have a real first-class model and can provision logical Postgres resources when configured, but Postgres follow-through is still missing deeper health checks, storage sizing enforcement, credential rotation, backup scheduling, restore flow, and broader incident/audit visibility
+  - only managed Postgres is modeled today; MongoDB and Redis still belong to later managed-data slices after the Postgres lifecycle is sturdier
+- next recommended step:
+  - continue managed databases v1 with Postgres follow-through: add health/reconcile telemetry, credential rotation, backup schedule + restore scaffolding, and clearer operator warnings before expanding the managed-data model to MongoDB or Redis
+
+### Phase: Roadmap certificate recovery-history batch (2026-03-29, trust/path event telemetry + persisted incident/recovery summaries + operator-facing recovery drill-down)
+
+- what was built:
+  - extended the persisted project-domain event model with explicit `certificate_trust` and `certificate_path_validity` event kinds, so hostname/trust regressions and issuer-path date problems now have first-class event history instead of only appearing as current-state diagnostics
+  - taught the domain refresh path to emit those trust/path events only when real certificate incidents, recoveries, or tracked issuer-path warning states occur, while keeping the existing higher-level certificate guidance and attention history intact
+  - added an event-backed certificate-history summary contract per host, so each domain now exposes tracked history counts, incident/recovery totals, issuer-path renewal-warning counts, per-category incident breakdown, and the latest incident/recovery timing without depending on fragile UI-only heuristics
+  - expanded the Domains page to surface certificate-history rollups in the route summary plus a per-host recovery-history drill-down, making it much easier to see whether a host has recurring trust/path/follow-up issues even when the latest check is no longer the first or only signal
+  - updated recent domain-activity labeling so the dashboard can show trust and issuer-path date transitions directly instead of collapsing everything into generic certificate wording
+  - refreshed the top-level README capability list to mention event-backed certificate trust / issuer-path recovery history as part of the custom-domain workflow
+  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `README.md`
+  - `apps/api/drizzle/0023_project_domain_event_certificate_history.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-domains.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - domains/TLS now preserve claim, DNS, TLS, trust, issuer-path, and certificate follow-up history much more truthfully, but the platform still does not provide managed ACME-style issuance / renewal automation, provider-driven certificate controls, or the next broader platform capabilities like managed data services
+- next recommended step:
+  - treat roadmap item 3 as sufficiently mature for now and move to the next broader roadmap area, starting with managed databases v1 groundwork (resource model, instance lifecycle, generated credentials/env injection, and dashboard/API surfaces)
+
+### Phase: Roadmap certificate-path validity telemetry batch (2026-03-29, per-certificate validity windows + issuer-path incident timeline + renewal-aware operator guidance)
+
+- what was built:
+  - extended stored presented-chain entries with per-certificate validity windows, so issuer-path snapshots now preserve each certificate's own `validFrom` / `validTo` timing instead of only the leaf certificate's dates
+  - added a derived certificate-path-validity contract on top of that stored chain metadata, so each host now reports whether the full presented issuer path is `valid`, `expiring-soon`, `expired`, `not-yet-valid`, or `unavailable` rather than hiding intermediate-certificate date issues behind leaf-only validity checks
+  - added persisted issuer-path-validity timeline fields on domains, so the control plane now tracks when the current path-validity state began, how many consecutive checks have observed it, and when the last fully in-date issuer path was confirmed
+  - wired certificate guidance to the new path-validity contract, so expiring or broken intermediate/root certificates now push operators into `renew-soon` / `renew-now` guidance instead of incorrectly reading as healthy just because the served leaf certificate still has time remaining
+  - updated the dashboard Domains page to surface issuer-path date badges, summary counts, timeline copy, and per-certificate validity details for both the current presented chain and the last healthy issuer-path snapshot
+  - refreshed the top-level README capability list to mention intermediate-certificate validity surfacing as part of the custom-domain workflow
+  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `README.md`
+  - `apps/api/drizzle/0022_project_domain_certificate_path_validity.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/services/project-domain-diagnostics.service.ts`
+  - `apps/api/src/services/project-domain-diagnostics.service.test.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-domains.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - domains/TLS now expose issuer-path validity much more truthfully, but the platform still does not preserve a longer-horizon renewal / issuer incident timeline beyond current-state streaks and recent events, and it still does not offer managed ACME-style issuance / renewal automation beyond observed DNS / HTTPS diagnostics
+- next recommended step:
+  - either continue roadmap item 3 with longer-horizon renewal / issuer incident history plus deeper recovery drill-down on the Domains page, or treat domains/TLS as sufficiently mature for now and move to the next broader roadmap area such as managed databases or richer operator tooling
+
+### Phase: Roadmap certificate issuer-path history batch (2026-03-29, structured chain entries + last-healthy snapshots + operator-facing issuer-path drift history)
+
+- what was built:
+  - extended stored project-domain diagnostics with structured per-certificate chain entries, so each host now preserves subject, issuer, fingerprint, serial, and self-issued metadata for the full presented chain instead of flattening chain visibility down to subject-name lists
+  - taught the TLS diagnostics path to capture those structured chain entries from the peer certificate, carry them through stored diagnostics, and reuse them during background refreshes instead of treating detailed issuer-path data as a transient request-time-only observation
+  - added a last-known-healthy chain snapshot on top of the current presented chain, so the control plane now keeps the most recent trusted issuer path available for truthful comparison after later regressions or suspicious path changes
+  - derived an explicit certificate-chain-history contract with `stable`, `rotated`, `degraded`, `drifted`, `baseline-missing`, and `unavailable` states so operators can distinguish healthy issuer rotation from drift away from the last healthy chain or hosts that have never presented a trusted baseline
+  - taught project-domain event history to compare structured chain entries instead of subject-only lists, which keeps `certificate_chain` history truthful when issuer path, serial, fingerprint, or self-issued characteristics change without a simple subject-name delta
+  - updated the dashboard Domains page to surface chain-history badges, current presented-certificate snapshots, last-healthy chain snapshots, and summary counts for healthy rotations, regressions, and missing trusted baselines
+  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `README.md`
+  - `apps/api/drizzle/0021_project_domain_certificate_chain_entries.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/services/project-domain-diagnostics.service.ts`
+  - `apps/api/src/services/project-domain-diagnostics.service.test.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-domains.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - the platform now preserves issuer-path snapshots much more truthfully, but it still does not expose full longer-horizon renewal history, richer intermediate-certificate validity/issuer telemetry beyond the captured presented-path metadata, or a managed ACME-style issuance / renewal control loop beyond observed DNS / HTTPS diagnostics
+- next recommended step:
+  - either continue roadmap item 3 with deeper renewal / issuer incident history and richer per-certificate validity surfacing for intermediates, or treat domains/TLS as sufficiently mature for now and move to the next broader roadmap area such as managed databases or richer operator tooling
+
+### Phase: Roadmap certificate chain recovery telemetry batch (2026-03-29, chain timeline persistence + intermediate issuer metadata + recovery-aware operator guidance)
+
+- what was built:
+  - extended stored project-domain diagnostics with presented-chain timeline fields, so each host now preserves when the current chain state began, how many consecutive checks have observed it, and when a full trusted chain was last confirmed
+  - expanded the derived certificate-chain contract with intermediate-issuer names and chain depth, so the control plane can expose more than a flat subject list when operators need to inspect how a host is being served
+  - added a chain-specific follow-up contract on top of that stored timeline, with healthy / monitor / action-needed / persistent-action-needed states so chain problems can become explicitly persistent even when the served chain itself has not changed
+  - taught project-domain event history to emit `certificate_chain` events on status-only recoveries or regressions even when the presented subject list stays the same, which keeps chain history truthful when trust changes instead of the raw chain payload
+  - updated the dashboard Domains page to surface chain follow-up badges, persistent chain-issue counts, intermediate issuer detail, chain depth, and last-healthy chain timing so operators can see both what is being served and how long chain issues have persisted
+  - refreshed the top-level README capability list to mention chain recovery history as part of the custom-domain workflow
+  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `README.md`
+  - `apps/api/drizzle/0020_project_domain_certificate_chain_timeline.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-domains.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - the platform now tracks presented-chain persistence and recovery much more truthfully, but it still does not preserve full per-certificate intermediate metadata beyond subject names, richer issuer drift / renewal incident history, or a managed ACME-style issuance / renewal control loop beyond observed DNS / HTTPS diagnostics
+- next recommended step:
+  - either continue roadmap item 3 with richer per-certificate issuer/intermediate metadata plus longer-horizon renewal / issuer incident history, or treat domains/TLS as sufficiently mature for now and move to the next broader roadmap area such as managed databases or richer operator tooling
+### Phase: Roadmap certificate chain diagnostics batch (2026-03-29, presented chain capture + chain-status derivation + operator-facing root/issuer detail)
+
+- what was built:
+  - extended stored project-domain diagnostics with persisted presented-certificate chain subjects plus the observed root subject, so each host now preserves more truthful issuer-chain context instead of flattening HTTPS checks down to only leaf-certificate metadata
+  - taught the TLS diagnostics path to capture the presented certificate chain from the peer certificate, carry that state through stored domain diagnostics, and reuse it during background refreshes instead of treating chain visibility as transient request-time-only detail
+  - added an explicit certificate-chain contract on top of the stored diagnostics, with statuses like `chained`, `leaf-only`, `incomplete`, `private-root`, `self-signed-leaf`, and `unavailable`, so operators can distinguish healthy presented chains from suspicious or incomplete certificate paths
+  - extended project-domain event history with `certificate_chain` events derived from observed chain changes, so the Domains page now records when a host starts presenting a different certificate chain instead of only tracking DNS, trust, and certificate-identity transitions
+  - updated the dashboard Domains page to surface certificate-chain badges, chain summary counts, root-subject detail, and a readable presented-chain display for each host, making issuer/root context far easier to inspect during certificate troubleshooting
+  - refreshed the top-level README capability list to mention presented-chain visibility as part of the custom-domain workflow
+  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `README.md`
+  - `apps/api/drizzle/0019_project_domain_certificate_chain.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/services/project-domain-diagnostics.service.ts`
+  - `apps/api/src/services/project-domain-diagnostics.service.test.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-domains.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - the platform now exposes presented certificate chain visibility much more truthfully, but it still does not preserve full intermediate-certificate metadata beyond subject names, deeper issuer/renewal incident history, or a managed ACME-style issuance/renewal control loop beyond observed DNS / HTTPS diagnostics
+- next recommended step:
+  - either continue roadmap item 3 with richer issuer/intermediate-chain metadata plus longer-horizon certificate recovery history, or treat domains/TLS as sufficiently mature for now and move to the next broader roadmap area such as managed databases or richer operator tooling
+### Phase: Roadmap certificate attention telemetry batch (2026-03-29, guidance streak tracking + persistent certificate issue surfacing + operator-facing follow-up state)
+
+- what was built:
+  - extended stored project-domain diagnostics with persisted certificate-guidance timeline fields, so each host now keeps when the current certificate follow-up state began plus how many consecutive checks have observed that same state
+  - added an explicit certificate-attention contract on top of the existing lifecycle / trust / validity guidance, with `healthy`, `monitor`, `action-needed`, and `persistent-action-needed` states so operators can distinguish expected watch states from certificate problems that are now clearly persisting
+  - taught the domain refresh path to carry that guidance timeline forward across repeated checks and emit explicit `certificate_attention` history events when real certificate issues escalate or resolve, instead of only recording raw guidance-state changes
+  - updated the dashboard Domains page to surface certificate follow-up badges, summary counts, persistent-issue wording, and per-host “current follow-up state since / across N consecutive checks” guidance so stuck renewal or trust problems are much harder to miss
+  - refreshed the top-level README capability list to mention persistent certificate issue surfacing as part of the custom-domain workflow
+  - verified the batch with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `README.md`
+  - `apps/api/drizzle/0018_project_domain_certificate_attention.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.routes.test.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-domains.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - certificate follow-up is now much more truthful at the control-plane and dashboard level, but the platform still does not expose full presented issuer-chain detail, repeated issuer-chain drift history, or a managed ACME-style issuance / renewal control loop beyond observed DNS / HTTPS diagnostics
+- next recommended step:
+  - either continue roadmap item 3 with deeper certificate chain / issuer detail plus richer certificate recovery history, or treat domains/TLS as sufficiently mature for now and move to the next broader roadmap area such as managed databases or richer operator tooling
+### Phase: Roadmap certificate identity and rotation telemetry batch (2026-03-29, fingerprint/serial capture + rotation history + operator-facing identity guidance)
+
+- what was built:
+  - extended stored project-domain diagnostics with presented-certificate fingerprint and serial capture, so the control plane now preserves stable certificate identity instead of treating every HTTPS check as an isolated snapshot
+  - taught the TLS inspection path to record certificate fingerprint/serial details directly from the presented certificate and persist first-observed, changed-at, and last-rotated timestamps on each domain record
+  - added an explicit certificate-identity contract on top of that stored state, with statuses like `first-observed`, `stable`, `rotated`, `rotated-attention`, and `unavailable`, so operators can tell the difference between healthy rotation, suspicious rotation, and simple lack of cert data
+  - extended project-domain event history with `certificate_identity` events derived from fingerprint changes, so the Domains page now has a truthful rotation trail instead of only DNS / HTTPS / trust transitions
+  - updated the dashboard Domains page to surface certificate-identity summary counts, per-host identity badges, fingerprint and serial details, identity timing/history copy, and richer recent-activity details for certificate changes
+  - refreshed the top-level README capability list to mention certificate rotation telemetry as part of the custom-domain workflow
+  - verified the batch with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `README.md`
+  - `apps/api/drizzle/0017_project_domain_certificate_identity.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/services/project-domain-diagnostics.service.ts`
+  - `apps/api/src/services/project-domain-diagnostics.service.test.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/modules/projects/projects.routes.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-domains.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - the platform now exposes certificate identity, trust, expiry risk, and operator next steps much more truthfully, but it still does not model full issuer-chain detail, repeated renewal-failure history, or managed ACME-style issuance/renewal automation beyond observed certificate and HTTPS diagnostics
+- next recommended step:
+  - either continue roadmap item 3 with deeper certificate history / renewal telemetry such as issuer-chain detail and repeated renewal-failure surfacing, or treat domains/TLS as sufficiently mature for now and move to the next broader roadmap area such as managed databases or richer operator tooling
+### Phase: Roadmap certificate trust and guidance batch (2026-03-29, persisted cert metadata + trust guidance + certificate events)
+
+- what was built:
+  - extended stored project-domain diagnostics with richer certificate metadata, including presented subject, issuer, SAN coverage, and a normalized validation-reason field, so the control plane can now preserve more than just TLS reachability and validity dates
+  - taught the domain diagnostics path to capture that metadata from the presented TLS certificate and classify trust failures like hostname mismatch, self-signed/untrusted issuer, and date-invalid certificate problems instead of collapsing every failure into a generic invalid-TLS message
+  - added explicit certificate-trust and certificate-guidance contracts on top of the stored diagnostics, so each host now reports whether the cert is trusted, mismatched, untrusted, date-invalid, or unavailable plus a next-step state like `renew-now`, `renew-soon`, `fix-coverage`, `fix-trust`, `wait-for-issuance`, or `healthy`
+  - extended domain event history with certificate events derived from the guidance contract, so the Domains page now has a real certificate activity trail instead of only DNS and raw HTTPS-status transitions
+  - updated the dashboard Domains page to surface the new trust/guidance badges, issuer/subject/coverage details, validation reason, and summary counts for trust issues plus renewal attention, making certificate recovery work much more operator-readable
+  - refreshed the top-level README capability list to mention custom-domain TXT/DNS/TLS/certificate management directly
+  - verified the batch with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `README.md`
+  - `apps/api/drizzle/0016_project_domain_certificate_metadata.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/services/project-domain-diagnostics.service.ts`
+  - `apps/api/src/services/project-domain-diagnostics.service.test.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/modules/projects/projects.routes.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-domains.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - the platform now exposes certificate identity, trust, expiry risk, and operator next steps much more truthfully, but it still does not model full issuer-chain detail, renewal attempt history, or managed ACME-style issuance/renewal automation beyond observed certificate and HTTPS diagnostics
+- next recommended step:
+  - either continue roadmap item 3 with deeper certificate history / renewal telemetry (for example full chain detail, last-renewal-style eventing, or repeated-failure surfacing), or treat domains/TLS as sufficiently mature for now and move to the next broader roadmap area such as managed databases or richer operator tooling
+### Phase: Roadmap certificate validity-window surfacing (2026-03-29, persisted cert dates + expiry guidance)
+
+- what was built:
+  - added persisted certificate validity-window storage on project domains, so diagnostics can keep the presented certificate `validFrom` / `validTo` dates instead of collapsing HTTPS health to a boolean-style status only
+  - extended the project-domain diagnostics path to inspect the presented TLS certificate and capture those validity dates alongside the existing DNS / HTTPS readiness checks
+  - derived an explicit certificate-validity contract on top of the stored dates, with states like `valid`, `expiring-soon`, `expired`, `not-yet-valid`, and `unavailable`, so operators can tell whether HTTPS is healthy but nearing expiry versus already broken
+  - surfaced certificate-validity badges, summary counts, and the concrete valid-from / valid-until timestamps on the dashboard Domains page, so domain operations now expose actual certificate windows instead of only route/claim/provisioning guidance
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/drizzle/0015_project_domain_certificate_validity.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/services/project-domain-diagnostics.service.ts`
+  - `apps/api/src/services/project-domain-diagnostics.service.test.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/modules/projects/projects.routes.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-domains.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - the platform now surfaces certificate validity windows and near-expiry risk, but it still does not expose richer issuer / chain detail or a fuller managed ACME-style renewal workflow beyond presented-certificate inspection and health-check-based inference
+- next recommended step:
+  - either continue roadmap item 3 with richer certificate issuer / chain / renewal-history surfacing, or treat domains/TLS as sufficiently mature for now and move to the next broader roadmap area such as managed databases or richer operator tooling
+### Phase: Roadmap certificate lifecycle guidance (2026-03-28, explicit issuance/renewal state + operator guidance)
+
+- what was built:
+  - added a derived certificate-lifecycle contract to project-domain responses, with explicit states like `awaiting-route`, `awaiting-dns`, `provisioning`, `active`, `issuance-attention`, `renewal-attention`, and `check-unavailable`, so HTTPS no longer stops at raw `tlsStatus`
+  - taught the project-domain service to distinguish initial certificate issuance trouble from regressions after prior healthy HTTPS by reusing the existing `tlsReadyAt` and TLS status-change tracking, which makes renewal issues visible without inventing a separate certificate store
+  - surfaced the new lifecycle badges, summary counts, and operator-facing "Certificate lifecycle" guidance on the dashboard Domains page, so operators can quickly tell whether a host is blocked on routing, blocked on DNS, still provisioning, or needs issuance/renewal follow-up
+  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/modules/projects/projects.routes.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-domains.ts`
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - certificate lifecycle is now explicit at the control-plane level, but the platform still does not surface live certificate validity windows / expiry dates or run a fuller managed ACME-style issuance and renewal workflow beyond health-check-based inference
+- next recommended step:
+  - either continue roadmap item 3 with explicit certificate validity-window / expiry surfacing, or treat the current domains/TLS pass as sufficiently mature and move to the next broader roadmap area such as managed databases or richer operator tooling
 ### Phase: Roadmap DNS challenge claim loop (2026-03-28, persisted TXT ownership challenge + explicit verify flow)
 
 - what was built:
@@ -2757,7 +3097,7 @@ Last updated: 2026-03-28 (Roadmap DNS challenge claim loop)
 
 ## 9) Testing Status
 
-- [~] Static checks attempted in current environment (shared-types `build`, API `typecheck`/`test`, and dashboard `typecheck`/`lint` passing as of 2026-03-28 after the roadmap DNS challenge claim loop, while worker `typecheck`/`test` remains previously green from the earlier roadmap domains/routing slices; broader workspace validation is still partial)
+- [~] Static checks attempted in current environment (shared-types `build`, API `typecheck`/`test`, worker `typecheck`/`test`, and dashboard `typecheck`/`lint` are all passing as of 2026-03-29 after the managed Postgres operations batch, with API tests now at `314/314` and worker tests at `235/235`; broader workspace validation is still missing only the true end-to-end compose/runtime pass in this environment)
 - [ ] End-to-end compose validation (blocked by missing Docker CLI in this environment)
 - [~] Typecheck/test execution with installed dependencies (shared-types, API, dashboard typecheck, and worker package verified; broader workspace install/validation still environment-dependent)
 
@@ -2765,5 +3105,5 @@ Last updated: 2026-03-28 (Roadmap DNS challenge claim loop)
 
 ## Immediate Next Recommended Steps
 
-1. Continue roadmap item 3 by deepening certificate issuance/renewal lifecycle tracking and operator guidance on top of the now-complete TXT claim loop.
-2. After that, decide whether the next follow-through should keep pushing domains/TLS maturity or move to the next broader roadmap area such as managed databases or richer operator tooling.
+1. Continue managed databases v1 with managed Postgres follow-through: add backup scheduling / restore scaffolding plus clearer recovery/audit visibility around provisioned resources before broadening the managed-data surface further.
+2. After that Postgres follow-through is in place, decide whether the next managed-data slice should stay in Postgres (for example storage classes and stricter lifecycle controls) or expand the same resource pattern to MongoDB / Redis.

@@ -272,6 +272,9 @@ test('listProjectDomains classifies undeployed custom domains as pending', async
   assert.equal(domains[0]?.verificationStatus, 'pending');
   assert.equal(domains[0]?.ownershipStatus, 'pending');
   assert.equal(domains[0]?.tlsStatus, 'pending');
+  assert.equal(domains[0]?.certificateState, 'awaiting-route');
+  assert.equal(domains[0]?.certificateTitle, 'Wait for live route');
+  assert.equal(domains[0]?.certificateValidityStatus, 'unavailable');
   assert.equal(domains[0]?.diagnosticsCheckedAt, null);
   assert.equal(domains[0]?.diagnosticsFreshnessStatus, 'unchecked');
   assert.equal(domains[0]?.claimState, 'publish-verification-record');
@@ -355,6 +358,29 @@ test('listProjectDomains merges DNS and TLS diagnostics only when explicitly req
     domainId: string;
     ownershipStatus: string;
     tlsStatus: string;
+    certificateValidFrom: Date | null;
+    certificateValidTo: Date | null;
+    certificateSubjectName: string | null;
+    certificateIssuerName: string | null;
+    certificateSubjectAltNames: string[];
+    certificateChainSubjects: string[];
+    certificateChainEntries: Array<{ subjectName: string | null }>;
+    certificateRootSubjectName: string | null;
+    certificateChainChangedAt: Date | null;
+    certificateChainObservedCount: number;
+    certificateChainLastHealthyAt: Date | null;
+    certificateLastHealthyChainEntries: Array<{ subjectName: string | null }>;
+    certificatePathValidityChangedAt: Date | null;
+    certificatePathValidityObservedCount: number;
+    certificatePathValidityLastHealthyAt: Date | null;
+    certificateValidationReason: string | null;
+    certificateFingerprintSha256: string | null;
+    certificateSerialNumber: string | null;
+    certificateFirstObservedAt: Date | null;
+    certificateChangedAt: Date | null;
+    certificateLastRotatedAt: Date | null;
+    certificateGuidanceChangedAt: Date | null;
+    certificateGuidanceObservedCount: number;
     diagnosticsCheckedAt: Date;
     ownershipStatusChangedAt: Date | null;
     tlsStatusChangedAt: Date | null;
@@ -363,7 +389,15 @@ test('listProjectDomains merges DNS and TLS diagnostics only when explicitly req
   }> = [];
   const persistedDomainEvents: Array<{
     domainId: string;
-    kind: 'ownership' | 'tls';
+    kind:
+      | 'ownership'
+      | 'tls'
+      | 'certificate'
+      | 'certificate_trust'
+      | 'certificate_path_validity'
+      | 'certificate_identity'
+      | 'certificate_attention'
+      | 'certificate_chain';
     previousStatus: string | null;
     nextStatus: string;
   }> = [];
@@ -407,6 +441,29 @@ test('listProjectDomains merges DNS and TLS diagnostics only when explicitly req
     domainId: string;
     ownershipStatus: string;
     tlsStatus: string;
+    certificateValidFrom: Date | null;
+    certificateValidTo: Date | null;
+    certificateSubjectName: string | null;
+    certificateIssuerName: string | null;
+    certificateSubjectAltNames: string[];
+    certificateChainSubjects: string[];
+    certificateChainEntries: Array<{ subjectName: string | null }>;
+    certificateRootSubjectName: string | null;
+    certificateChainChangedAt: Date | null;
+    certificateChainObservedCount: number;
+    certificateChainLastHealthyAt: Date | null;
+    certificateLastHealthyChainEntries: Array<{ subjectName: string | null }>;
+    certificatePathValidityChangedAt: Date | null;
+    certificatePathValidityObservedCount: number;
+    certificatePathValidityLastHealthyAt: Date | null;
+    certificateValidationReason: string | null;
+    certificateFingerprintSha256: string | null;
+    certificateSerialNumber: string | null;
+    certificateFirstObservedAt: Date | null;
+    certificateChangedAt: Date | null;
+    certificateLastRotatedAt: Date | null;
+    certificateGuidanceChangedAt: Date | null;
+    certificateGuidanceObservedCount: number;
     diagnosticsCheckedAt: Date;
     ownershipStatusChangedAt: Date | null;
     tlsStatusChangedAt: Date | null;
@@ -418,6 +475,29 @@ test('listProjectDomains merges DNS and TLS diagnostics only when explicitly req
       domainId: input.domainId,
       ownershipStatus: input.ownershipStatus,
       tlsStatus: input.tlsStatus,
+      certificateValidFrom: input.certificateValidFrom,
+      certificateValidTo: input.certificateValidTo,
+      certificateSubjectName: input.certificateSubjectName,
+      certificateIssuerName: input.certificateIssuerName,
+      certificateSubjectAltNames: input.certificateSubjectAltNames,
+      certificateChainSubjects: input.certificateChainSubjects,
+      certificateChainEntries: input.certificateChainEntries,
+      certificateRootSubjectName: input.certificateRootSubjectName,
+      certificateChainChangedAt: input.certificateChainChangedAt,
+      certificateChainObservedCount: input.certificateChainObservedCount,
+      certificateChainLastHealthyAt: input.certificateChainLastHealthyAt,
+      certificateLastHealthyChainEntries: input.certificateLastHealthyChainEntries,
+      certificatePathValidityChangedAt: input.certificatePathValidityChangedAt,
+      certificatePathValidityObservedCount: input.certificatePathValidityObservedCount,
+      certificatePathValidityLastHealthyAt: input.certificatePathValidityLastHealthyAt,
+      certificateValidationReason: input.certificateValidationReason,
+      certificateFingerprintSha256: input.certificateFingerprintSha256,
+      certificateSerialNumber: input.certificateSerialNumber,
+      certificateFirstObservedAt: input.certificateFirstObservedAt,
+      certificateChangedAt: input.certificateChangedAt,
+      certificateLastRotatedAt: input.certificateLastRotatedAt,
+      certificateGuidanceChangedAt: input.certificateGuidanceChangedAt,
+      certificateGuidanceObservedCount: input.certificateGuidanceObservedCount,
       diagnosticsCheckedAt: input.diagnosticsCheckedAt,
       ownershipStatusChangedAt: input.ownershipStatusChangedAt,
       tlsStatusChangedAt: input.tlsStatusChangedAt,
@@ -428,7 +508,15 @@ test('listProjectDomains merges DNS and TLS diagnostics only when explicitly req
   });
   t.mock.method(ProjectsRepository.prototype, 'addDomainEvents', async (input: Array<{
     domainId: string;
-    kind: 'ownership' | 'tls';
+    kind:
+      | 'ownership'
+      | 'tls'
+      | 'certificate'
+      | 'certificate_trust'
+      | 'certificate_path_validity'
+      | 'certificate_identity'
+      | 'certificate_attention'
+      | 'certificate_chain';
     previousStatus: string | null;
     nextStatus: string;
   }>) => {
@@ -455,7 +543,37 @@ test('listProjectDomains merges DNS and TLS diagnostics only when explicitly req
           ownershipStatus: 'verified',
           ownershipDetail: 'DNS ownership verified for the custom host.',
           tlsStatus: 'ready',
-          tlsDetail: 'HTTPS is reachable and the certificate is valid.'
+          tlsDetail: 'HTTPS is reachable and the certificate is valid.',
+          certificateValidFrom: new Date('2026-03-01T00:00:00.000Z'),
+          certificateValidTo: new Date('2026-06-01T00:00:00.000Z'),
+          certificateSubjectName: 'api.example.com',
+          certificateIssuerName: 'Example Issuer',
+          certificateSubjectAltNames: ['api.example.com', 'www.api.example.com'],
+          certificateChainSubjects: ['api.example.com', 'Example Issuer Root'],
+          certificateChainEntries: [
+            {
+              subjectName: 'api.example.com',
+              issuerName: 'Example Issuer',
+              fingerprintSha256: null,
+              serialNumber: null,
+              isSelfIssued: false,
+              validFrom: new Date('2026-03-01T00:00:00.000Z'),
+              validTo: new Date('2026-06-01T00:00:00.000Z')
+            },
+            {
+              subjectName: 'Example Issuer Root',
+              issuerName: 'Example Issuer Root',
+              fingerprintSha256: null,
+              serialNumber: null,
+              isSelfIssued: true,
+              validFrom: new Date('2026-03-01T00:00:00.000Z'),
+              validTo: new Date('2027-03-01T00:00:00.000Z')
+            }
+          ],
+          certificateRootSubjectName: 'Example Issuer Root',
+          certificateValidationReason: null,
+          certificateFingerprintSha256: 'aa11bb22cc33dd44ee55ff6677889900aa11bb22cc33dd44ee55ff6677889900',
+          certificateSerialNumber: '00A1B2C3'
         }];
       }
     }
@@ -475,19 +593,74 @@ test('listProjectDomains merges DNS and TLS diagnostics only when explicitly req
   assert.equal(domains[0]?.ownershipStatus, 'verified');
   assert.equal(domains[0]?.tlsStatus, 'ready');
   assert.equal(domains[0]?.verificationStatus, 'verified');
+  assert.equal(domains[0]?.certificateState, 'active');
+  assert.equal(domains[0]?.certificateTitle, 'Certificate active');
+  assert.equal(domains[0]?.certificateTrustStatus, 'trusted');
+  assert.equal(domains[0]?.certificateIdentityStatus, 'first-observed');
+  assert.equal(domains[0]?.certificateGuidanceState, 'healthy');
+  assert.equal(domains[0]?.certificateGuidanceObservedCount, 1);
+  assert.ok(domains[0]?.certificateGuidanceChangedAt instanceof Date);
+  assert.equal(domains[0]?.certificateAttentionStatus, 'healthy');
+  assert.equal(domains[0]?.certificateChainStatus, 'chained');
+  assert.equal(domains[0]?.certificatePathValidityStatus, 'valid');
+  assert.equal(domains[0]?.certificatePathValidityObservedCount, 1);
+  assert.ok(domains[0]?.certificatePathValidityChangedAt instanceof Date);
+  assert.deepEqual(domains[0]?.certificateChainSubjects, [
+    'api.example.com',
+    'Example Issuer Root'
+  ]);
+  assert.equal(domains[0]?.certificateRootSubjectName, 'Example Issuer Root');
+  assert.equal(domains[0]?.certificateIssuerName, 'Example Issuer');
+  assert.deepEqual(domains[0]?.certificateSubjectAltNames, [
+    'api.example.com',
+    'www.api.example.com'
+  ]);
+  assert.equal(
+    domains[0]?.certificateFingerprintSha256,
+    'aa11bb22cc33dd44ee55ff6677889900aa11bb22cc33dd44ee55ff6677889900'
+  );
+  assert.equal(domains[0]?.certificateSerialNumber, '00A1B2C3');
   assert.equal(persistedDiagnosticsUpdates.length, 1);
   assert.deepEqual(persistedDiagnosticsUpdates[0]?.projectId, 'project-1');
   assert.deepEqual(persistedDiagnosticsUpdates[0]?.domainId, 'domain-active');
   assert.equal(persistedDiagnosticsUpdates[0]?.ownershipStatus, 'verified');
   assert.equal(persistedDiagnosticsUpdates[0]?.tlsStatus, 'ready');
+  assert.equal(persistedDiagnosticsUpdates[0]?.certificateValidTo?.toISOString(), '2026-06-01T00:00:00.000Z');
+  assert.equal(persistedDiagnosticsUpdates[0]?.certificateIssuerName, 'Example Issuer');
+  assert.deepEqual(persistedDiagnosticsUpdates[0]?.certificateSubjectAltNames, [
+    'api.example.com',
+    'www.api.example.com'
+  ]);
+  assert.deepEqual(persistedDiagnosticsUpdates[0]?.certificateChainSubjects, [
+    'api.example.com',
+    'Example Issuer Root'
+  ]);
+  assert.equal(persistedDiagnosticsUpdates[0]?.certificateRootSubjectName, 'Example Issuer Root');
+  assert.equal(
+    persistedDiagnosticsUpdates[0]?.certificateFingerprintSha256,
+    'aa11bb22cc33dd44ee55ff6677889900aa11bb22cc33dd44ee55ff6677889900'
+  );
+  assert.equal(persistedDiagnosticsUpdates[0]?.certificateSerialNumber, '00A1B2C3');
+  assert.ok(persistedDiagnosticsUpdates[0]?.certificateFirstObservedAt instanceof Date);
+  assert.ok(persistedDiagnosticsUpdates[0]?.certificateChangedAt instanceof Date);
+  assert.equal(persistedDiagnosticsUpdates[0]?.certificateLastRotatedAt, null);
+  assert.ok(persistedDiagnosticsUpdates[0]?.certificatePathValidityChangedAt instanceof Date);
+  assert.equal(persistedDiagnosticsUpdates[0]?.certificatePathValidityObservedCount, 1);
+  assert.ok(persistedDiagnosticsUpdates[0]?.certificatePathValidityLastHealthyAt instanceof Date);
+  assert.ok(persistedDiagnosticsUpdates[0]?.certificateGuidanceChangedAt instanceof Date);
+  assert.equal(persistedDiagnosticsUpdates[0]?.certificateGuidanceObservedCount, 1);
   assert.ok(persistedDiagnosticsUpdates[0]?.diagnosticsCheckedAt instanceof Date);
   assert.ok(persistedDiagnosticsUpdates[0]?.ownershipStatusChangedAt instanceof Date);
   assert.ok(persistedDiagnosticsUpdates[0]?.tlsStatusChangedAt instanceof Date);
   assert.equal(domains[0]?.diagnosticsFreshnessStatus, 'fresh');
   assert.equal(domains[0]?.claimState, 'healthy');
-  assert.equal(domains[0]?.recentEvents.length, 2);
+  assert.equal(domains[0]?.certificateValidityStatus, 'valid');
+  assert.equal(domains[0]?.recentEvents.length, 5);
   assert.equal(domains[0]?.recentEvents[0]?.kind, 'ownership');
   assert.equal(domains[0]?.recentEvents[1]?.kind, 'tls');
+  assert.equal(domains[0]?.recentEvents[2]?.kind, 'certificate');
+  assert.equal(domains[0]?.recentEvents[3]?.kind, 'certificate_chain');
+  assert.equal(domains[0]?.recentEvents[4]?.kind, 'certificate_identity');
   assert.equal(domains[0]?.ownershipStatusChangedAt instanceof Date, true);
   assert.equal(domains[0]?.tlsStatusChangedAt instanceof Date, true);
   assert.ok(persistedDiagnosticsUpdates[0]?.ownershipVerifiedAt instanceof Date);
@@ -497,12 +670,588 @@ test('listProjectDomains merges DNS and TLS diagnostics only when explicitly req
   assert.equal(domains[0]?.tlsReadyAt instanceof Date, true);
 });
 
+test('listProjectDomains escalates certificate guidance when an intermediate certificate is nearing expiry', async (t) => {
+  const persistedDiagnosticsUpdates: Array<{
+    certificatePathValidityChangedAt?: Date | null;
+    certificatePathValidityObservedCount?: number;
+    certificatePathValidityLastHealthyAt?: Date | null;
+  }> = [];
+
+  t.mock.method(ProjectsRepository.prototype, 'findById', async () => ({
+    id: 'project-1',
+    userId: baseInput.userId,
+    slug: 'example-project',
+    services: createDefaultProjectServices()
+  } as any));
+  t.mock.method(ProjectsRepository.prototype, 'listRecentDomainEvents', async () => []);
+  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([{
+    id: 'domain-active',
+    projectId: 'project-1',
+    deploymentId: 'dep-active',
+    host: 'api.example.com',
+    targetPort: 3100,
+    verificationToken: 'challenge-token',
+    verificationStatus: 'verified',
+    verificationDetail: 'Ownership challenge verified.',
+    verificationCheckedAt: new Date('2026-03-10T09:00:00.000Z'),
+    verificationStatusChangedAt: new Date('2026-03-10T09:00:00.000Z'),
+    verificationVerifiedAt: new Date('2026-03-10T09:00:00.000Z'),
+    ownershipStatus: 'verified',
+    ownershipDetail: 'DNS ownership verified.',
+    tlsStatus: 'ready',
+    tlsDetail: 'HTTPS is reachable and the certificate is valid.',
+    diagnosticsCheckedAt: new Date('2026-03-10T09:00:00.000Z'),
+    ownershipStatusChangedAt: new Date('2026-03-10T09:00:00.000Z'),
+    tlsStatusChangedAt: new Date('2026-03-10T09:00:00.000Z'),
+    ownershipVerifiedAt: new Date('2026-03-10T09:00:00.000Z'),
+    tlsReadyAt: new Date('2026-03-10T09:00:00.000Z'),
+    createdAt: new Date('2026-03-10T09:00:00.000Z'),
+    updatedAt: new Date('2026-03-27T10:05:00.000Z'),
+    deploymentStatus: 'running',
+    runtimeUrl: 'https://api.example.com',
+    serviceName: 'app',
+    serviceKind: 'web',
+    serviceExposure: 'public'
+  }] as any));
+  t.mock.method(ProjectsRepository.prototype, 'updateDomainDiagnostics', async (input: {
+    certificatePathValidityChangedAt: Date | null;
+    certificatePathValidityObservedCount: number;
+    certificatePathValidityLastHealthyAt: Date | null;
+  }) => {
+    persistedDiagnosticsUpdates.push({
+      certificatePathValidityChangedAt: input.certificatePathValidityChangedAt,
+      certificatePathValidityObservedCount: input.certificatePathValidityObservedCount,
+      certificatePathValidityLastHealthyAt: input.certificatePathValidityLastHealthyAt
+    });
+    return { id: 'domain-active' } as any;
+  });
+  t.mock.method(ProjectsRepository.prototype, 'addDomainEvents', async () => []);
+
+  const service = new ProjectsService(
+    {} as never,
+    undefined,
+    {
+      async inspectDomains() {
+        return [{
+          verificationStatus: 'verified',
+          verificationDetail: 'Ownership challenge verified.',
+          ownershipStatus: 'verified',
+          ownershipDetail: 'DNS ownership verified for the custom host.',
+          tlsStatus: 'ready',
+          tlsDetail: 'HTTPS is reachable and the certificate is valid.',
+          certificateValidFrom: new Date('2026-03-01T00:00:00.000Z'),
+          certificateValidTo: new Date('2026-09-01T00:00:00.000Z'),
+          certificateSubjectName: 'api.example.com',
+          certificateIssuerName: 'Example Issuer',
+          certificateSubjectAltNames: ['api.example.com'],
+          certificateChainSubjects: [
+            'api.example.com',
+            'Example Intermediate CA',
+            'Example Issuer Root'
+          ],
+          certificateChainEntries: [
+            {
+              subjectName: 'api.example.com',
+              issuerName: 'Example Issuer',
+              fingerprintSha256: null,
+              serialNumber: null,
+              isSelfIssued: false,
+              validFrom: new Date('2026-03-01T00:00:00.000Z'),
+              validTo: new Date('2026-09-01T00:00:00.000Z')
+            },
+            {
+              subjectName: 'Example Intermediate CA',
+              issuerName: 'Example Issuer Root',
+              fingerprintSha256: null,
+              serialNumber: null,
+              isSelfIssued: false,
+              validFrom: new Date('2025-03-01T00:00:00.000Z'),
+              validTo: new Date('2026-04-05T00:00:00.000Z')
+            },
+            {
+              subjectName: 'Example Issuer Root',
+              issuerName: 'Example Issuer Root',
+              fingerprintSha256: null,
+              serialNumber: null,
+              isSelfIssued: true,
+              validFrom: new Date('2020-03-01T00:00:00.000Z'),
+              validTo: new Date('2030-03-01T00:00:00.000Z')
+            }
+          ],
+          certificateRootSubjectName: 'Example Issuer Root',
+          certificateValidationReason: null,
+          certificateFingerprintSha256: 'aa11bb22cc33dd44ee55ff6677889900aa11bb22cc33dd44ee55ff6677889900',
+          certificateSerialNumber: '00A1B2C3'
+        }];
+      }
+    }
+  );
+
+  const domains = await service.listProjectDomains('project-1', {
+    includeDiagnostics: true
+  });
+
+  assert.equal(domains[0]?.certificateValidityStatus, 'valid');
+  assert.equal(domains[0]?.certificatePathValidityStatus, 'expiring-soon');
+  assert.equal(domains[0]?.certificateGuidanceState, 'renew-soon');
+  assert.match(domains[0]?.certificatePathValidityDetail ?? '', /intermediate certificate 1/i);
+  assert.match(domains[0]?.certificateGuidanceDetail ?? '', /presented issuer path/i);
+  assert.equal(domains[0]?.certificatePathValidityObservedCount, 1);
+  assert.ok(domains[0]?.certificatePathValidityChangedAt instanceof Date);
+  assert.ok(domains[0]?.certificatePathValidityLastHealthyAt === null);
+  assert.equal(persistedDiagnosticsUpdates[0]?.certificatePathValidityObservedCount, 1);
+});
+
+test('listProjectDomains records certificate trust and issuer-path incident history events', async (t) => {
+  const persistedDomainEvents: Array<{
+    domainId: string;
+    kind:
+      | 'ownership'
+      | 'tls'
+      | 'certificate'
+      | 'certificate_trust'
+      | 'certificate_path_validity'
+      | 'certificate_identity'
+      | 'certificate_attention'
+      | 'certificate_chain';
+    previousStatus: string | null;
+    nextStatus: string;
+    detail: string;
+  }> = [];
+
+  t.mock.method(ProjectsRepository.prototype, 'findById', async () => ({
+    id: 'project-1',
+    userId: baseInput.userId,
+    slug: 'example-project',
+    services: createDefaultProjectServices()
+  } as any));
+  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([{
+    id: 'domain-history',
+    projectId: 'project-1',
+    deploymentId: 'dep-active',
+    host: 'api.example.com',
+    targetPort: 3100,
+    verificationToken: 'challenge-token',
+    verificationStatus: 'verified',
+    verificationDetail: 'Ownership challenge verified.',
+    verificationCheckedAt: new Date('2026-03-20T09:00:00.000Z'),
+    verificationStatusChangedAt: new Date('2026-03-20T09:00:00.000Z'),
+    verificationVerifiedAt: new Date('2026-03-20T09:00:00.000Z'),
+    ownershipStatus: 'verified',
+    ownershipDetail: 'DNS ownership verified.',
+    tlsStatus: 'ready',
+    tlsDetail: 'HTTPS is reachable and the certificate is valid.',
+    certificateValidFrom: new Date('2026-03-01T00:00:00.000Z'),
+    certificateValidTo: new Date('2026-06-01T00:00:00.000Z'),
+    certificateSubjectName: 'api.example.com',
+    certificateIssuerName: 'Example Issuer',
+    certificateSubjectAltNames: ['api.example.com'],
+    certificateChainSubjects: [
+      'api.example.com',
+      'Example Intermediate CA',
+      'Example Issuer Root'
+    ],
+    certificateChainEntries: [
+      {
+        subjectName: 'api.example.com',
+        issuerName: 'Example Intermediate CA',
+        fingerprintSha256: null,
+        serialNumber: null,
+        isSelfIssued: false,
+        validFrom: new Date('2026-03-01T00:00:00.000Z'),
+        validTo: new Date('2026-06-01T00:00:00.000Z')
+      },
+      {
+        subjectName: 'Example Intermediate CA',
+        issuerName: 'Example Issuer Root',
+        fingerprintSha256: null,
+        serialNumber: null,
+        isSelfIssued: false,
+        validFrom: new Date('2025-03-01T00:00:00.000Z'),
+        validTo: new Date('2026-07-01T00:00:00.000Z')
+      },
+      {
+        subjectName: 'Example Issuer Root',
+        issuerName: 'Example Issuer Root',
+        fingerprintSha256: null,
+        serialNumber: null,
+        isSelfIssued: true,
+        validFrom: new Date('2020-03-01T00:00:00.000Z'),
+        validTo: new Date('2030-03-01T00:00:00.000Z')
+      }
+    ],
+    certificateRootSubjectName: 'Example Issuer Root',
+    certificateValidationReason: null,
+    certificateFingerprintSha256: 'aa11bb22cc33dd44ee55ff6677889900aa11bb22cc33dd44ee55ff6677889900',
+    certificateSerialNumber: '00A1B2C3',
+    certificateFirstObservedAt: new Date('2026-03-20T09:00:00.000Z'),
+    certificateChangedAt: new Date('2026-03-20T09:00:00.000Z'),
+    certificateLastRotatedAt: null,
+    certificateGuidanceChangedAt: new Date('2026-03-20T09:00:00.000Z'),
+    certificateGuidanceObservedCount: 1,
+    diagnosticsCheckedAt: new Date('2026-03-20T09:00:00.000Z'),
+    ownershipStatusChangedAt: new Date('2026-03-20T09:00:00.000Z'),
+    tlsStatusChangedAt: new Date('2026-03-20T09:00:00.000Z'),
+    ownershipVerifiedAt: new Date('2026-03-20T09:00:00.000Z'),
+    tlsReadyAt: new Date('2026-03-20T09:00:00.000Z'),
+    createdAt: new Date('2026-03-20T09:00:00.000Z'),
+    updatedAt: new Date('2026-03-20T09:05:00.000Z'),
+    deploymentStatus: 'running',
+    runtimeUrl: 'https://api.example.com',
+    serviceName: 'app',
+    serviceKind: 'web',
+    serviceExposure: 'public'
+  }] as any));
+  t.mock.method(ProjectsRepository.prototype, 'updateDomainDiagnostics', async () => ({ id: 'domain-history' } as any));
+  t.mock.method(ProjectsRepository.prototype, 'addDomainEvents', async (input: Array<{
+    domainId: string;
+    kind:
+      | 'ownership'
+      | 'tls'
+      | 'certificate'
+      | 'certificate_trust'
+      | 'certificate_path_validity'
+      | 'certificate_identity'
+      | 'certificate_attention'
+      | 'certificate_chain';
+    previousStatus: string | null;
+    nextStatus: string;
+    detail: string;
+  }>) => {
+    persistedDomainEvents.push(...input);
+    return input.map((event, index) => ({ id: `event-${index + 1}`, domainId: event.domainId })) as any;
+  });
+  t.mock.method(ProjectsRepository.prototype, 'listRecentDomainEvents', async (input?: {
+    kinds?: string[];
+  }) => {
+    const kinds = input?.kinds;
+    return persistedDomainEvents
+      .filter((event) => !kinds || kinds.includes(event.kind))
+      .map((event, index) => ({
+        id: `event-${index + 1}`,
+        projectId: 'project-1',
+        domainId: event.domainId,
+        kind: event.kind,
+        previousStatus: event.previousStatus,
+        nextStatus: event.nextStatus,
+        detail: event.detail,
+        createdAt: new Date('2026-03-28T12:00:00.000Z')
+      }));
+  });
+
+  const service = new ProjectsService(
+    {} as never,
+    undefined,
+    {
+      async inspectDomains() {
+        return [{
+          verificationStatus: 'verified',
+          verificationDetail: 'Ownership challenge verified.',
+          ownershipStatus: 'verified',
+          ownershipDetail: 'DNS ownership verified for the custom host.',
+          tlsStatus: 'invalid',
+          tlsDetail: 'The presented certificate does not validate for this hostname.',
+          certificateValidFrom: new Date('2026-03-01T00:00:00.000Z'),
+          certificateValidTo: new Date('2026-06-01T00:00:00.000Z'),
+          certificateSubjectName: 'platform.example.com',
+          certificateIssuerName: 'Example Issuer',
+          certificateSubjectAltNames: ['platform.example.com'],
+          certificateChainSubjects: [
+            'platform.example.com',
+            'Example Intermediate CA',
+            'Example Issuer Root'
+          ],
+          certificateChainEntries: [
+            {
+              subjectName: 'platform.example.com',
+              issuerName: 'Example Intermediate CA',
+              fingerprintSha256: null,
+              serialNumber: null,
+              isSelfIssued: false,
+              validFrom: new Date('2026-03-01T00:00:00.000Z'),
+              validTo: new Date('2026-06-01T00:00:00.000Z')
+            },
+            {
+              subjectName: 'Example Intermediate CA',
+              issuerName: 'Example Issuer Root',
+              fingerprintSha256: null,
+              serialNumber: null,
+              isSelfIssued: false,
+              validFrom: new Date('2025-03-01T00:00:00.000Z'),
+              validTo: new Date('2026-03-15T00:00:00.000Z')
+            },
+            {
+              subjectName: 'Example Issuer Root',
+              issuerName: 'Example Issuer Root',
+              fingerprintSha256: null,
+              serialNumber: null,
+              isSelfIssued: true,
+              validFrom: new Date('2020-03-01T00:00:00.000Z'),
+              validTo: new Date('2030-03-01T00:00:00.000Z')
+            }
+          ],
+          certificateRootSubjectName: 'Example Issuer Root',
+          certificateValidationReason: 'hostname-mismatch',
+          certificateFingerprintSha256: 'aa11bb22cc33dd44ee55ff6677889900aa11bb22cc33dd44ee55ff6677889900',
+          certificateSerialNumber: '00A1B2C3'
+        }];
+      }
+    }
+  );
+
+  const [domain] = await service.listProjectDomains('project-1', {
+    includeDiagnostics: true
+  });
+
+  assert.equal(
+    persistedDomainEvents.some((event) =>
+      event.kind === 'certificate_trust'
+      && event.previousStatus === 'trusted'
+      && event.nextStatus === 'hostname-mismatch'
+    ),
+    true
+  );
+  assert.equal(
+    persistedDomainEvents.some((event) =>
+      event.kind === 'certificate_path_validity'
+      && event.previousStatus === 'valid'
+      && event.nextStatus === 'expired'
+    ),
+    true
+  );
+  assert.equal(domain?.certificateHistorySummary.eventCount >= 3, true);
+  assert.equal(domain?.certificateHistorySummary.trustIncidentCount, 1);
+  assert.equal(domain?.certificateHistorySummary.pathIncidentCount, 1);
+  assert.equal(domain?.certificateHistorySummary.attentionIncidentCount, 1);
+  assert.equal(domain?.certificateHistorySummary.recoveryCount, 0);
+  assert.equal(
+    domain?.recentEvents.some((event) => event.kind === 'certificate_trust'),
+    true
+  );
+  assert.equal(
+    domain?.recentEvents.some((event) => event.kind === 'certificate_path_validity'),
+    true
+  );
+});
+
+test('listProjectDomains records certificate rotation history when the served fingerprint changes', async (t) => {
+  const previousObservedAt = new Date('2026-03-10T09:00:00.000Z');
+  let capturedDiagnosticsUpdateCalled = false;
+  const capturedDiagnosticsUpdate: {
+    certificateFirstObservedAt: Date | null;
+    certificateChangedAt: Date | null;
+    certificateLastRotatedAt: Date | null;
+    certificateFingerprintSha256: string | null;
+    certificateSerialNumber: string | null;
+  } = {
+    certificateFirstObservedAt: null,
+    certificateChangedAt: null,
+    certificateLastRotatedAt: null,
+    certificateFingerprintSha256: null,
+    certificateSerialNumber: null
+  };
+  const persistedDomainEvents: Array<{
+    domainId: string;
+    kind:
+      | 'ownership'
+      | 'tls'
+      | 'certificate'
+      | 'certificate_trust'
+      | 'certificate_path_validity'
+      | 'certificate_identity'
+      | 'certificate_attention'
+      | 'certificate_chain';
+    previousStatus: string | null;
+    nextStatus: string;
+    detail: string;
+  }> = [];
+
+  t.mock.method(ProjectsRepository.prototype, 'findById', async () => ({
+    id: 'project-1',
+    userId: baseInput.userId,
+    slug: 'example-project',
+    services: createDefaultProjectServices()
+  } as any));
+  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([
+    {
+      id: 'domain-rotate',
+      projectId: 'project-1',
+      deploymentId: 'dep-active',
+      host: 'api.example.com',
+      targetPort: 3100,
+      verificationToken: 'challenge-token',
+      verificationStatus: 'verified',
+      verificationDetail: 'Ownership challenge verified.',
+      verificationCheckedAt: previousObservedAt,
+      verificationStatusChangedAt: previousObservedAt,
+      verificationVerifiedAt: previousObservedAt,
+      ownershipStatus: 'verified',
+      ownershipDetail: 'DNS ownership verified.',
+      tlsStatus: 'ready',
+      tlsDetail: 'HTTPS is reachable and the certificate is valid.',
+      certificateValidFrom: new Date('2026-03-10T09:00:00.000Z'),
+      certificateValidTo: new Date('2026-06-10T09:00:00.000Z'),
+      certificateSubjectName: 'api.example.com',
+      certificateIssuerName: 'Example Issuer',
+      certificateSubjectAltNames: ['api.example.com'],
+      certificateChainSubjects: ['api.example.com', 'Example Issuer Root'],
+      certificateRootSubjectName: 'Example Issuer Root',
+      certificateValidationReason: null,
+      certificateFingerprintSha256: '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff',
+      certificateSerialNumber: '0001',
+      certificateFirstObservedAt: previousObservedAt,
+      certificateChangedAt: previousObservedAt,
+      certificateLastRotatedAt: null,
+      diagnosticsCheckedAt: previousObservedAt,
+      ownershipStatusChangedAt: previousObservedAt,
+      tlsStatusChangedAt: previousObservedAt,
+      ownershipVerifiedAt: previousObservedAt,
+      tlsReadyAt: previousObservedAt,
+      createdAt: new Date('2026-03-10T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-27T10:05:00.000Z'),
+      deploymentStatus: 'running',
+      runtimeUrl: 'https://api.example.com',
+      serviceName: 'app',
+      serviceKind: 'web',
+      serviceExposure: 'public'
+    }
+  ] as any));
+  t.mock.method(ProjectsRepository.prototype, 'updateDomainDiagnostics', async (input: {
+    certificateFirstObservedAt: Date | null;
+    certificateChangedAt: Date | null;
+    certificateLastRotatedAt: Date | null;
+    certificateFingerprintSha256: string | null;
+    certificateSerialNumber: string | null;
+  }) => {
+    capturedDiagnosticsUpdateCalled = true;
+    Object.assign(capturedDiagnosticsUpdate, {
+      certificateFirstObservedAt: input.certificateFirstObservedAt,
+      certificateChangedAt: input.certificateChangedAt,
+      certificateLastRotatedAt: input.certificateLastRotatedAt,
+      certificateFingerprintSha256: input.certificateFingerprintSha256,
+      certificateSerialNumber: input.certificateSerialNumber
+    });
+    return { id: 'domain-rotate' } as any;
+  });
+  t.mock.method(ProjectsRepository.prototype, 'addDomainEvents', async (input: Array<{
+    domainId: string;
+    kind:
+      | 'ownership'
+      | 'tls'
+      | 'certificate'
+      | 'certificate_trust'
+      | 'certificate_path_validity'
+      | 'certificate_identity'
+      | 'certificate_attention'
+      | 'certificate_chain';
+    previousStatus: string | null;
+    nextStatus: string;
+    detail: string;
+  }>) => {
+    persistedDomainEvents.push(...input);
+    return input.map((event, index) => ({ id: `event-${index + 1}`, domainId: event.domainId })) as any;
+  });
+  t.mock.method(ProjectsRepository.prototype, 'listRecentDomainEvents', async () =>
+    persistedDomainEvents.map((event, index) => ({
+      id: `event-${index + 1}`,
+      projectId: 'project-1',
+      domainId: event.domainId,
+      kind: event.kind,
+      previousStatus: event.previousStatus,
+      nextStatus: event.nextStatus,
+      detail: event.detail,
+      createdAt: new Date('2026-03-28T12:00:00.000Z')
+    }))
+  );
+
+  const service = new ProjectsService(
+    {} as never,
+    undefined,
+    {
+      async inspectDomains() {
+        return [{
+          verificationStatus: 'verified',
+          verificationDetail: 'Ownership challenge verified through TXT record _vcloudrunner.api.example.com.',
+          ownershipStatus: 'verified',
+          ownershipDetail: 'DNS ownership verified for the custom host.',
+          tlsStatus: 'ready',
+          tlsDetail: 'HTTPS is reachable and the certificate is valid.',
+          certificateValidFrom: new Date('2026-03-28T12:00:00.000Z'),
+          certificateValidTo: new Date('2026-06-28T12:00:00.000Z'),
+          certificateSubjectName: 'api.example.com',
+          certificateIssuerName: 'Example Issuer',
+          certificateSubjectAltNames: ['api.example.com', 'www.api.example.com'],
+          certificateChainSubjects: ['api.example.com', 'Example Issuer Root'],
+          certificateChainEntries: [
+            {
+              subjectName: 'api.example.com',
+              issuerName: 'Example Issuer',
+              fingerprintSha256: null,
+              serialNumber: null,
+              isSelfIssued: false
+            },
+            {
+              subjectName: 'Example Issuer Root',
+              issuerName: 'Example Issuer Root',
+              fingerprintSha256: null,
+              serialNumber: null,
+              isSelfIssued: true
+            }
+          ],
+          certificateRootSubjectName: 'Example Issuer Root',
+          certificateValidationReason: null,
+          certificateFingerprintSha256: 'ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100',
+          certificateSerialNumber: '0002'
+        }];
+      }
+    }
+  );
+
+  const [domain] = await service.listProjectDomains('project-1', {
+    includeDiagnostics: true
+  });
+
+  assert.equal(domain?.certificateIdentityStatus, 'rotated');
+  assert.equal(domain?.certificateIdentityTitle, 'Certificate rotated cleanly');
+  assert.equal(
+    domain?.certificateFingerprintSha256,
+    'ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100'
+  );
+  assert.equal(domain?.certificateSerialNumber, '0002');
+  assert.equal(capturedDiagnosticsUpdateCalled, true);
+  assert.equal(
+    capturedDiagnosticsUpdate.certificateFirstObservedAt?.toISOString(),
+    previousObservedAt.toISOString()
+  );
+  assert.ok(capturedDiagnosticsUpdate.certificateChangedAt instanceof Date);
+  assert.ok(capturedDiagnosticsUpdate.certificateLastRotatedAt instanceof Date);
+  assert.equal(
+    capturedDiagnosticsUpdate.certificateFingerprintSha256,
+    'ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100'
+  );
+  assert.equal(capturedDiagnosticsUpdate.certificateSerialNumber, '0002');
+  assert.equal(
+    persistedDomainEvents.some((event) =>
+      event.kind === 'certificate_identity'
+      && event.nextStatus === 'rotated'
+      && /fingerprint change/i.test(event.detail)
+    ),
+    true
+  );
+  assert.equal(
+    domain?.recentEvents.some((event) => event.kind === 'certificate_identity' && event.nextStatus === 'rotated'),
+    true
+  );
+});
+
 test('listProjectDomains preserves prior verification timestamps when refreshed diagnostics are no longer healthy', async (t) => {
   const previousOwnershipStatusChangedAt = new Date('2026-03-27T08:00:00.000Z');
   const previousTlsStatusChangedAt = new Date('2026-03-27T08:30:00.000Z');
   const previousOwnershipVerifiedAt = new Date('2026-03-27T09:00:00.000Z');
   const previousTlsReadyAt = new Date('2026-03-27T09:30:00.000Z');
   const persistedDiagnosticsUpdates: Array<{
+    certificateValidFrom: Date | null;
+    certificateValidTo: Date | null;
     ownershipStatusChangedAt: Date | null;
     tlsStatusChangedAt: Date | null;
     ownershipVerifiedAt: Date | null;
@@ -528,6 +1277,8 @@ test('listProjectDomains preserves prior verification timestamps when refreshed 
       tlsStatus: 'ready',
       tlsDetail: 'HTTPS is reachable and the certificate is valid.',
       diagnosticsCheckedAt: new Date('2026-03-27T09:30:00.000Z'),
+      certificateValidFrom: new Date('2026-03-01T00:00:00.000Z'),
+      certificateValidTo: new Date('2026-06-01T00:00:00.000Z'),
       ownershipStatusChangedAt: previousOwnershipStatusChangedAt,
       tlsStatusChangedAt: previousTlsStatusChangedAt,
       ownershipVerifiedAt: previousOwnershipVerifiedAt,
@@ -542,12 +1293,16 @@ test('listProjectDomains preserves prior verification timestamps when refreshed 
     }
   ] as any));
   t.mock.method(ProjectsRepository.prototype, 'updateDomainDiagnostics', async (input: {
+    certificateValidFrom: Date | null;
+    certificateValidTo: Date | null;
     ownershipStatusChangedAt: Date | null;
     tlsStatusChangedAt: Date | null;
     ownershipVerifiedAt: Date | null;
     tlsReadyAt: Date | null;
   }) => {
     persistedDiagnosticsUpdates.push({
+      certificateValidFrom: input.certificateValidFrom,
+      certificateValidTo: input.certificateValidTo,
       ownershipStatusChangedAt: input.ownershipStatusChangedAt,
       tlsStatusChangedAt: input.tlsStatusChangedAt,
       ownershipVerifiedAt: input.ownershipVerifiedAt,
@@ -568,7 +1323,18 @@ test('listProjectDomains preserves prior verification timestamps when refreshed 
           ownershipStatus: 'mismatch',
           ownershipDetail: 'DNS resolves away from the platform target.',
           tlsStatus: 'pending',
-          tlsDetail: 'HTTPS is not reachable yet.'
+          tlsDetail: 'HTTPS is not reachable yet.',
+          certificateValidFrom: null,
+          certificateValidTo: null,
+          certificateSubjectName: null,
+          certificateIssuerName: null,
+          certificateSubjectAltNames: [],
+          certificateChainSubjects: [],
+          certificateChainEntries: [],
+          certificateRootSubjectName: null,
+          certificateValidationReason: null,
+          certificateFingerprintSha256: null,
+          certificateSerialNumber: null
         }];
       }
     }
@@ -580,6 +1346,8 @@ test('listProjectDomains preserves prior verification timestamps when refreshed 
 
   assert.ok(persistedDiagnosticsUpdates[0]?.ownershipStatusChangedAt instanceof Date);
   assert.ok(persistedDiagnosticsUpdates[0]?.tlsStatusChangedAt instanceof Date);
+  assert.equal(persistedDiagnosticsUpdates[0]?.certificateValidFrom, null);
+  assert.equal(persistedDiagnosticsUpdates[0]?.certificateValidTo, null);
   assert.equal(persistedDiagnosticsUpdates[0]?.ownershipVerifiedAt?.toISOString(), previousOwnershipVerifiedAt.toISOString());
   assert.equal(persistedDiagnosticsUpdates[0]?.tlsReadyAt?.toISOString(), previousTlsReadyAt.toISOString());
   assert.notEqual(
@@ -593,9 +1361,316 @@ test('listProjectDomains preserves prior verification timestamps when refreshed 
   assert.equal(domains[0]?.ownershipStatus, 'mismatch');
   assert.equal(domains[0]?.tlsStatus, 'pending');
   assert.equal(domains[0]?.claimState, 'fix-dns');
+  assert.equal(domains[0]?.certificateState, 'awaiting-dns');
+  assert.equal(domains[0]?.certificateTitle, 'Fix routing DNS first');
+  assert.equal(domains[0]?.certificateValidityStatus, 'unavailable');
   assert.equal(domains[0]?.verificationStatus, 'verified');
   assert.equal(domains[0]?.ownershipVerifiedAt?.toISOString(), previousOwnershipVerifiedAt.toISOString());
   assert.equal(domains[0]?.tlsReadyAt?.toISOString(), previousTlsReadyAt.toISOString());
+});
+
+test('listProjectDomains distinguishes initial certificate issuance problems from renewal regressions', async (t) => {
+  t.mock.method(ProjectsRepository.prototype, 'findById', async () => ({
+    id: 'project-1',
+    userId: baseInput.userId,
+    slug: 'example-project',
+    services: createDefaultProjectServices()
+  } as any));
+  t.mock.method(ProjectsRepository.prototype, 'listRecentDomainEvents', async () => []);
+  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([
+    {
+      id: 'domain-issuance',
+      projectId: 'project-1',
+      deploymentId: 'dep-issuance',
+      host: 'issuance.example.com',
+      targetPort: 3100,
+      ownershipStatus: 'verified',
+      ownershipDetail: 'DNS ownership verified for the custom host.',
+      tlsStatus: 'invalid',
+      tlsDetail: 'HTTPS reached the host, but certificate validation failed (CERT_HAS_EXPIRED).',
+      certificateValidFrom: new Date('2025-12-01T00:00:00.000Z'),
+      certificateValidTo: new Date('2026-02-01T00:00:00.000Z'),
+      diagnosticsCheckedAt: new Date('2026-03-28T12:00:00.000Z'),
+      tlsStatusChangedAt: new Date('2026-03-28T12:00:00.000Z'),
+      ownershipVerifiedAt: new Date('2026-03-28T12:00:00.000Z'),
+      tlsReadyAt: null,
+      createdAt: new Date('2026-03-27T10:00:00.000Z'),
+      updatedAt: new Date('2026-03-28T12:00:00.000Z'),
+      deploymentStatus: 'running',
+      runtimeUrl: 'https://issuance.example.com',
+      serviceName: 'app',
+      serviceKind: 'web',
+      serviceExposure: 'public'
+    },
+    {
+      id: 'domain-renewal',
+      projectId: 'project-1',
+      deploymentId: 'dep-renewal',
+      host: 'renewal.example.com',
+      targetPort: 3100,
+      ownershipStatus: 'verified',
+      ownershipDetail: 'DNS ownership verified for the custom host.',
+      tlsStatus: 'invalid',
+      tlsDetail: 'HTTPS reached the host, but certificate validation failed (CERT_HAS_EXPIRED).',
+      certificateValidFrom: new Date('2025-12-01T00:00:00.000Z'),
+      certificateValidTo: new Date('2026-02-01T00:00:00.000Z'),
+      diagnosticsCheckedAt: new Date('2026-03-28T12:00:00.000Z'),
+      tlsStatusChangedAt: new Date('2026-03-28T12:00:00.000Z'),
+      ownershipVerifiedAt: new Date('2026-03-27T09:00:00.000Z'),
+      tlsReadyAt: new Date('2026-03-27T09:30:00.000Z'),
+      createdAt: new Date('2026-03-27T10:00:00.000Z'),
+      updatedAt: new Date('2026-03-28T12:00:00.000Z'),
+      deploymentStatus: 'running',
+      runtimeUrl: 'https://renewal.example.com',
+      serviceName: 'app',
+      serviceKind: 'web',
+      serviceExposure: 'public'
+    }
+  ] as any));
+
+  const service = new ProjectsService({} as never);
+  const domains = await service.listProjectDomains('project-1');
+
+  const issuanceDomain = domains.find((domain) => domain.id === 'domain-issuance');
+  const renewalDomain = domains.find((domain) => domain.id === 'domain-renewal');
+
+  assert.equal(issuanceDomain?.certificateState, 'issuance-attention');
+  assert.equal(issuanceDomain?.certificateTitle, 'Review initial issuance');
+  assert.equal(issuanceDomain?.certificateValidityStatus, 'expired');
+  assert.equal(issuanceDomain?.certificateTrustStatus, 'date-invalid');
+  assert.equal(issuanceDomain?.certificateGuidanceState, 'renew-now');
+  assert.equal(renewalDomain?.certificateState, 'renewal-attention');
+  assert.equal(renewalDomain?.certificateTitle, 'Review renewal regression');
+  assert.equal(renewalDomain?.certificateValidityStatus, 'expired');
+  assert.equal(renewalDomain?.certificateTrustStatus, 'date-invalid');
+  assert.equal(renewalDomain?.certificateGuidanceState, 'renew-now');
+});
+
+test('listProjectDomains promotes repeated certificate issues into persistent attention telemetry', async (t) => {
+  const previousIssueAt = new Date('2026-03-28T12:00:00.000Z');
+  const previousHealthyAt = new Date('2026-03-27T09:30:00.000Z');
+  const persistedDiagnosticsUpdates: Array<{
+    certificateGuidanceChangedAt: Date | null;
+    certificateGuidanceObservedCount: number;
+  }> = [];
+  const persistedDomainEvents: Array<{
+    domainId: string;
+    kind:
+      | 'ownership'
+      | 'tls'
+      | 'certificate'
+      | 'certificate_trust'
+      | 'certificate_path_validity'
+      | 'certificate_identity'
+      | 'certificate_attention';
+    previousStatus: string | null;
+    nextStatus: string;
+    detail: string;
+  }> = [];
+
+  t.mock.method(ProjectsRepository.prototype, 'findById', async () => ({
+    id: 'project-1',
+    userId: baseInput.userId,
+    slug: 'example-project',
+    services: createDefaultProjectServices()
+  } as any));
+  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([
+    {
+      id: 'domain-renewal-persistent',
+      projectId: 'project-1',
+      deploymentId: 'dep-renewal-persistent',
+      host: 'renewal.example.com',
+      targetPort: 3100,
+      verificationStatus: 'verified',
+      verificationDetail: 'Ownership challenge verified.',
+      verificationCheckedAt: previousIssueAt,
+      verificationStatusChangedAt: previousIssueAt,
+      verificationVerifiedAt: previousIssueAt,
+      ownershipStatus: 'verified',
+      ownershipDetail: 'DNS ownership verified.',
+      tlsStatus: 'invalid',
+      tlsDetail: 'HTTPS reached the host, but certificate validation failed (CERT_HAS_EXPIRED).',
+      certificateValidFrom: new Date('2025-12-01T00:00:00.000Z'),
+      certificateValidTo: new Date('2026-02-01T00:00:00.000Z'),
+      certificateChainSubjects: ['renewal.example.com', 'Example Issuer Root'],
+      certificateRootSubjectName: 'Example Issuer Root',
+      certificateValidationReason: 'expired',
+      certificateGuidanceChangedAt: previousIssueAt,
+      certificateGuidanceObservedCount: 1,
+      diagnosticsCheckedAt: previousIssueAt,
+      ownershipStatusChangedAt: previousIssueAt,
+      tlsStatusChangedAt: previousIssueAt,
+      ownershipVerifiedAt: previousIssueAt,
+      tlsReadyAt: previousHealthyAt,
+      createdAt: new Date('2026-03-27T10:00:00.000Z'),
+      updatedAt: previousIssueAt,
+      deploymentStatus: 'running',
+      runtimeUrl: 'https://renewal.example.com',
+      serviceName: 'app',
+      serviceKind: 'web',
+      serviceExposure: 'public'
+    }
+  ] as any));
+  t.mock.method(ProjectsRepository.prototype, 'updateDomainDiagnostics', async (input: {
+    certificateGuidanceChangedAt: Date | null;
+    certificateGuidanceObservedCount: number;
+  }) => {
+    persistedDiagnosticsUpdates.push({
+      certificateGuidanceChangedAt: input.certificateGuidanceChangedAt,
+      certificateGuidanceObservedCount: input.certificateGuidanceObservedCount
+    });
+    return { id: 'domain-renewal-persistent' } as any;
+  });
+  t.mock.method(ProjectsRepository.prototype, 'addDomainEvents', async (input: Array<{
+    domainId: string;
+    kind:
+      | 'ownership'
+      | 'tls'
+      | 'certificate'
+      | 'certificate_trust'
+      | 'certificate_path_validity'
+      | 'certificate_identity'
+      | 'certificate_attention';
+    previousStatus: string | null;
+    nextStatus: string;
+    detail: string;
+  }>) => {
+    persistedDomainEvents.push(...input);
+    return input.map((event, index) => ({ id: `event-${index + 1}`, domainId: event.domainId })) as any;
+  });
+  t.mock.method(ProjectsRepository.prototype, 'listRecentDomainEvents', async () =>
+    persistedDomainEvents.map((event, index) => ({
+      id: `event-${index + 1}`,
+      projectId: 'project-1',
+      domainId: event.domainId,
+      kind: event.kind,
+      previousStatus: event.previousStatus,
+      nextStatus: event.nextStatus,
+      detail: event.detail,
+      createdAt: new Date('2026-03-29T12:00:00.000Z')
+    }))
+  );
+
+  const service = new ProjectsService(
+    {} as never,
+    undefined,
+    {
+      async inspectDomains() {
+        return [{
+          verificationStatus: 'verified',
+          verificationDetail: 'Ownership challenge verified.',
+          ownershipStatus: 'verified',
+          ownershipDetail: 'DNS ownership verified.',
+          tlsStatus: 'invalid',
+          tlsDetail: 'HTTPS reached the host, but certificate validation failed (CERT_HAS_EXPIRED).',
+          certificateValidFrom: new Date('2025-12-01T00:00:00.000Z'),
+          certificateValidTo: new Date('2026-02-01T00:00:00.000Z'),
+          certificateSubjectName: 'renewal.example.com',
+          certificateIssuerName: 'Example Issuer',
+          certificateSubjectAltNames: ['renewal.example.com'],
+          certificateChainSubjects: ['renewal.example.com', 'Example Issuer Root'],
+          certificateChainEntries: [
+            {
+              subjectName: 'renewal.example.com',
+              issuerName: 'Example Issuer',
+              fingerprintSha256: null,
+              serialNumber: null,
+              isSelfIssued: false
+            },
+            {
+              subjectName: 'Example Issuer Root',
+              issuerName: 'Example Issuer Root',
+              fingerprintSha256: null,
+              serialNumber: null,
+              isSelfIssued: true
+            }
+          ],
+          certificateRootSubjectName: 'Example Issuer Root',
+          certificateValidationReason: 'expired',
+          certificateFingerprintSha256: 'aa11bb22cc33dd44ee55ff6677889900aa11bb22cc33dd44ee55ff6677889900',
+          certificateSerialNumber: '0099AABB'
+        }];
+      }
+    }
+  );
+
+  const [domain] = await service.listProjectDomains('project-1', {
+    includeDiagnostics: true
+  });
+
+  assert.equal(domain?.certificateGuidanceState, 'renew-now');
+  assert.equal(domain?.certificateGuidanceObservedCount, 2);
+  assert.equal(domain?.certificateAttentionStatus, 'persistent-action-needed');
+  assert.equal(domain?.certificateAttentionTitle, 'Persistent certificate issue');
+  assert.match(domain?.certificateAttentionDetail ?? '', /2 consecutive certificate checks/i);
+  assert.match(domain?.certificateAttentionDetail ?? '', /Last healthy HTTPS was confirmed/i);
+  assert.equal(persistedDiagnosticsUpdates[0]?.certificateGuidanceObservedCount, 2);
+  assert.equal(
+    persistedDiagnosticsUpdates[0]?.certificateGuidanceChangedAt?.toISOString(),
+    previousIssueAt.toISOString()
+  );
+  assert.equal(
+    persistedDomainEvents.some((event) =>
+      event.kind === 'certificate_attention'
+      && event.previousStatus === 'action-needed'
+      && event.nextStatus === 'persistent-action-needed'
+    ),
+    true
+  );
+  assert.equal(
+    domain?.recentEvents.some((event) =>
+      event.kind === 'certificate_attention'
+      && event.nextStatus === 'persistent-action-needed'
+    ),
+    true
+  );
+});
+
+test('listProjectDomains derives certificate trust and guidance from stored hostname-mismatch metadata', async (t) => {
+  t.mock.method(ProjectsRepository.prototype, 'findById', async () => ({
+    id: 'project-1',
+    userId: baseInput.userId,
+    slug: 'example-project',
+    services: createDefaultProjectServices()
+  } as any));
+  t.mock.method(ProjectsRepository.prototype, 'listRecentDomainEvents', async () => []);
+  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([
+    {
+      id: 'domain-hostname-mismatch',
+      projectId: 'project-1',
+      deploymentId: 'dep-hostname-mismatch',
+      host: 'api.example.com',
+      targetPort: 3100,
+      ownershipStatus: 'verified',
+      ownershipDetail: 'DNS ownership verified for the custom host.',
+      tlsStatus: 'invalid',
+      tlsDetail: 'HTTPS reached the host, but certificate validation failed (ERR_TLS_CERT_ALTNAME_INVALID).',
+      certificateValidFrom: new Date('2026-03-01T00:00:00.000Z'),
+      certificateValidTo: new Date('2026-06-01T00:00:00.000Z'),
+      certificateSubjectName: 'platform.example.com',
+      certificateIssuerName: 'Example Issuer',
+      certificateSubjectAltNames: ['platform.example.com'],
+      certificateValidationReason: 'hostname-mismatch',
+      diagnosticsCheckedAt: new Date('2026-03-28T12:00:00.000Z'),
+      tlsStatusChangedAt: new Date('2026-03-28T12:00:00.000Z'),
+      createdAt: new Date('2026-03-27T10:00:00.000Z'),
+      updatedAt: new Date('2026-03-28T12:00:00.000Z'),
+      deploymentStatus: 'running',
+      runtimeUrl: 'https://api.example.com',
+      serviceName: 'app',
+      serviceKind: 'web',
+      serviceExposure: 'public'
+    }
+  ] as any));
+
+  const service = new ProjectsService({} as never);
+  const [domain] = await service.listProjectDomains('project-1');
+
+  assert.equal(domain?.certificateTrustStatus, 'hostname-mismatch');
+  assert.equal(domain?.certificateGuidanceState, 'fix-coverage');
+  assert.match(domain?.certificateTrustDetail ?? '', /does not appear to cover this hostname/i);
+  assert.equal(domain?.certificateIssuerName, 'Example Issuer');
+  assert.deepEqual(domain?.certificateSubjectAltNames, ['platform.example.com']);
 });
 
 test('createProjectDomain stores a pending custom domain claim for the public service', async (t) => {
@@ -757,7 +1832,18 @@ test('verifyProjectDomainClaim refreshes the targeted custom domain only', async
           ownershipStatus: 'pending',
           ownershipDetail: 'No public DNS records were found yet. Point this host at example-project.platform.local to verify ownership.',
           tlsStatus: 'pending',
-          tlsDetail: 'TLS will be checked after this host is attached to a running deployment route.'
+          tlsDetail: 'TLS will be checked after this host is attached to a running deployment route.',
+          certificateValidFrom: null,
+          certificateValidTo: null,
+          certificateSubjectName: null,
+          certificateIssuerName: null,
+          certificateSubjectAltNames: [],
+          certificateChainSubjects: [],
+          certificateChainEntries: [],
+          certificateRootSubjectName: null,
+          certificateValidationReason: null,
+          certificateFingerprintSha256: null,
+          certificateSerialNumber: null
         }];
       }
     }
@@ -779,6 +1865,7 @@ test('verifyProjectDomainClaim refreshes the targeted custom domain only', async
   assert.equal(domain.id, 'domain-verify');
   assert.equal(domain.verificationStatus, 'verified');
   assert.equal(domain.claimState, 'configure-dns');
+  assert.equal(domain.certificateState, 'awaiting-route');
 });
 
 test('removeProjectDomain rejects attempts to remove the platform default host', async (t) => {

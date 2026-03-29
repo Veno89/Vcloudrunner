@@ -38,6 +38,25 @@ export const projectInvitationStatus = pgEnum('project_invitation_status', [
   'cancelled'
 ]);
 
+export const projectDatabaseEngine = pgEnum('project_database_engine', [
+  'postgres'
+]);
+
+export const projectDatabaseStatus = pgEnum('project_database_status', [
+  'pending_config',
+  'provisioning',
+  'ready',
+  'failed'
+]);
+
+export const projectDatabaseHealthStatus = pgEnum('project_database_health_status', [
+  'unknown',
+  'healthy',
+  'unreachable',
+  'credentials_invalid',
+  'failing'
+]);
+
 export const projectDomainOwnershipStatus = pgEnum('project_domain_ownership_status', [
   'managed',
   'verified',
@@ -63,7 +82,13 @@ export const projectDomainTlsStatus = pgEnum('project_domain_tls_status', [
 
 export const projectDomainEventKind = pgEnum('project_domain_event_kind', [
   'ownership',
-  'tls'
+  'tls',
+  'certificate',
+  'certificate_trust',
+  'certificate_path_validity',
+  'certificate_identity',
+  'certificate_attention',
+  'certificate_chain'
 ]);
 
 export const users = pgTable('users', {
@@ -173,6 +198,45 @@ export const domains = pgTable('domains', {
   ownershipDetail: text('ownership_detail'),
   tlsStatus: projectDomainTlsStatus('tls_status'),
   tlsDetail: text('tls_detail'),
+  certificateValidFrom: timestamp('certificate_valid_from', { withTimezone: true }),
+  certificateValidTo: timestamp('certificate_valid_to', { withTimezone: true }),
+  certificateSubjectName: text('certificate_subject_name'),
+  certificateIssuerName: text('certificate_issuer_name'),
+  certificateSubjectAltNames: jsonb('certificate_subject_alt_names').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  certificateChainSubjects: jsonb('certificate_chain_subjects').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  certificateChainEntries: jsonb('certificate_chain_entries').$type<Array<{
+    subjectName: string | null;
+    issuerName: string | null;
+    fingerprintSha256: string | null;
+    serialNumber: string | null;
+    isSelfIssued: boolean;
+    validFrom?: Date | null;
+    validTo?: Date | null;
+  }>>().notNull().default(sql`'[]'::jsonb`),
+  certificateRootSubjectName: text('certificate_root_subject_name'),
+  certificateChainChangedAt: timestamp('certificate_chain_changed_at', { withTimezone: true }),
+  certificateChainObservedCount: integer('certificate_chain_observed_count').notNull().default(0),
+  certificateChainLastHealthyAt: timestamp('certificate_chain_last_healthy_at', { withTimezone: true }),
+  certificateLastHealthyChainEntries: jsonb('certificate_last_healthy_chain_entries').$type<Array<{
+    subjectName: string | null;
+    issuerName: string | null;
+    fingerprintSha256: string | null;
+    serialNumber: string | null;
+    isSelfIssued: boolean;
+    validFrom?: Date | null;
+    validTo?: Date | null;
+  }>>().notNull().default(sql`'[]'::jsonb`),
+  certificatePathValidityChangedAt: timestamp('certificate_path_validity_changed_at', { withTimezone: true }),
+  certificatePathValidityObservedCount: integer('certificate_path_validity_observed_count').notNull().default(0),
+  certificatePathValidityLastHealthyAt: timestamp('certificate_path_validity_last_healthy_at', { withTimezone: true }),
+  certificateValidationReason: varchar('certificate_validation_reason', { length: 64 }),
+  certificateFingerprintSha256: varchar('certificate_fingerprint_sha256', { length: 128 }),
+  certificateSerialNumber: varchar('certificate_serial_number', { length: 128 }),
+  certificateFirstObservedAt: timestamp('certificate_first_observed_at', { withTimezone: true }),
+  certificateChangedAt: timestamp('certificate_changed_at', { withTimezone: true }),
+  certificateLastRotatedAt: timestamp('certificate_last_rotated_at', { withTimezone: true }),
+  certificateGuidanceChangedAt: timestamp('certificate_guidance_changed_at', { withTimezone: true }),
+  certificateGuidanceObservedCount: integer('certificate_guidance_observed_count').notNull().default(0),
   diagnosticsCheckedAt: timestamp('diagnostics_checked_at', { withTimezone: true }),
   ownershipStatusChangedAt: timestamp('ownership_status_changed_at', { withTimezone: true }),
   tlsStatusChangedAt: timestamp('tls_status_changed_at', { withTimezone: true }),
@@ -243,4 +307,54 @@ export const projectInvitations = pgTable('project_invitations', {
     .where(sql`${table.status} = 'pending'`),
   projectInvitationsProjectStatusIdx: index('project_invitations_project_status_idx')
     .on(table.projectId, table.status, table.updatedAt)
+}));
+
+export const projectDatabases = pgTable('project_databases', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  engine: projectDatabaseEngine('engine').notNull().default('postgres'),
+  name: varchar('name', { length: 48 }).notNull(),
+  status: projectDatabaseStatus('status').notNull().default('pending_config'),
+  statusDetail: text('status_detail').notNull().default(''),
+  databaseName: varchar('database_name', { length: 63 }).notNull(),
+  username: varchar('username', { length: 63 }).notNull(),
+  encryptedPassword: text('encrypted_password').notNull(),
+  connectionHost: varchar('connection_host', { length: 255 }),
+  connectionPort: integer('connection_port'),
+  connectionSslMode: varchar('connection_ssl_mode', { length: 16 }),
+  healthStatus: projectDatabaseHealthStatus('health_status').notNull().default('unknown'),
+  healthStatusDetail: text('health_status_detail').notNull().default('Health checks have not run yet.'),
+  healthStatusChangedAt: timestamp('health_status_changed_at', { withTimezone: true }),
+  lastHealthCheckAt: timestamp('last_health_check_at', { withTimezone: true }),
+  lastHealthyAt: timestamp('last_healthy_at', { withTimezone: true }),
+  lastHealthErrorAt: timestamp('last_health_error_at', { withTimezone: true }),
+  consecutiveHealthCheckFailures: integer('consecutive_health_check_failures').notNull().default(0),
+  credentialsRotatedAt: timestamp('credentials_rotated_at', { withTimezone: true }),
+  provisionedAt: timestamp('provisioned_at', { withTimezone: true }),
+  lastProvisioningAttemptAt: timestamp('last_provisioning_attempt_at', { withTimezone: true }),
+  lastErrorAt: timestamp('last_error_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+}, (table) => ({
+  projectDatabasesProjectNameUnique: uniqueIndex('project_databases_project_name_unique')
+    .on(table.projectId, table.name),
+  projectDatabasesDatabaseNameUnique: uniqueIndex('project_databases_database_name_unique')
+    .on(table.databaseName),
+  projectDatabasesUsernameUnique: uniqueIndex('project_databases_username_unique')
+    .on(table.username),
+  projectDatabasesProjectStatusIdx: index('project_databases_project_status_idx')
+    .on(table.projectId, table.status)
+}));
+
+export const projectDatabaseServiceLinks = pgTable('project_database_service_links', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  projectDatabaseId: uuid('project_database_id').notNull().references(() => projectDatabases.id, { onDelete: 'cascade' }),
+  serviceName: varchar('service_name', { length: 32 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+}, (table) => ({
+  projectDatabaseServiceLinksDatabaseServiceUnique: uniqueIndex('project_database_service_links_database_service_unique')
+    .on(table.projectDatabaseId, table.serviceName),
+  projectDatabaseServiceLinksServiceIdx: index('project_database_service_links_service_idx')
+    .on(table.serviceName)
 }));

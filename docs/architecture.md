@@ -52,6 +52,8 @@ Host machine runs Docker Engine with:
 - Compose health checks gate startup for `postgres`, `redis`, and `api` dependencies.
 - Worker mounts Docker socket for single-node runtime container control.
 - Worker run path includes stale-container pre-cleanup and failed-run cleanup attempts (container/image/workspace) to reduce leaked local resources.
+- Compose now pins its default Docker network name to `vcloudrunner-platform` so worker-started runtime containers can optionally join the same shared network as the control-plane services when features like managed Postgres need stable in-cluster connectivity.
+- Managed Postgres groundwork currently provisions logical databases and users through API-side Postgres admin access, then injects generated connection variables into linked services during deploy creation.
 
 ## Ingress Flow
 

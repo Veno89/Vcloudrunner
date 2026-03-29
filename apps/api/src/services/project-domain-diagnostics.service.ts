@@ -1,9 +1,17 @@
 import { resolve4, resolve6, resolveCname, resolveTxt } from 'node:dns/promises';
+import { checkServerIdentity, connect as tlsConnect } from 'node:tls';
 
 export type ProjectDomainVerificationStatus = 'managed' | 'verified' | 'pending' | 'mismatch' | 'unknown';
 export type ProjectDomainOwnershipStatus = 'managed' | 'verified' | 'pending' | 'mismatch' | 'unknown';
 export type ProjectDomainTlsStatus = 'ready' | 'pending' | 'invalid' | 'unknown';
 export type ProjectDomainRouteStatus = 'active' | 'degraded' | 'stale' | 'pending';
+export type ProjectDomainCertificateValidationReason =
+  | 'self-signed'
+  | 'hostname-mismatch'
+  | 'issuer-untrusted'
+  | 'expired'
+  | 'not-yet-valid'
+  | 'validation-failed';
 
 export const PROJECT_DOMAIN_VERIFICATION_RECORD_PREFIX = '_vcloudrunner';
 
@@ -26,6 +34,17 @@ export interface ProjectDomainDiagnosticsRecord {
   ownershipDetail: string;
   tlsStatus: ProjectDomainTlsStatus;
   tlsDetail: string;
+  certificateValidFrom: Date | null;
+  certificateValidTo: Date | null;
+  certificateSubjectName: string | null;
+  certificateIssuerName: string | null;
+  certificateSubjectAltNames: string[];
+  certificateChainSubjects: string[];
+  certificateChainEntries: ProjectDomainCertificateChainEntry[];
+  certificateRootSubjectName: string | null;
+  certificateValidationReason: ProjectDomainCertificateValidationReason | null;
+  certificateFingerprintSha256: string | null;
+  certificateSerialNumber: string | null;
 }
 
 export interface ProjectDomainDiagnosticsTarget {
@@ -52,6 +71,16 @@ interface DomainTxtSnapshot {
   status: 'resolved' | 'not-found' | 'error';
 }
 
+export interface ProjectDomainCertificateChainEntry {
+  subjectName: string | null;
+  issuerName: string | null;
+  fingerprintSha256: string | null;
+  serialNumber: string | null;
+  isSelfIssued: boolean;
+  validFrom?: Date | null;
+  validTo?: Date | null;
+}
+
 interface ProjectDomainDnsResolver {
   resolveCname(host: string): Promise<string[]>;
   resolve4(host: string): Promise<string[]>;
@@ -59,9 +88,24 @@ interface ProjectDomainDnsResolver {
   resolveTxt(host: string): Promise<string[][]>;
 }
 
+interface ProjectDomainPresentedCertificate {
+  validFrom: Date | null;
+  validTo: Date | null;
+  subjectName: string | null;
+  issuerName: string | null;
+  subjectAltNames: string[];
+  chainSubjects: string[];
+  chainEntries: ProjectDomainCertificateChainEntry[];
+  rootSubjectName: string | null;
+  validationReason: ProjectDomainCertificateValidationReason | null;
+  fingerprintSha256: string | null;
+  serialNumber: string | null;
+}
+
 interface ProjectDomainDiagnosticsServiceDependencies {
   dnsResolver?: ProjectDomainDnsResolver;
   fetchFn?: typeof fetch;
+  tlsInspector?: (host: string) => Promise<ProjectDomainPresentedCertificate>;
   timeoutMs?: number;
 }
 
@@ -103,14 +147,208 @@ function isTlsValidationError(error: unknown) {
   );
 }
 
+function parseCertificateDate(value: unknown) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function parseCertificateName(value: unknown) {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const commonName = (value as { CN?: unknown }).CN;
+  return typeof commonName === 'string' && commonName.trim().length > 0
+    ? commonName.trim()
+    : null;
+}
+
+function parseCertificateSubjectAltNames(value: unknown) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return [];
+  }
+
+  const names = value
+    .split(/,\s*/g)
+    .map((entry) => {
+      if (entry.startsWith('DNS:')) {
+        return entry.slice(4).trim();
+      }
+
+      if (entry.startsWith('IP Address:')) {
+        return entry.slice('IP Address:'.length).trim();
+      }
+
+      return entry.trim();
+    })
+    .filter((entry) => entry.length > 0);
+
+  return Array.from(new Set(names));
+}
+
+function parseCertificateFingerprintSha256(value: unknown) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return null;
+  }
+
+  const normalized = value.replace(/[^a-fA-F0-9]/g, '').toLowerCase();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function parseCertificateSerialNumber(value: unknown) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return null;
+  }
+
+  return value.trim().toUpperCase();
+}
+
+function extractPresentedCertificateChain(value: unknown) {
+  if (!value || typeof value !== 'object') {
+    return {
+      chainSubjects: [],
+      chainEntries: [],
+      rootSubjectName: null
+    };
+  }
+
+  const chainEntries: ProjectDomainCertificateChainEntry[] = [];
+  const seenFingerprints = new Set<string>();
+  const seenObjects = new Set<object>();
+  let current: unknown = value;
+
+  while (current && typeof current === 'object') {
+    const currentRecord = current as Record<string, unknown>;
+    if (seenObjects.has(currentRecord)) {
+      break;
+    }
+
+    seenObjects.add(currentRecord);
+
+    const fingerprint = parseCertificateFingerprintSha256(currentRecord.fingerprint256);
+    if (fingerprint) {
+      if (seenFingerprints.has(fingerprint)) {
+        break;
+      }
+
+      seenFingerprints.add(fingerprint);
+    }
+
+    const subjectName = parseCertificateName(currentRecord.subject);
+    const issuerName = parseCertificateName(currentRecord.issuer);
+    const serialNumber = parseCertificateSerialNumber(currentRecord.serialNumber);
+    const validFrom = parseCertificateDate(currentRecord.valid_from);
+    const validTo = parseCertificateDate(currentRecord.valid_to);
+
+    if (subjectName || issuerName || fingerprint || serialNumber || validFrom || validTo) {
+      chainEntries.push({
+        subjectName,
+        issuerName,
+        fingerprintSha256: fingerprint,
+        serialNumber,
+        isSelfIssued: Boolean(subjectName && issuerName && subjectName === issuerName),
+        validFrom,
+        validTo
+      });
+    }
+
+    const issuerCertificate = currentRecord.issuerCertificate;
+    if (!issuerCertificate || typeof issuerCertificate !== 'object') {
+      break;
+    }
+
+    if (issuerCertificate === current) {
+      break;
+    }
+
+    current = issuerCertificate;
+  }
+
+  const chainSubjects = chainEntries
+    .map((entry) => entry.subjectName)
+    .filter((entry): entry is string => Boolean(entry && entry.trim().length > 0));
+  const normalizedChainSubjects = Array.from(new Set(chainSubjects.filter((entry) => entry.trim().length > 0)));
+
+  return {
+    chainSubjects: normalizedChainSubjects,
+    chainEntries,
+    rootSubjectName:
+      normalizedChainSubjects.length > 0
+        ? normalizedChainSubjects[normalizedChainSubjects.length - 1] ?? null
+        : null
+  };
+}
+
+function mapCertificateValidationReason(input: {
+  authorizationError: string | null;
+  hostnameError: Error | null;
+}): ProjectDomainCertificateValidationReason | null {
+  if (input.hostnameError) {
+    return 'hostname-mismatch';
+  }
+
+  switch (input.authorizationError) {
+    case 'DEPTH_ZERO_SELF_SIGNED_CERT':
+    case 'SELF_SIGNED_CERT_IN_CHAIN':
+      return 'self-signed';
+    case 'CERT_HAS_EXPIRED':
+      return 'expired';
+    case 'CERT_NOT_YET_VALID':
+      return 'not-yet-valid';
+    case 'UNABLE_TO_VERIFY_LEAF_SIGNATURE':
+    case 'UNABLE_TO_GET_ISSUER_CERT':
+    case 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY':
+    case 'CERT_UNTRUSTED':
+      return 'issuer-untrusted';
+    default:
+      return input.authorizationError ? 'validation-failed' : null;
+  }
+}
+
+function mapCertificateValidationReasonFromError(error: unknown): ProjectDomainCertificateValidationReason | null {
+  const message = getErrorMessage(error).toLowerCase();
+
+  if (message.includes('altname') || message.includes('hostname')) {
+    return 'hostname-mismatch';
+  }
+
+  if (message.includes('self signed')) {
+    return 'self-signed';
+  }
+
+  if (message.includes('expired')) {
+    return 'expired';
+  }
+
+  if (message.includes('not yet valid')) {
+    return 'not-yet-valid';
+  }
+
+  if (
+    message.includes('unable to verify')
+    || message.includes('unable to get issuer')
+    || message.includes('untrusted')
+  ) {
+    return 'issuer-untrusted';
+  }
+
+  return isTlsValidationError(error) ? 'validation-failed' : null;
+}
+
 export class ProjectDomainDiagnosticsService implements ProjectDomainDiagnosticsInspector {
   private readonly dnsResolver: ProjectDomainDnsResolver;
   private readonly fetchFn: typeof fetch;
+  private readonly tlsInspector: (host: string) => Promise<ProjectDomainPresentedCertificate>;
   private readonly timeoutMs: number;
 
   constructor(dependencies: ProjectDomainDiagnosticsServiceDependencies = {}) {
     this.dnsResolver = dependencies.dnsResolver ?? defaultDnsResolver;
     this.fetchFn = dependencies.fetchFn ?? fetch;
+    this.tlsInspector = dependencies.tlsInspector ?? ((host) => this.inspectPresentedCertificate(host));
     this.timeoutMs = dependencies.timeoutMs ?? DEFAULT_DIAGNOSTICS_TIMEOUT_MS;
   }
 
@@ -270,58 +508,85 @@ export class ProjectDomainDiagnosticsService implements ProjectDomainDiagnostics
     routeStatus: ProjectDomainRouteStatus;
     ownershipStatus: ProjectDomainOwnershipStatus;
   }) {
+    const emptyCertificateWindow = {
+      certificateValidFrom: null,
+      certificateValidTo: null,
+      certificateSubjectName: null,
+      certificateIssuerName: null,
+      certificateSubjectAltNames: [],
+      certificateChainSubjects: [],
+      certificateChainEntries: [],
+      certificateRootSubjectName: null,
+      certificateValidationReason: null,
+      certificateFingerprintSha256: null,
+      certificateSerialNumber: null
+    };
+
     if (input.routeStatus === 'pending') {
       return {
         tlsStatus: 'pending' as const,
-        tlsDetail: 'TLS will be checked after this host is attached to a running deployment route.'
+        tlsDetail: 'TLS will be checked after this host is attached to a running deployment route.',
+        ...emptyCertificateWindow
       };
     }
 
     if (input.routeStatus === 'stale') {
       return {
         tlsStatus: 'unknown' as const,
-        tlsDetail: 'TLS is not checked while this host points at a stale deployment.'
+        tlsDetail: 'TLS is not checked while this host points at a stale deployment.',
+        ...emptyCertificateWindow
       };
     }
 
     if (input.ownershipStatus === 'pending') {
       return {
         tlsStatus: 'pending' as const,
-        tlsDetail: 'TLS issuance waits for routing DNS to point at the platform target.'
+        tlsDetail: 'TLS issuance waits for routing DNS to point at the platform target.',
+        ...emptyCertificateWindow
       };
     }
 
     if (input.ownershipStatus === 'mismatch') {
       return {
         tlsStatus: 'pending' as const,
-        tlsDetail: 'TLS cannot be verified until routing DNS points at the platform target.'
+        tlsDetail: 'TLS cannot be verified until routing DNS points at the platform target.',
+        ...emptyCertificateWindow
       };
     }
 
     if (input.ownershipStatus === 'unknown') {
       return {
         tlsStatus: 'unknown' as const,
-        tlsDetail: 'TLS could not be checked because routing DNS is not verifiable right now.'
+        tlsDetail: 'TLS could not be checked because routing DNS is not verifiable right now.',
+        ...emptyCertificateWindow
       };
     }
 
     try {
       await this.fetchWithTimeout(`https://${input.host}`);
+      const certificateWindow = await this.inspectPresentedCertificateSafe(input.host);
       return {
         tlsStatus: 'ready' as const,
-        tlsDetail: 'HTTPS is reachable and the current certificate validated successfully.'
+        tlsDetail: 'HTTPS is reachable and the current certificate validated successfully.',
+        ...certificateWindow
       };
     } catch (error) {
       if (isTlsValidationError(error)) {
+        const certificateWindow = await this.inspectPresentedCertificateSafe(input.host);
         return {
           tlsStatus: 'invalid' as const,
-          tlsDetail: `HTTPS reached the host, but certificate validation failed (${getErrorMessage(error)}).`
+          tlsDetail: `HTTPS reached the host, but certificate validation failed (${getErrorMessage(error)}).`,
+          ...certificateWindow,
+          certificateValidationReason:
+            certificateWindow.certificateValidationReason
+            ?? mapCertificateValidationReasonFromError(error)
         };
       }
 
       return {
         tlsStatus: 'pending' as const,
-        tlsDetail: 'HTTPS is not reachable yet. Certificate issuance or propagation may still be in progress.'
+        tlsDetail: 'HTTPS is not reachable yet. Certificate issuance or propagation may still be in progress.',
+        ...emptyCertificateWindow
       };
     }
   }
@@ -339,6 +604,117 @@ export class ProjectDomainDiagnosticsService implements ProjectDomainDiagnostics
     } finally {
       clearTimeout(timeoutId);
     }
+  }
+
+  private async inspectPresentedCertificateSafe(host: string) {
+    try {
+      const certificate = await this.tlsInspector(host);
+      return {
+        certificateValidFrom: certificate.validFrom,
+        certificateValidTo: certificate.validTo,
+        certificateSubjectName: certificate.subjectName,
+        certificateIssuerName: certificate.issuerName,
+        certificateSubjectAltNames: certificate.subjectAltNames,
+        certificateChainSubjects: certificate.chainSubjects,
+        certificateChainEntries: certificate.chainEntries,
+        certificateRootSubjectName: certificate.rootSubjectName,
+        certificateValidationReason: certificate.validationReason,
+        certificateFingerprintSha256: certificate.fingerprintSha256,
+        certificateSerialNumber: certificate.serialNumber
+      };
+    } catch {
+      return {
+        certificateValidFrom: null,
+        certificateValidTo: null,
+        certificateSubjectName: null,
+        certificateIssuerName: null,
+        certificateSubjectAltNames: [],
+        certificateChainSubjects: [],
+        certificateChainEntries: [],
+        certificateRootSubjectName: null,
+        certificateValidationReason: null,
+        certificateFingerprintSha256: null,
+        certificateSerialNumber: null
+      };
+    }
+  }
+
+  private async inspectPresentedCertificate(host: string): Promise<ProjectDomainPresentedCertificate> {
+    return new Promise((resolve, reject) => {
+      const socket = tlsConnect({
+        host,
+        port: 443,
+        servername: host,
+        rejectUnauthorized: false
+      });
+
+      const cleanup = () => {
+        socket.removeAllListeners('secureConnect');
+        socket.removeAllListeners('error');
+        socket.removeAllListeners('timeout');
+      };
+
+      socket.setTimeout(this.timeoutMs);
+
+      socket.once('secureConnect', () => {
+        cleanup();
+
+        const certificate = socket.getPeerCertificate(true);
+        socket.end();
+
+        if (!certificate || Object.keys(certificate).length === 0) {
+          resolve({
+            validFrom: null,
+            validTo: null,
+            subjectName: null,
+            issuerName: null,
+            subjectAltNames: [],
+            chainSubjects: [],
+            chainEntries: [],
+            rootSubjectName: null,
+            validationReason: null,
+            fingerprintSha256: null,
+            serialNumber: null
+          });
+          return;
+        }
+
+        const hostnameError = checkServerIdentity(host, certificate);
+        const validationReason = mapCertificateValidationReason({
+          authorizationError:
+            socket.authorizationError
+              ? getErrorMessage(socket.authorizationError)
+              : null,
+          hostnameError: hostnameError ?? null
+        });
+        const chain = extractPresentedCertificateChain(certificate);
+
+        resolve({
+          validFrom: parseCertificateDate(certificate.valid_from),
+          validTo: parseCertificateDate(certificate.valid_to),
+          subjectName: parseCertificateName(certificate.subject),
+          issuerName: parseCertificateName(certificate.issuer),
+          subjectAltNames: parseCertificateSubjectAltNames(certificate.subjectaltname),
+          chainSubjects: chain.chainSubjects,
+          chainEntries: chain.chainEntries,
+          rootSubjectName: chain.rootSubjectName,
+          validationReason,
+          fingerprintSha256: parseCertificateFingerprintSha256(certificate.fingerprint256),
+          serialNumber: parseCertificateSerialNumber(certificate.serialNumber)
+        });
+      });
+
+      socket.once('timeout', () => {
+        cleanup();
+        socket.destroy();
+        reject(new Error('TLS certificate inspection timed out.'));
+      });
+
+      socket.once('error', (error) => {
+        cleanup();
+        reject(error);
+      });
+    });
   }
 
   private async resolveDnsSnapshot(host: string): Promise<DomainDnsSnapshot> {

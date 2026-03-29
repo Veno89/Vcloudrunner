@@ -4,6 +4,7 @@ import { buildProjectServiceInternalHostname } from '@vcloudrunner/shared-types'
 
 await import('../test/worker-test-env.js');
 
+const { env } = await import('../config/env.js');
 const { logger } = await import('../logger/logger.js');
 const { DeploymentRunner } = await import('./deployment-runner.js');
 
@@ -636,4 +637,81 @@ test('run keeps internal services off public host ports and runtime urls', async
   ]);
   assert.equal(result.hostPort, null);
   assert.equal(result.runtimeUrl, null);
+});
+
+test('run attaches containers to the shared platform network when configured', async () => {
+  const originalPlatformDockerNetworkName = env.PLATFORM_DOCKER_NETWORK_NAME;
+  env.PLATFORM_DOCKER_NETWORK_NAME = 'vcloudrunner-platform';
+
+  const startContainerCalls: Array<Record<string, unknown>> = [];
+
+  try {
+    const runner = new DeploymentRunner(
+      {
+        async prepareWorkspace() {
+          return {
+            workspaceDir: 'workspace-dir',
+            repoDir: 'repo-dir',
+            projectPath: 'repo-dir'
+          };
+        },
+        async cleanupWorkspace() {
+          return undefined;
+        }
+      },
+      {
+        async buildRuntimeImage() {
+          return {
+            buildFilePath: 'Dockerfile',
+            buildContextPath: '.'
+          };
+        },
+        async removeImage() {
+          throw new Error('removeImage should not be called on successful runs');
+        }
+      },
+      {
+        async listNetworksByName() {
+          return [{ name: 'vcloudrunner-deployments' }];
+        },
+        async createNetwork() {
+          throw new Error('createNetwork should not run when the deployment network already exists');
+        },
+        async listContainersByName() {
+          return [];
+        },
+        async stopContainer() {
+          return undefined;
+        },
+        async removeContainer() {
+          throw new Error('removeContainer should not be called on successful runs');
+        },
+        async startContainer(input) {
+          startContainerCalls.push(input as unknown as Record<string, unknown>);
+          return {
+            containerId: 'container-platform-network',
+            hostPort: 49152
+          };
+        }
+      }
+    );
+
+    await runner.run({
+      deploymentId: 'dep-platform-network',
+      projectId: 'project-123',
+      projectSlug: 'demo-project',
+      gitRepositoryUrl: 'https://github.com/example/repo.git',
+      branch: 'main',
+      env: { NODE_ENV: 'production' },
+      runtime: {
+        containerPort: 3000,
+        memoryMb: 512,
+        cpuMillicores: 500
+      }
+    });
+
+    assert.deepEqual(startContainerCalls[0]?.additionalNetworkNames, ['vcloudrunner-platform']);
+  } finally {
+    env.PLATFORM_DOCKER_NETWORK_NAME = originalPlatformDockerNetworkName;
+  }
 });

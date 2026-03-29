@@ -19,6 +19,7 @@ import { ActionToast } from '@/components/action-toast';
 import { PageLayout } from '@/components/page-layout';
 import {
   apiAuthToken,
+  fetchProjectDatabases,
   fetchProjectDomains,
   fetchProjectsForCurrentUser,
   fetchDeploymentsForProject,
@@ -42,6 +43,7 @@ import {
   formatProjectServiceStatusBreakdown
 } from '@/lib/project-service-status';
 import { summarizeProjectDomains } from '@/lib/project-domains';
+import { summarizeProjectDatabases } from '@/lib/project-databases';
 import { deployProjectAction } from '@/app/deployments/actions';
 import {
   inviteProjectMemberAction,
@@ -88,11 +90,12 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
       notFound();
     }
 
-    const [deploymentsResult, environmentVariablesResult, projectMembersResult, projectDomainsResult] = await Promise.allSettled([
+    const [deploymentsResult, environmentVariablesResult, projectMembersResult, projectDomainsResult, projectDatabasesResult] = await Promise.allSettled([
       fetchDeploymentsForProject(project.id),
       fetchEnvironmentVariables(project.id),
       fetchProjectMembers(project.id),
       fetchProjectDomains(project.id),
+      fetchProjectDatabases(project.id),
     ]);
     const deployments =
       deploymentsResult.status === 'fulfilled' ? deploymentsResult.value : [];
@@ -102,6 +105,8 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
       projectMembersResult.status === 'fulfilled' ? projectMembersResult.value : [];
     const projectDomains =
       projectDomainsResult.status === 'fulfilled' ? projectDomainsResult.value : [];
+    const projectDatabases =
+      projectDatabasesResult.status === 'fulfilled' ? projectDatabasesResult.value : [];
     const deploymentReadErrorMessage =
       deploymentsResult.status === 'rejected'
         ? describeDashboardLiveDataFailure({
@@ -134,11 +139,20 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
             hasApiAuthToken: Boolean(apiAuthToken)
           })
         : null;
+    const projectDatabasesReadErrorMessage =
+      projectDatabasesResult.status === 'rejected'
+        ? describeDashboardLiveDataFailure({
+            error: projectDatabasesResult.reason,
+            hasDemoUserId: Boolean(viewer.userId),
+            hasApiAuthToken: Boolean(apiAuthToken)
+          })
+        : null;
     const partialOutageDetail = [
       deploymentReadErrorMessage ? `Deployment history unavailable. ${deploymentReadErrorMessage}` : null,
       environmentReadErrorMessage ? `Environment variables unavailable. ${environmentReadErrorMessage}` : null,
       projectMembersReadErrorMessage ? `Project members unavailable. ${projectMembersReadErrorMessage}` : null,
-      projectDomainsReadErrorMessage ? `Project domains unavailable. ${projectDomainsReadErrorMessage}` : null
+      projectDomainsReadErrorMessage ? `Project domains unavailable. ${projectDomainsReadErrorMessage}` : null,
+      projectDatabasesReadErrorMessage ? `Managed databases unavailable. ${projectDatabasesReadErrorMessage}` : null
     ]
       .filter((message): message is string => Boolean(message))
       .join(' ');
@@ -151,6 +165,10 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
       project,
       domains: projectDomains,
       domainsUnavailable: Boolean(projectDomainsReadErrorMessage)
+    });
+    const databaseSummary = summarizeProjectDatabases({
+      databases: projectDatabases,
+      databasesUnavailable: Boolean(projectDatabasesReadErrorMessage)
     });
     const serviceStatuses = createProjectServiceStatuses(project.services, sortedDeployments);
     const serviceStatusesByName = new Map(
@@ -246,7 +264,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
           fallbackErrorMessage="Deployment action failed."
         />
 
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">Deployments</CardTitle>
@@ -288,6 +306,24 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                 <div className="space-y-2">
                   <Badge variant={composedProjectStatus.variant}>{composedProjectStatus.label}</Badge>
                   <p className="text-xs text-muted-foreground">{composedServiceStatusBreakdown}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Databases</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {projectDatabasesReadErrorMessage ? (
+                <>
+                  <p className="text-2xl font-semibold">Unavailable</p>
+                  <p className="text-xs text-muted-foreground">Managed databases could not be loaded.</p>
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-2xl font-semibold">{projectDatabases.length}</p>
+                  <Badge variant={databaseSummary.variant}>{databaseSummary.label}</Badge>
                 </div>
               )}
             </CardContent>
@@ -339,6 +375,9 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
             </Button>
             <Button asChild size="sm" variant="outline">
               <Link href={`/projects/${project.id}/domains`}>Open Domains</Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/projects/${project.id}/databases`}>Open Databases</Link>
             </Button>
           </CardContent>
         </Card>

@@ -22,6 +22,8 @@ import { createProjectsRoutes } from '../modules/projects/projects.routes.js';
 import { ProjectsService } from '../modules/projects/projects.service.js';
 import { createAuthRoutes } from '../modules/auth/auth.routes.js';
 import { AuthService } from '../modules/auth/auth.service.js';
+import { createProjectDatabasesRoutes } from '../modules/project-databases/project-databases.routes.js';
+import { ProjectDatabasesService } from '../modules/project-databases/project-databases.service.js';
 import { errorHandlerPlugin } from '../plugins/error-handler.js';
 import { redisConnection } from '../queue/redis.js';
 import { AlertMonitorService } from '../services/alert-monitor.service.js';
@@ -104,7 +106,10 @@ export const buildServer = (dependencies: BuildServerDependencies = {}) => {
   const projectDomainDiagnosticsRefresh = dependencies.projectDomainDiagnosticsRefresh
     ?? new ProjectDomainDiagnosticsRefreshService(projectsService, app.log);
   const apiTokensService = new ApiTokensService(dbClient);
-  const deploymentsService = new DeploymentsService(dbClient, deploymentQueueClient);
+  const projectDatabasesService = new ProjectDatabasesService(dbClient);
+  const deploymentsService = new DeploymentsService(dbClient, deploymentQueueClient, {
+    projectDatabasesService
+  });
   const environmentService = new EnvironmentService(dbClient);
   const logsService = new LogsService(dbClient);
   const authService = new AuthService(dbClient);
@@ -232,6 +237,7 @@ export const buildServer = (dependencies: BuildServerDependencies = {}) => {
 
     routeApp.register(createAuthRoutes(authService), { prefix: '/v1' });
     routeApp.register(createProjectsRoutes(projectsService), { prefix: '/v1' });
+    routeApp.register(createProjectDatabasesRoutes(projectDatabasesService, projectsService), { prefix: '/v1' });
     routeApp.register(createApiTokensRoutes(apiTokensService), { prefix: '/v1' });
     routeApp.register(createDeploymentsRoutes(deploymentsService, projectsService), { prefix: '/v1' });
     routeApp.register(createEnvironmentRoutes(environmentService, projectsService), { prefix: '/v1' });

@@ -31,6 +31,12 @@ function createDockerClientStub() {
       remove: async () => undefined
       };
     },
+    getNetwork: (networkName: string) => {
+      void networkName;
+      return {
+        connect: async (_input: { Container: string }) => undefined
+      };
+    },
     createContainer: async (input: {
       name: string;
       Image: string;
@@ -314,4 +320,54 @@ test('startContainer can keep internal services off the host port map', async ()
     containerId: 'container-internal',
     hostPort: null
   });
+});
+
+test('startContainer connects the container to additional shared runtime networks', async () => {
+  const connectedNetworks: Array<{ networkName: string; containerId: string }> = [];
+
+  const dockerClient = createDockerClientStub();
+  dockerClient.getNetwork = (networkName: string) => ({
+    connect: async (input: { Container: string }) => {
+      connectedNetworks.push({
+        networkName,
+        containerId: input.Container
+      });
+    }
+  });
+  dockerClient.createContainer = async () => ({
+    async start() {
+      return undefined;
+    },
+    async inspect() {
+      return {
+        Id: 'container-shared-network',
+        NetworkSettings: {
+          Ports: {
+            '3000/tcp': [{ HostPort: '49153' }]
+          }
+        }
+      };
+    }
+  });
+
+  const runtimeManager = new DockerContainerRuntimeManager(dockerClient);
+
+  await runtimeManager.startContainer({
+    name: 'vcloudrunner-project-shared',
+    imageTag: 'vcloudrunner/project:dep-shared',
+    env: { NODE_ENV: 'production' },
+    networkName: 'vcloudrunner-deployments',
+    additionalNetworkNames: ['vcloudrunner-platform', 'vcloudrunner-platform', 'vcloudrunner-deployments'],
+    containerPort: 3000,
+    publishPort: true,
+    memoryMb: 512,
+    cpuMillicores: 500
+  });
+
+  assert.deepEqual(connectedNetworks, [
+    {
+      networkName: 'vcloudrunner-platform',
+      containerId: 'container-shared-network'
+    }
+  ]);
 });

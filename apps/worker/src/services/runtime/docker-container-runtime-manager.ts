@@ -16,6 +16,10 @@ interface DockerContainerLike {
   }>;
 }
 
+interface DockerNetworkLike {
+  connect(input: { Container: string }): Promise<void>;
+}
+
 interface DockerClientLike {
   listNetworks(input: { filters: { name: string[] } }): Promise<Array<{ Name?: string }>>;
   createNetwork(input: {
@@ -32,6 +36,7 @@ interface DockerClientLike {
     stop(input: { t: number }): Promise<void>;
     remove(input: { force: boolean }): Promise<void>;
   };
+  getNetwork(networkName: string): DockerNetworkLike;
   createContainer(input: {
     name: string;
     Image: string;
@@ -97,6 +102,12 @@ export class DockerContainerRuntimeManager implements ContainerRuntimeManager {
 
   async startContainer(input: StartContainerInput): Promise<StartedContainerResult> {
     const exposedPort = `${input.containerPort}/tcp`;
+    const additionalNetworkNames = (input.additionalNetworkNames ?? [])
+      .filter((networkName, index, items) => (
+        networkName.length > 0
+        && networkName !== input.networkName
+        && items.indexOf(networkName) === index
+      ));
     const container = await this.docker.createContainer({
       name: input.name,
       Image: input.imageTag,
@@ -127,6 +138,13 @@ export class DockerContainerRuntimeManager implements ContainerRuntimeManager {
 
     await container.start();
     const inspected = await container.inspect();
+
+    for (const networkName of additionalNetworkNames) {
+      await this.docker.getNetwork(networkName).connect({
+        Container: inspected.Id
+      });
+    }
+
     const hostPort = inspected.NetworkSettings.Ports[exposedPort]?.[0]?.HostPort;
 
     return {

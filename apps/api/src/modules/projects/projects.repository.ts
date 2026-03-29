@@ -6,6 +6,8 @@ import type {
   ProjectServiceKind
 } from '@vcloudrunner/shared-types';
 import type {
+  ProjectDomainCertificateChainEntry,
+  ProjectDomainCertificateValidationReason,
   ProjectDomainVerificationStatus,
   ProjectDomainOwnershipStatus,
   ProjectDomainTlsStatus
@@ -21,6 +23,16 @@ import {
   projects,
   users
 } from '../../db/schema.js';
+
+export type ProjectDomainEventKind =
+  | 'ownership'
+  | 'tls'
+  | 'certificate'
+  | 'certificate_trust'
+  | 'certificate_path_validity'
+  | 'certificate_identity'
+  | 'certificate_attention'
+  | 'certificate_chain';
 
 export interface CreateProjectInput {
   userId: string;
@@ -93,6 +105,29 @@ export interface ProjectDomainRecord {
   ownershipDetail: string | null;
   tlsStatus: ProjectDomainTlsStatus | null;
   tlsDetail: string | null;
+  certificateValidFrom: Date | null;
+  certificateValidTo: Date | null;
+  certificateSubjectName: string | null;
+  certificateIssuerName: string | null;
+  certificateSubjectAltNames: string[];
+  certificateChainSubjects: string[];
+  certificateChainEntries: ProjectDomainCertificateChainEntry[];
+  certificateRootSubjectName: string | null;
+  certificateChainChangedAt: Date | null;
+  certificateChainObservedCount: number;
+  certificateChainLastHealthyAt: Date | null;
+  certificateLastHealthyChainEntries: ProjectDomainCertificateChainEntry[];
+  certificatePathValidityChangedAt: Date | null;
+  certificatePathValidityObservedCount: number;
+  certificatePathValidityLastHealthyAt: Date | null;
+  certificateValidationReason: ProjectDomainCertificateValidationReason | null;
+  certificateFingerprintSha256: string | null;
+  certificateSerialNumber: string | null;
+  certificateFirstObservedAt: Date | null;
+  certificateChangedAt: Date | null;
+  certificateLastRotatedAt: Date | null;
+  certificateGuidanceChangedAt: Date | null;
+  certificateGuidanceObservedCount: number;
   diagnosticsCheckedAt: Date | null;
   ownershipStatusChangedAt: Date | null;
   tlsStatusChangedAt: Date | null;
@@ -111,7 +146,7 @@ export interface ProjectDomainEventRecord {
   id: string;
   projectId: string;
   domainId: string;
-  kind: 'ownership' | 'tls';
+  kind: ProjectDomainEventKind;
   previousStatus: string | null;
   nextStatus: string;
   detail: string;
@@ -128,7 +163,7 @@ export interface CreateProjectDomainInput {
 export interface CreateProjectDomainEventInput {
   projectId: string;
   domainId: string;
-  kind: 'ownership' | 'tls';
+  kind: ProjectDomainEventKind;
   previousStatus: string | null;
   nextStatus: string;
   detail: string;
@@ -147,6 +182,29 @@ export interface UpdateProjectDomainDiagnosticsInput {
   ownershipDetail: string;
   tlsStatus: ProjectDomainTlsStatus;
   tlsDetail: string;
+  certificateValidFrom: Date | null;
+  certificateValidTo: Date | null;
+  certificateSubjectName: string | null;
+  certificateIssuerName: string | null;
+  certificateSubjectAltNames: string[];
+  certificateChainSubjects: string[];
+  certificateChainEntries: ProjectDomainCertificateChainEntry[];
+  certificateRootSubjectName: string | null;
+  certificateChainChangedAt: Date | null;
+  certificateChainObservedCount: number;
+  certificateChainLastHealthyAt: Date | null;
+  certificateLastHealthyChainEntries: ProjectDomainCertificateChainEntry[];
+  certificatePathValidityChangedAt: Date | null;
+  certificatePathValidityObservedCount: number;
+  certificatePathValidityLastHealthyAt: Date | null;
+  certificateValidationReason: ProjectDomainCertificateValidationReason | null;
+  certificateFingerprintSha256: string | null;
+  certificateSerialNumber: string | null;
+  certificateFirstObservedAt: Date | null;
+  certificateChangedAt: Date | null;
+  certificateLastRotatedAt: Date | null;
+  certificateGuidanceChangedAt: Date | null;
+  certificateGuidanceObservedCount: number;
   diagnosticsCheckedAt: Date;
   ownershipStatusChangedAt: Date | null;
   tlsStatusChangedAt: Date | null;
@@ -203,6 +261,22 @@ function toDeploymentServiceMetadata(input: {
     serviceKind: kind === 'web' || kind === 'worker' ? kind : null,
     serviceExposure: exposure === 'public' || exposure === 'internal' ? exposure : null
   } satisfies Pick<ProjectDomainRecord, 'serviceName' | 'serviceKind' | 'serviceExposure'>;
+}
+
+function toCertificateValidationReason(
+  value: string | null
+): ProjectDomainCertificateValidationReason | null {
+  switch (value) {
+    case 'self-signed':
+    case 'hostname-mismatch':
+    case 'issuer-untrusted':
+    case 'expired':
+    case 'not-yet-valid':
+    case 'validation-failed':
+      return value;
+    default:
+      return null;
+  }
 }
 
 export class ProjectsRepository {
@@ -480,6 +554,29 @@ export class ProjectsRepository {
         ownershipDetail: domains.ownershipDetail,
         tlsStatus: domains.tlsStatus,
         tlsDetail: domains.tlsDetail,
+        certificateValidFrom: domains.certificateValidFrom,
+        certificateValidTo: domains.certificateValidTo,
+        certificateSubjectName: domains.certificateSubjectName,
+        certificateIssuerName: domains.certificateIssuerName,
+        certificateSubjectAltNames: domains.certificateSubjectAltNames,
+        certificateChainSubjects: domains.certificateChainSubjects,
+        certificateChainEntries: domains.certificateChainEntries,
+        certificateRootSubjectName: domains.certificateRootSubjectName,
+        certificateChainChangedAt: domains.certificateChainChangedAt,
+        certificateChainObservedCount: domains.certificateChainObservedCount,
+        certificateChainLastHealthyAt: domains.certificateChainLastHealthyAt,
+        certificateLastHealthyChainEntries: domains.certificateLastHealthyChainEntries,
+        certificatePathValidityChangedAt: domains.certificatePathValidityChangedAt,
+        certificatePathValidityObservedCount: domains.certificatePathValidityObservedCount,
+        certificatePathValidityLastHealthyAt: domains.certificatePathValidityLastHealthyAt,
+        certificateValidationReason: domains.certificateValidationReason,
+        certificateFingerprintSha256: domains.certificateFingerprintSha256,
+        certificateSerialNumber: domains.certificateSerialNumber,
+        certificateFirstObservedAt: domains.certificateFirstObservedAt,
+        certificateChangedAt: domains.certificateChangedAt,
+        certificateLastRotatedAt: domains.certificateLastRotatedAt,
+        certificateGuidanceChangedAt: domains.certificateGuidanceChangedAt,
+        certificateGuidanceObservedCount: domains.certificateGuidanceObservedCount,
         diagnosticsCheckedAt: domains.diagnosticsCheckedAt,
         ownershipStatusChangedAt: domains.ownershipStatusChangedAt,
         tlsStatusChangedAt: domains.tlsStatusChangedAt,
@@ -513,6 +610,29 @@ export class ProjectsRepository {
       ownershipDetail: record.ownershipDetail,
       tlsStatus: record.tlsStatus,
       tlsDetail: record.tlsDetail,
+      certificateValidFrom: record.certificateValidFrom,
+      certificateValidTo: record.certificateValidTo,
+      certificateSubjectName: record.certificateSubjectName,
+      certificateIssuerName: record.certificateIssuerName,
+      certificateSubjectAltNames: record.certificateSubjectAltNames,
+      certificateChainSubjects: record.certificateChainSubjects,
+      certificateChainEntries: record.certificateChainEntries,
+      certificateRootSubjectName: record.certificateRootSubjectName,
+      certificateChainChangedAt: record.certificateChainChangedAt,
+      certificateChainObservedCount: record.certificateChainObservedCount,
+      certificateChainLastHealthyAt: record.certificateChainLastHealthyAt,
+      certificateLastHealthyChainEntries: record.certificateLastHealthyChainEntries,
+      certificatePathValidityChangedAt: record.certificatePathValidityChangedAt,
+      certificatePathValidityObservedCount: record.certificatePathValidityObservedCount,
+      certificatePathValidityLastHealthyAt: record.certificatePathValidityLastHealthyAt,
+      certificateValidationReason: toCertificateValidationReason(record.certificateValidationReason),
+      certificateFingerprintSha256: record.certificateFingerprintSha256,
+      certificateSerialNumber: record.certificateSerialNumber,
+      certificateFirstObservedAt: record.certificateFirstObservedAt,
+      certificateChangedAt: record.certificateChangedAt,
+      certificateLastRotatedAt: record.certificateLastRotatedAt,
+      certificateGuidanceChangedAt: record.certificateGuidanceChangedAt,
+      certificateGuidanceObservedCount: record.certificateGuidanceObservedCount,
       diagnosticsCheckedAt: record.diagnosticsCheckedAt,
       ownershipStatusChangedAt: record.ownershipStatusChangedAt,
       tlsStatusChangedAt: record.tlsStatusChangedAt,
@@ -557,6 +677,29 @@ export class ProjectsRepository {
       ownershipDetail: record.ownershipDetail,
       tlsStatus: record.tlsStatus,
       tlsDetail: record.tlsDetail,
+      certificateValidFrom: record.certificateValidFrom,
+      certificateValidTo: record.certificateValidTo,
+      certificateSubjectName: record.certificateSubjectName,
+      certificateIssuerName: record.certificateIssuerName,
+      certificateSubjectAltNames: record.certificateSubjectAltNames,
+      certificateChainSubjects: record.certificateChainSubjects,
+      certificateChainEntries: record.certificateChainEntries,
+      certificateRootSubjectName: record.certificateRootSubjectName,
+      certificateChainChangedAt: record.certificateChainChangedAt,
+      certificateChainObservedCount: record.certificateChainObservedCount,
+      certificateChainLastHealthyAt: record.certificateChainLastHealthyAt,
+      certificateLastHealthyChainEntries: record.certificateLastHealthyChainEntries,
+      certificatePathValidityChangedAt: record.certificatePathValidityChangedAt,
+      certificatePathValidityObservedCount: record.certificatePathValidityObservedCount,
+      certificatePathValidityLastHealthyAt: record.certificatePathValidityLastHealthyAt,
+      certificateValidationReason: toCertificateValidationReason(record.certificateValidationReason),
+      certificateFingerprintSha256: record.certificateFingerprintSha256,
+      certificateSerialNumber: record.certificateSerialNumber,
+      certificateFirstObservedAt: record.certificateFirstObservedAt,
+      certificateChangedAt: record.certificateChangedAt,
+      certificateLastRotatedAt: record.certificateLastRotatedAt,
+      certificateGuidanceChangedAt: record.certificateGuidanceChangedAt,
+      certificateGuidanceObservedCount: record.certificateGuidanceObservedCount,
       diagnosticsCheckedAt: record.diagnosticsCheckedAt,
       ownershipStatusChangedAt: record.ownershipStatusChangedAt,
       tlsStatusChangedAt: record.tlsStatusChangedAt,
@@ -590,6 +733,29 @@ export class ProjectsRepository {
         ownershipDetail: domains.ownershipDetail,
         tlsStatus: domains.tlsStatus,
         tlsDetail: domains.tlsDetail,
+        certificateValidFrom: domains.certificateValidFrom,
+        certificateValidTo: domains.certificateValidTo,
+        certificateSubjectName: domains.certificateSubjectName,
+        certificateIssuerName: domains.certificateIssuerName,
+        certificateSubjectAltNames: domains.certificateSubjectAltNames,
+        certificateChainSubjects: domains.certificateChainSubjects,
+        certificateChainEntries: domains.certificateChainEntries,
+        certificateRootSubjectName: domains.certificateRootSubjectName,
+        certificateChainChangedAt: domains.certificateChainChangedAt,
+        certificateChainObservedCount: domains.certificateChainObservedCount,
+        certificateChainLastHealthyAt: domains.certificateChainLastHealthyAt,
+        certificateLastHealthyChainEntries: domains.certificateLastHealthyChainEntries,
+        certificatePathValidityChangedAt: domains.certificatePathValidityChangedAt,
+        certificatePathValidityObservedCount: domains.certificatePathValidityObservedCount,
+        certificatePathValidityLastHealthyAt: domains.certificatePathValidityLastHealthyAt,
+        certificateValidationReason: domains.certificateValidationReason,
+        certificateFingerprintSha256: domains.certificateFingerprintSha256,
+        certificateSerialNumber: domains.certificateSerialNumber,
+        certificateFirstObservedAt: domains.certificateFirstObservedAt,
+        certificateChangedAt: domains.certificateChangedAt,
+        certificateLastRotatedAt: domains.certificateLastRotatedAt,
+        certificateGuidanceChangedAt: domains.certificateGuidanceChangedAt,
+        certificateGuidanceObservedCount: domains.certificateGuidanceObservedCount,
         diagnosticsCheckedAt: domains.diagnosticsCheckedAt,
         ownershipStatusChangedAt: domains.ownershipStatusChangedAt,
         tlsStatusChangedAt: domains.tlsStatusChangedAt,
@@ -631,6 +797,29 @@ export class ProjectsRepository {
       ownershipDetail: record.ownershipDetail,
       tlsStatus: record.tlsStatus,
       tlsDetail: record.tlsDetail,
+      certificateValidFrom: record.certificateValidFrom,
+      certificateValidTo: record.certificateValidTo,
+      certificateSubjectName: record.certificateSubjectName,
+      certificateIssuerName: record.certificateIssuerName,
+      certificateSubjectAltNames: record.certificateSubjectAltNames,
+      certificateChainSubjects: record.certificateChainSubjects,
+      certificateChainEntries: record.certificateChainEntries,
+      certificateRootSubjectName: record.certificateRootSubjectName,
+      certificateChainChangedAt: record.certificateChainChangedAt,
+      certificateChainObservedCount: record.certificateChainObservedCount,
+      certificateChainLastHealthyAt: record.certificateChainLastHealthyAt,
+      certificateLastHealthyChainEntries: record.certificateLastHealthyChainEntries,
+      certificatePathValidityChangedAt: record.certificatePathValidityChangedAt,
+      certificatePathValidityObservedCount: record.certificatePathValidityObservedCount,
+      certificatePathValidityLastHealthyAt: record.certificatePathValidityLastHealthyAt,
+      certificateValidationReason: toCertificateValidationReason(record.certificateValidationReason),
+      certificateFingerprintSha256: record.certificateFingerprintSha256,
+      certificateSerialNumber: record.certificateSerialNumber,
+      certificateFirstObservedAt: record.certificateFirstObservedAt,
+      certificateChangedAt: record.certificateChangedAt,
+      certificateLastRotatedAt: record.certificateLastRotatedAt,
+      certificateGuidanceChangedAt: record.certificateGuidanceChangedAt,
+      certificateGuidanceObservedCount: record.certificateGuidanceObservedCount,
       diagnosticsCheckedAt: record.diagnosticsCheckedAt,
       ownershipStatusChangedAt: record.ownershipStatusChangedAt,
       tlsStatusChangedAt: record.tlsStatusChangedAt,
@@ -672,6 +861,29 @@ export class ProjectsRepository {
         ownershipDetail: input.ownershipDetail,
         tlsStatus: input.tlsStatus,
         tlsDetail: input.tlsDetail,
+        certificateValidFrom: input.certificateValidFrom,
+        certificateValidTo: input.certificateValidTo,
+        certificateSubjectName: input.certificateSubjectName,
+        certificateIssuerName: input.certificateIssuerName,
+        certificateSubjectAltNames: input.certificateSubjectAltNames,
+        certificateChainSubjects: input.certificateChainSubjects,
+        certificateChainEntries: input.certificateChainEntries,
+        certificateRootSubjectName: input.certificateRootSubjectName,
+        certificateChainChangedAt: input.certificateChainChangedAt,
+        certificateChainObservedCount: input.certificateChainObservedCount,
+        certificateChainLastHealthyAt: input.certificateChainLastHealthyAt,
+        certificateLastHealthyChainEntries: input.certificateLastHealthyChainEntries,
+        certificatePathValidityChangedAt: input.certificatePathValidityChangedAt,
+        certificatePathValidityObservedCount: input.certificatePathValidityObservedCount,
+        certificatePathValidityLastHealthyAt: input.certificatePathValidityLastHealthyAt,
+        certificateValidationReason: input.certificateValidationReason,
+        certificateFingerprintSha256: input.certificateFingerprintSha256,
+        certificateSerialNumber: input.certificateSerialNumber,
+        certificateFirstObservedAt: input.certificateFirstObservedAt,
+        certificateChangedAt: input.certificateChangedAt,
+        certificateLastRotatedAt: input.certificateLastRotatedAt,
+        certificateGuidanceChangedAt: input.certificateGuidanceChangedAt,
+        certificateGuidanceObservedCount: input.certificateGuidanceObservedCount,
         diagnosticsCheckedAt: input.diagnosticsCheckedAt,
         ownershipStatusChangedAt: input.ownershipStatusChangedAt,
         tlsStatusChangedAt: input.tlsStatusChangedAt,
@@ -708,13 +920,67 @@ export class ProjectsRepository {
 
   async listRecentDomainEvents(input: {
     projectId: string;
-    limitPerDomain: number;
+    limitPerDomain?: number;
+    kinds?: readonly ProjectDomainEventKind[];
   }): Promise<ProjectDomainEventRecord[]> {
+    const kindFilter = input.kinds && input.kinds.length > 0
+      ? sql` and ${projectDomainEvents.kind} in (${sql.join(
+        input.kinds.map((kind) => sql`${kind}`),
+        sql`, `
+      )})`
+      : sql``;
+
+    if (!input.limitPerDomain) {
+      const result = await this.db.execute(sql<{
+        id: string;
+        project_id: string;
+        domain_id: string;
+        kind: ProjectDomainEventKind;
+        previous_status: string | null;
+        next_status: string;
+        detail: string;
+        created_at: Date;
+      }>`
+        select
+          ${projectDomainEvents.id} as id,
+          ${projectDomainEvents.projectId} as project_id,
+          ${projectDomainEvents.domainId} as domain_id,
+          ${projectDomainEvents.kind} as kind,
+          ${projectDomainEvents.previousStatus} as previous_status,
+          ${projectDomainEvents.nextStatus} as next_status,
+          ${projectDomainEvents.detail} as detail,
+          ${projectDomainEvents.createdAt} as created_at
+        from ${projectDomainEvents}
+        where ${projectDomainEvents.projectId} = ${input.projectId}${kindFilter}
+        order by ${projectDomainEvents.domainId} asc, ${projectDomainEvents.createdAt} desc
+      `);
+
+      return result.rows.map((row: {
+        id: string;
+        project_id: string;
+        domain_id: string;
+        kind: ProjectDomainEventKind;
+        previous_status: string | null;
+        next_status: string;
+        detail: string;
+        created_at: Date;
+      }) => ({
+        id: row.id,
+        projectId: row.project_id,
+        domainId: row.domain_id,
+        kind: row.kind,
+        previousStatus: row.previous_status,
+        nextStatus: row.next_status,
+        detail: row.detail,
+        createdAt: row.created_at
+      })) satisfies ProjectDomainEventRecord[];
+    }
+
     const result = await this.db.execute(sql<{
       id: string;
       project_id: string;
       domain_id: string;
-      kind: 'ownership' | 'tls';
+      kind: ProjectDomainEventKind;
       previous_status: string | null;
       next_status: string;
       detail: string;
@@ -736,7 +1002,7 @@ export class ProjectsRepository {
             order by ${projectDomainEvents.createdAt} desc
           ) as row_num
         from ${projectDomainEvents}
-        where ${projectDomainEvents.projectId} = ${input.projectId}
+        where ${projectDomainEvents.projectId} = ${input.projectId}${kindFilter}
       ) recent_domain_events
       where row_num <= ${input.limitPerDomain}
       order by domain_id asc, created_at desc
@@ -746,7 +1012,7 @@ export class ProjectsRepository {
       id: string;
       project_id: string;
       domain_id: string;
-      kind: 'ownership' | 'tls';
+      kind: ProjectDomainEventKind;
       previous_status: string | null;
       next_status: string;
       detail: string;

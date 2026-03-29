@@ -91,7 +91,15 @@ export interface ApiProjectDomainEvent {
   id: string;
   projectId: string;
   domainId: string;
-  kind: 'ownership' | 'tls';
+  kind:
+    | 'ownership'
+    | 'tls'
+    | 'certificate'
+    | 'certificate_trust'
+    | 'certificate_path_validity'
+    | 'certificate_identity'
+    | 'certificate_attention'
+    | 'certificate_chain';
   previousStatus: string | null;
   nextStatus: string;
   detail: string;
@@ -122,6 +130,143 @@ export interface ApiProjectDomain {
   ownershipDetail?: string;
   tlsStatus?: 'ready' | 'pending' | 'invalid' | 'unknown';
   tlsDetail?: string;
+  certificateState?:
+    | 'managed'
+    | 'awaiting-route'
+    | 'awaiting-dns'
+    | 'provisioning'
+    | 'active'
+    | 'issuance-attention'
+    | 'renewal-attention'
+    | 'check-unavailable';
+  certificateTitle?: string;
+  certificateDetail?: string;
+  certificateValidFrom?: string | null;
+  certificateValidTo?: string | null;
+  certificateSubjectName?: string | null;
+  certificateIssuerName?: string | null;
+  certificateSubjectAltNames?: string[];
+  certificateChainSubjects?: string[];
+  certificateChainEntries?: Array<{
+    subjectName: string | null;
+    issuerName: string | null;
+    fingerprintSha256: string | null;
+    serialNumber: string | null;
+    isSelfIssued: boolean;
+    validFrom?: string | null;
+    validTo?: string | null;
+  }>;
+  certificateIntermediateSubjectNames?: string[];
+  certificateChainDepth?: number;
+  certificateRootSubjectName?: string | null;
+  certificateChainChangedAt?: string | null;
+  certificateChainObservedCount?: number;
+  certificateChainLastHealthyAt?: string | null;
+  certificateLastHealthyChainEntries?: Array<{
+    subjectName: string | null;
+    issuerName: string | null;
+    fingerprintSha256: string | null;
+    serialNumber: string | null;
+    isSelfIssued: boolean;
+    validFrom?: string | null;
+    validTo?: string | null;
+  }>;
+  certificateLastHealthyIntermediateSubjectNames?: string[];
+  certificateLastHealthyChainDepth?: number;
+  certificatePathValidityStatus?:
+    | 'valid'
+    | 'expiring-soon'
+    | 'expired'
+    | 'not-yet-valid'
+    | 'unavailable';
+  certificatePathValidityTitle?: string;
+  certificatePathValidityDetail?: string;
+  certificatePathValidityChangedAt?: string | null;
+  certificatePathValidityObservedCount?: number;
+  certificatePathValidityLastHealthyAt?: string | null;
+  certificateValidationReason?:
+    | 'self-signed'
+    | 'hostname-mismatch'
+    | 'issuer-untrusted'
+    | 'expired'
+    | 'not-yet-valid'
+    | 'validation-failed'
+    | null;
+  certificateFingerprintSha256?: string | null;
+  certificateSerialNumber?: string | null;
+  certificateFirstObservedAt?: string | null;
+  certificateChangedAt?: string | null;
+  certificateLastRotatedAt?: string | null;
+  certificateValidityStatus?:
+    | 'valid'
+    | 'expiring-soon'
+    | 'expired'
+    | 'not-yet-valid'
+    | 'unavailable';
+  certificateValidityDetail?: string;
+  certificateTrustStatus?:
+    | 'trusted'
+    | 'date-invalid'
+    | 'hostname-mismatch'
+    | 'self-signed'
+    | 'issuer-untrusted'
+    | 'validation-failed'
+    | 'unavailable';
+  certificateTrustDetail?: string;
+  certificateIdentityStatus?:
+    | 'unavailable'
+    | 'first-observed'
+    | 'stable'
+    | 'rotated'
+    | 'rotated-attention';
+  certificateIdentityTitle?: string;
+  certificateIdentityDetail?: string;
+  certificateGuidanceState?:
+    | 'healthy'
+    | 'wait-for-route'
+    | 'wait-for-dns'
+    | 'wait-for-issuance'
+    | 'renew-soon'
+    | 'renew-now'
+    | 'fix-coverage'
+    | 'fix-trust'
+    | 'refresh-checks';
+  certificateGuidanceTitle?: string;
+  certificateGuidanceDetail?: string;
+  certificateGuidanceChangedAt?: string | null;
+  certificateGuidanceObservedCount?: number;
+  certificateAttentionStatus?:
+    | 'healthy'
+    | 'monitor'
+    | 'action-needed'
+    | 'persistent-action-needed';
+  certificateAttentionTitle?: string;
+  certificateAttentionDetail?: string;
+  certificateChainStatus?:
+    | 'unavailable'
+    | 'leaf-only'
+    | 'chained'
+    | 'incomplete'
+    | 'private-root'
+    | 'self-signed-leaf';
+  certificateChainTitle?: string;
+  certificateChainDetail?: string;
+  certificateChainAttentionStatus?:
+    | 'healthy'
+    | 'monitor'
+    | 'action-needed'
+    | 'persistent-action-needed';
+  certificateChainAttentionTitle?: string;
+  certificateChainAttentionDetail?: string;
+  certificateChainHistoryStatus?:
+    | 'unavailable'
+    | 'baseline-missing'
+    | 'stable'
+    | 'rotated'
+    | 'degraded'
+    | 'drifted';
+  certificateChainHistoryTitle?: string;
+  certificateChainHistoryDetail?: string;
   diagnosticsCheckedAt?: string | null;
   diagnosticsFreshnessStatus?: 'fresh' | 'stale' | 'unchecked';
   diagnosticsFreshnessDetail?: string;
@@ -147,11 +292,76 @@ export interface ApiProjectDomain {
   routingDnsRecordType?: 'CNAME' | null;
   routingDnsRecordName?: string | null;
   routingDnsRecordValue?: string | null;
+  certificateHistorySummary?: {
+    eventCount: number;
+    incidentCount: number;
+    recoveryCount: number;
+    trustIncidentCount: number;
+    pathWarningCount: number;
+    pathIncidentCount: number;
+    chainIncidentCount: number;
+    attentionIncidentCount: number;
+    lastEventAt: string | null;
+    lastIncidentAt: string | null;
+    lastIncidentKind:
+      | 'certificate_attention'
+      | 'certificate_chain'
+      | 'certificate_trust'
+      | 'certificate_path_validity'
+      | null;
+    lastRecoveryAt: string | null;
+    lastRecoveryKind:
+      | 'certificate_attention'
+      | 'certificate_chain'
+      | 'certificate_trust'
+      | 'certificate_path_validity'
+      | null;
+    lastPathWarningAt: string | null;
+  };
   ownershipStatusChangedAt?: string | null;
   tlsStatusChangedAt?: string | null;
   ownershipVerifiedAt?: string | null;
   tlsReadyAt?: string | null;
   recentEvents?: ApiProjectDomainEvent[];
+}
+
+export interface ApiProjectDatabase {
+  id: string;
+  projectId: string;
+  engine: 'postgres';
+  name: string;
+  status: 'pending_config' | 'provisioning' | 'ready' | 'failed';
+  statusDetail: string;
+  databaseName: string;
+  username: string;
+  password: string;
+  connectionHost: string | null;
+  connectionPort: number | null;
+  connectionSslMode: 'disable' | 'prefer' | 'require' | null;
+  healthStatus: 'unknown' | 'healthy' | 'unreachable' | 'credentials_invalid' | 'failing';
+  healthStatusDetail: string;
+  healthStatusChangedAt: string | null;
+  lastHealthCheckAt: string | null;
+  lastHealthyAt: string | null;
+  lastHealthErrorAt: string | null;
+  consecutiveHealthCheckFailures: number;
+  credentialsRotatedAt: string | null;
+  connectionString: string | null;
+  provisionedAt: string | null;
+  lastProvisioningAttemptAt: string | null;
+  lastErrorAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  serviceNames: string[];
+  generatedEnvironment: {
+    prefix: string;
+    databaseUrlKey: string;
+    hostKey: string;
+    portKey: string;
+    databaseNameKey: string;
+    usernameKey: string;
+    passwordKey: string;
+  };
 }
 
 export interface ApiDeployment {
@@ -599,6 +809,77 @@ export async function fetchProjectDomains(
   );
 
   return response.data;
+}
+
+export async function fetchProjectDatabases(projectId: string): Promise<ApiProjectDatabase[]> {
+  const response = await fetchJson<ApiDataResponse<ApiProjectDatabase[]>>(
+    `/v1/projects/${projectId}/databases`
+  );
+
+  return response.data;
+}
+
+export async function createProjectDatabase(
+  projectId: string,
+  input: {
+    name: string;
+    serviceNames: string[];
+  }
+): Promise<ApiProjectDatabase> {
+  const response = await postJson<ApiDataResponse<ApiProjectDatabase>>(
+    `/v1/projects/${projectId}/databases`,
+    {
+      name: input.name,
+      serviceNames: input.serviceNames
+    }
+  );
+
+  return response.data;
+}
+
+export async function reconcileProjectDatabase(
+  projectId: string,
+  databaseId: string
+): Promise<ApiProjectDatabase> {
+  const response = await postJson<ApiDataResponse<ApiProjectDatabase>>(
+    `/v1/projects/${projectId}/databases/${databaseId}/reconcile`,
+    {}
+  );
+
+  return response.data;
+}
+
+export async function rotateProjectDatabaseCredentials(
+  projectId: string,
+  databaseId: string
+): Promise<ApiProjectDatabase> {
+  const response = await postJson<ApiDataResponse<ApiProjectDatabase>>(
+    `/v1/projects/${projectId}/databases/${databaseId}/rotate-credentials`,
+    {}
+  );
+
+  return response.data;
+}
+
+export async function updateProjectDatabaseServiceLinks(
+  projectId: string,
+  databaseId: string,
+  input: {
+    serviceNames: string[];
+  }
+): Promise<ApiProjectDatabase> {
+  const response = await putJson<ApiDataResponse<ApiProjectDatabase>>(
+    `/v1/projects/${projectId}/databases/${databaseId}/service-links`,
+    {
+      serviceNames: input.serviceNames
+    }
+  );
+
+  return response.data;
+}
+
+export async function removeProjectDatabase(projectId: string, databaseId: string): Promise<void> {
+  await deleteRequest(`/v1/projects/${projectId}/databases/${databaseId}`);
 }
 
 export async function createProjectDomain(

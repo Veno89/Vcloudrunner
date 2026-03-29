@@ -95,6 +95,41 @@ export function toProjectServiceEnvToken(serviceName: string): string {
   return serviceName.replace(/-/g, '_').toUpperCase();
 }
 
+export function toManagedResourceEnvToken(resourceName: string): string {
+  const normalized = resourceName
+    .trim()
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/_+/g, '_')
+    .toUpperCase();
+
+  return normalized.length > 0 ? normalized : 'DATABASE';
+}
+
+export interface ManagedPostgresEnvKeys {
+  prefix: string;
+  databaseUrlKey: string;
+  hostKey: string;
+  portKey: string;
+  databaseNameKey: string;
+  usernameKey: string;
+  passwordKey: string;
+}
+
+export function createManagedPostgresEnvKeys(resourceName: string): ManagedPostgresEnvKeys {
+  const prefix = toManagedResourceEnvToken(resourceName);
+
+  return {
+    prefix,
+    databaseUrlKey: `${prefix}_DATABASE_URL`,
+    hostKey: `${prefix}_DATABASE_HOST`,
+    portKey: `${prefix}_DATABASE_PORT`,
+    databaseNameKey: `${prefix}_DATABASE_NAME`,
+    usernameKey: `${prefix}_DATABASE_USER`,
+    passwordKey: `${prefix}_DATABASE_PASSWORD`
+  };
+}
+
 export function buildProjectServiceInternalHostname(
   projectSlug: string,
   serviceName: string

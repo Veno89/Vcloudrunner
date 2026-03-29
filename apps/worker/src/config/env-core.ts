@@ -74,6 +74,7 @@ export const WorkerEnvSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   DOCKER_SOCKET_PATH: z.string().default('/var/run/docker.sock'),
   DEPLOYMENT_NETWORK_NAME: z.string().default('vcloudrunner-deployments'),
+  PLATFORM_DOCKER_NETWORK_NAME: z.string().default(''),
   DEPLOYMENT_RUNTIME_EXECUTOR: z.enum(['docker']).default('docker'),
   WORK_DIR: z.string().default('.tmp/deployments'),
   PLATFORM_DOMAIN: z.string().default('platform.local'),

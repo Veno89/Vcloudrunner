@@ -19,6 +19,7 @@ import {
 } from '../../server/domain-errors.js';
 import { CryptoService } from '../../services/crypto.service.js';
 import { EnvironmentRepository } from '../environment/environment.repository.js';
+import type { ProjectDatabasesService } from '../project-databases/project-databases.service.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { DeploymentsRepository, type CreateDeploymentInput } from './deployments.repository.js';
 import { createProjectServiceDiscoveryEnv } from './service-discovery-env.js';
@@ -89,6 +90,7 @@ interface DeploymentsServiceDependencies {
   projectsRepository?: ProjectsRepository;
   environmentRepository?: EnvironmentRepository;
   cryptoService?: CryptoService;
+  projectDatabasesService?: Pick<ProjectDatabasesService, 'listInjectedEnvironmentForProjectService'>;
 }
 
 export class DeploymentsService {
@@ -96,6 +98,7 @@ export class DeploymentsService {
   private readonly projectsRepository: ProjectsRepository;
   private readonly environmentRepository: EnvironmentRepository;
   private readonly cryptoService: CryptoService;
+  private readonly projectDatabasesService: Pick<ProjectDatabasesService, 'listInjectedEnvironmentForProjectService'>;
 
   constructor(
     db: DbClient,
@@ -106,6 +109,9 @@ export class DeploymentsService {
     this.projectsRepository = dependencies.projectsRepository ?? new ProjectsRepository(db);
     this.environmentRepository = dependencies.environmentRepository ?? new EnvironmentRepository(db);
     this.cryptoService = dependencies.cryptoService ?? new CryptoService();
+    this.projectDatabasesService = dependencies.projectDatabasesService ?? {
+      listInjectedEnvironmentForProjectService: async () => ({})
+    };
   }
 
   async createDeployment(input: CreateDeploymentInput & { correlationId: string }) {
@@ -175,6 +181,10 @@ export class DeploymentsService {
         envVars.map((item) => [item.key, this.cryptoService.decrypt(item.encryptedValue)])
       );
       const claimedHosts = await this.projectsRepository.listDomains(project.id);
+      const managedDatabaseEnv = await this.projectDatabasesService.listInjectedEnvironmentForProjectService({
+        projectId: project.id,
+        serviceName: selectedService.name
+      });
       const discoveryEnv = createProjectServiceDiscoveryEnv({
         projectSlug: project.slug,
         services,
@@ -203,6 +213,7 @@ export class DeploymentsService {
         publicRouteHosts,
         env: {
           ...decryptedEnv,
+          ...managedDatabaseEnv,
           ...discoveryEnv
         },
         runtime

@@ -136,6 +136,54 @@ export class ProjectDomainDeactivationFailedError extends DomainError {
   }
 }
 
+export class ProjectDatabaseAlreadyExistsError extends DomainError {
+  constructor() {
+    super('PROJECT_DATABASE_ALREADY_EXISTS', 'Project database name is already in use', 409);
+  }
+}
+
+export class ProjectDatabaseNotFoundError extends DomainError {
+  constructor() {
+    super('PROJECT_DATABASE_NOT_FOUND', 'Project database not found', 404);
+  }
+}
+
+export class ProjectDatabaseProvisioningUnavailableError extends DomainError {
+  constructor(message = 'Managed Postgres provisioning is not configured yet') {
+    super('PROJECT_DATABASE_PROVISIONING_UNAVAILABLE', message, 503);
+  }
+}
+
+export class ProjectDatabaseDeprovisioningFailedError extends DomainError {
+  constructor() {
+    super(
+      'PROJECT_DATABASE_DEPROVISIONING_FAILED',
+      'The managed Postgres resource could not be removed right now',
+      503
+    );
+  }
+}
+
+export class ProjectDatabaseCredentialRotationNotAllowedError extends DomainError {
+  constructor() {
+    super(
+      'PROJECT_DATABASE_CREDENTIAL_ROTATION_NOT_ALLOWED',
+      'Managed Postgres credentials can only be rotated after the database is provisioned and has runtime connection details',
+      409
+    );
+  }
+}
+
+export class ProjectDatabaseCredentialRotationFailedError extends DomainError {
+  constructor(message = 'Managed Postgres credentials could not be rotated right now') {
+    super(
+      'PROJECT_DATABASE_CREDENTIAL_ROTATION_FAILED',
+      message,
+      503
+    );
+  }
+}
+
 export class UserEmailTakenError extends DomainError {
   constructor() {
     super('USER_EMAIL_TAKEN', 'Email is already in use by another user', 409);

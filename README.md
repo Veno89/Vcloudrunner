@@ -10,7 +10,9 @@ What you can do with it today:
 
 - create projects that point at Git repos
 - store per-project environment variables
+- provision managed Postgres resources with generated credentials, linked-service env injection, persisted runtime health, reconcile/rotation controls, and project-scoped delete controls
 - trigger deployments and watch logs
+- manage custom domains with TXT claim checks, DNS/TLS diagnostics, certificate guidance, presented-chain visibility, last-healthy issuer-path snapshots, intermediate-certificate validity surfacing, chain recovery history, certificate rotation telemetry, persistent certificate issue surfacing, and event-backed certificate trust / issuer-path recovery history
 - see queue / worker / API health from the dashboard
 - manage API tokens for dashboard and API access
 - invite project members with claim links, ownership transfer, and optional outbound invite-delivery webhook automation
@@ -133,6 +135,14 @@ npm run dev:dashboard
   - `INVITATION_DELIVERY_WEBHOOK_URL` for a best-effort outbound delivery hook
   - `INVITATION_DELIVERY_WEBHOOK_AUTH_TOKEN` for optional bearer auth on that webhook
 - when the invitation-delivery webhook is configured, the API posts pending-invite payloads plus the claim URL on create/redelivery; if delivery is disabled or fails, the invitation is still stored and can be shared manually from the dashboard
+- managed Postgres provisioning is enabled when the API has:
+  - `MANAGED_POSTGRES_ADMIN_URL` pointing at a Postgres admin connection that can create roles/databases
+  - `MANAGED_POSTGRES_RUNTIME_HOST` / `MANAGED_POSTGRES_RUNTIME_PORT` describing how deployed app containers should reach that Postgres service
+  - optional `MANAGED_POSTGRES_RUNTIME_SSL_MODE` set to `disable`, `prefer`, or `require`
+- managed Postgres reconcile now re-checks runtime connectivity with the generated service credentials after provisioning work completes, so the dashboard can distinguish “provisioned” from “runtime healthy”
+- managed Postgres credential rotation is available from the dashboard/API, but linked services still need a redeploy after rotation so they receive the new generated password
+- managed Postgres backup scheduling and restore are not automated yet; keep an external backup process in place for any database you care about
+- the compose stack now wires those managed-Postgres envs for the bundled single-node Postgres service and pins the default Docker network name to `vcloudrunner-platform`, which is the shared runtime network the worker uses when injecting managed Postgres connection strings into deployed containers
 
 ## MVP Infrastructure Model
 
@@ -157,6 +167,7 @@ No Kubernetes or multi-node orchestration is introduced in the MVP.
 ### Data + Runtime
 - Drizzle PostgreSQL schema for platform entities
 - Docker-based deployment runtime
+- managed Postgres control-plane resource model with generated credentials, linked-service env injection, persisted runtime health, and credential rotation
 - Environment variable encryption at rest (API)
 
 ### Local Infrastructure
@@ -192,6 +203,12 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 - `POST /v1/users/:userId/api-tokens/:tokenId/rotate`
 - `DELETE /v1/users/:userId/api-tokens/:tokenId`
 - `GET /v1/projects/:projectId`
+- `GET /v1/projects/:projectId/databases`
+- `POST /v1/projects/:projectId/databases`
+- `POST /v1/projects/:projectId/databases/:databaseId/reconcile`
+- `POST /v1/projects/:projectId/databases/:databaseId/rotate-credentials`
+- `PUT /v1/projects/:projectId/databases/:databaseId/service-links`
+- `DELETE /v1/projects/:projectId/databases/:databaseId`
 - `POST /v1/projects/:projectId/deployments`
 - `GET /v1/projects/:projectId/deployments`
 - `POST /v1/projects/:projectId/deployments/:deploymentId/cancel` (queued/building deployments; completes immediately only when the queued job can still be removed)

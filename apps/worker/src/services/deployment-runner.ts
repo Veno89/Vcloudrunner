@@ -129,6 +129,9 @@ export class DeploymentRunner {
       job.projectSlug,
       job.serviceName ?? 'app'
     );
+    const additionalNetworkNames = env.PLATFORM_DOCKER_NETWORK_NAME.trim().length > 0
+      ? [env.PLATFORM_DOCKER_NETWORK_NAME.trim()]
+      : [];
 
     const containerPort = job.runtime?.containerPort ?? env.DEPLOYMENT_DEFAULT_CONTAINER_PORT;
     const memoryMb = job.runtime?.memoryMb ?? env.DEPLOYMENT_DEFAULT_MEMORY_MB;
@@ -166,6 +169,7 @@ export class DeploymentRunner {
         env: job.env,
         networkName,
         networkAliases: [serviceHostname],
+        additionalNetworkNames,
         containerPort,
         publishPort: shouldPublishPort,
         memoryMb,

@@ -39,6 +39,8 @@ function buildService(overrides?: {
   createError?: unknown;
   envVarsResult?: Array<{ key: string; encryptedValue: string }>;
   envVarsError?: Error;
+  managedDatabaseEnvResult?: Record<string, string>;
+  managedDatabaseEnvError?: Error;
   decryptError?: Error;
   enqueueError?: Error;
   markFailedError?: Error;
@@ -140,6 +142,15 @@ function buildService(overrides?: {
         }
 
         return value;
+      }
+    } as never,
+    projectDatabasesService: {
+      listInjectedEnvironmentForProjectService: async () => {
+        if (overrides?.managedDatabaseEnvError) {
+          throw overrides.managedDatabaseEnvError;
+        }
+
+        return overrides?.managedDatabaseEnvResult ?? {};
       }
     } as never
   });
@@ -642,6 +653,58 @@ test('createDeployment uses an explicitly requested named service and its runtim
     VCLOUDRUNNER_SERVICE_WORKER_PORT: '3000',
     VCLOUDRUNNER_SERVICE_WORKER_ADDRESS: `${buildProjectServiceInternalHostname('demo-project', 'worker')}:3000`
   });
+});
+
+test('createDeployment injects linked managed database environment variables for the selected service', async () => {
+  let enqueuePayload: Record<string, unknown> | null = null;
+
+  const service = buildService({
+    managedDatabaseEnvResult: {
+      PRIMARY_DB_DATABASE_URL: 'postgresql://user:pass@postgres:5432/db?sslmode=disable',
+      PRIMARY_DB_DATABASE_HOST: 'postgres',
+      PRIMARY_DB_DATABASE_PORT: '5432',
+      PRIMARY_DB_DATABASE_NAME: 'db',
+      PRIMARY_DB_DATABASE_USER: 'user',
+      PRIMARY_DB_DATABASE_PASSWORD: 'pass'
+    },
+    onEnqueue: (payload) => {
+      enqueuePayload = payload;
+    }
+  });
+
+  await service.createDeployment({
+    projectId: project.id,
+    correlationId: 'corr-managed-db-1'
+  });
+
+  assert.ok(enqueuePayload);
+  assert.deepEqual(
+    (enqueuePayload as { env: Record<string, string> }).env,
+    {
+      PRIMARY_DB_DATABASE_URL: 'postgresql://user:pass@postgres:5432/db?sslmode=disable',
+      PRIMARY_DB_DATABASE_HOST: 'postgres',
+      PRIMARY_DB_DATABASE_PORT: '5432',
+      PRIMARY_DB_DATABASE_NAME: 'db',
+      PRIMARY_DB_DATABASE_USER: 'user',
+      PRIMARY_DB_DATABASE_PASSWORD: 'pass',
+      VCLOUDRUNNER_PROJECT_SLUG: 'demo-project',
+      VCLOUDRUNNER_PROJECT_SERVICE_NAMES: 'app',
+      VCLOUDRUNNER_SERVICE_NAME: 'app',
+      VCLOUDRUNNER_SERVICE_KIND: 'web',
+      VCLOUDRUNNER_SERVICE_EXPOSURE: 'public',
+      VCLOUDRUNNER_SERVICE_SOURCE_ROOT: '.',
+      VCLOUDRUNNER_SERVICE_HOST: buildProjectServiceInternalHostname('demo-project', 'app'),
+      VCLOUDRUNNER_SERVICE_PORT: '3000',
+      VCLOUDRUNNER_SERVICE_ADDRESS: `${buildProjectServiceInternalHostname('demo-project', 'app')}:3000`,
+      VCLOUDRUNNER_SERVICE_APP_NAME: 'app',
+      VCLOUDRUNNER_SERVICE_APP_KIND: 'web',
+      VCLOUDRUNNER_SERVICE_APP_EXPOSURE: 'public',
+      VCLOUDRUNNER_SERVICE_APP_SOURCE_ROOT: '.',
+      VCLOUDRUNNER_SERVICE_APP_HOST: buildProjectServiceInternalHostname('demo-project', 'app'),
+      VCLOUDRUNNER_SERVICE_APP_PORT: '3000',
+      VCLOUDRUNNER_SERVICE_APP_ADDRESS: `${buildProjectServiceInternalHostname('demo-project', 'app')}:3000`
+    }
+  );
 });
 
 test('createDeployment throws InvalidProjectServiceError when the requested service does not exist', async () => {

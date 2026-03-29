@@ -13,6 +13,7 @@ export interface StartContainerInput {
   env: Record<string, string>;
   networkName: string;
   networkAliases?: string[];
+  additionalNetworkNames?: string[];
   containerPort: number;
   publishPort: boolean;
   memoryMb: number;

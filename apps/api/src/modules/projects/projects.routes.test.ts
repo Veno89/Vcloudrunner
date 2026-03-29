@@ -153,6 +153,27 @@ async function withProjectsRoutesApp(
       ownershipDetail: 'Routing DNS has not been verified yet.',
       tlsStatus: 'pending',
       tlsDetail: 'TLS will be checked after routing is active.',
+      certificateState: 'awaiting-route',
+      certificateTitle: 'Wait for live route',
+      certificateDetail: 'Certificate issuance starts after this host is attached to a live public route.',
+      certificateValidFrom: null,
+      certificateValidTo: null,
+      certificateSubjectName: null,
+      certificateIssuerName: null,
+      certificateSubjectAltNames: [],
+      certificateValidationReason: null,
+      certificateValidityStatus: 'unavailable',
+      certificateValidityDetail: 'Certificate validity dates have not been captured for this host yet.',
+      certificateTrustStatus: 'unavailable',
+      certificateTrustDetail: 'Certificate trust details have not been captured for this host yet.',
+      certificateGuidanceState: 'wait-for-route',
+      certificateGuidanceTitle: 'Publish a live route first',
+      certificateGuidanceDetail: 'Certificate issuance and renewal checks only become meaningful after this host is attached to a live public route.',
+      certificateGuidanceChangedAt: '2026-03-28T12:00:00.000Z',
+      certificateGuidanceObservedCount: 1,
+      certificateAttentionStatus: 'monitor',
+      certificateAttentionTitle: 'Continue monitoring certificate rollout',
+      certificateAttentionDetail: 'Certificate issuance and renewal checks only become meaningful after this host is attached to a live public route. Observed across 1 consecutive certificate check since 2026-03-28T12:00:00.000Z.',
       diagnosticsCheckedAt: '2026-03-28T12:00:00.000Z',
       diagnosticsFreshnessStatus: 'fresh',
       diagnosticsFreshnessDetail: 'Stored verification, DNS, and TLS checks are within the current freshness window.',
@@ -535,7 +556,28 @@ test('list project domains only includes DNS and TLS diagnostics when requested'
         ownershipStatus: 'managed',
         ownershipDetail: 'This is the platform-managed default host for the project.',
         tlsStatus: 'ready',
-        tlsDetail: 'HTTPS is reachable and the current certificate validated successfully.'
+        tlsDetail: 'HTTPS is reachable and the current certificate validated successfully.',
+        certificateState: 'active',
+        certificateTitle: 'Certificate active',
+        certificateDetail: 'HTTPS is healthy and the currently served certificate validates successfully for this host.',
+        certificateValidFrom: '2026-03-01T00:00:00.000Z',
+        certificateValidTo: '2026-06-01T00:00:00.000Z',
+        certificateSubjectName: 'example-project.apps.platform.example.com',
+        certificateIssuerName: 'Example Issuer',
+        certificateSubjectAltNames: ['example-project.apps.platform.example.com'],
+        certificateValidationReason: null,
+        certificateValidityStatus: 'valid',
+        certificateValidityDetail: 'The presented certificate is within its validity window until 2026-06-01T00:00:00.000Z.',
+        certificateTrustStatus: 'trusted',
+        certificateTrustDetail: 'The current certificate validated successfully for this host. Current issuer: Example Issuer. Observed certificate coverage: example-project.apps.platform.example.com.',
+        certificateGuidanceState: 'healthy',
+        certificateGuidanceTitle: 'Certificate healthy',
+        certificateGuidanceDetail: 'The current certificate looks healthy for this host, and no immediate certificate action is recommended.',
+        certificateGuidanceChangedAt: '2026-03-28T12:00:00.000Z',
+        certificateGuidanceObservedCount: 1,
+        certificateAttentionStatus: 'healthy',
+        certificateAttentionTitle: 'No certificate follow-up needed',
+        certificateAttentionDetail: 'The latest certificate guidance is healthy for this host. Observed across 1 consecutive certificate check since 2026-03-28T12:00:00.000Z.'
       }];
     }
   }, async (app) => {
@@ -553,6 +595,11 @@ test('list project domains only includes DNS and TLS diagnostics when requested'
       includeDiagnostics: true
     });
     assert.equal(JSON.parse(res.body).data[0]?.tlsStatus, 'ready');
+    assert.equal(JSON.parse(res.body).data[0]?.certificateState, 'active');
+    assert.equal(JSON.parse(res.body).data[0]?.certificateValidityStatus, 'valid');
+    assert.equal(JSON.parse(res.body).data[0]?.certificateTrustStatus, 'trusted');
+    assert.equal(JSON.parse(res.body).data[0]?.certificateGuidanceState, 'healthy');
+    assert.equal(JSON.parse(res.body).data[0]?.certificateAttentionStatus, 'healthy');
   });
 });
 
@@ -657,6 +704,13 @@ test('verify project domain claim refreshes the targeted custom domain', async (
         ownershipDetail: 'No routing DNS records were found yet.',
         tlsStatus: 'pending',
         tlsDetail: 'TLS will be checked after this host is attached to a running deployment route.',
+        certificateState: 'awaiting-route',
+        certificateTitle: 'Wait for live route',
+        certificateDetail: 'Certificate issuance starts after this host is attached to a live public route.',
+        certificateValidFrom: null,
+        certificateValidTo: null,
+        certificateValidityStatus: 'unavailable',
+        certificateValidityDetail: 'Certificate validity dates have not been captured for this host yet.',
         diagnosticsCheckedAt: '2026-03-28T12:00:00.000Z',
         diagnosticsFreshnessStatus: 'fresh',
         diagnosticsFreshnessDetail: 'Stored verification, DNS, and TLS checks are within the current freshness window.',
@@ -704,6 +758,8 @@ test('verify project domain claim refreshes the targeted custom domain', async (
     });
     assert.equal(JSON.parse(res.body).data.verificationStatus, 'verified');
     assert.equal(JSON.parse(res.body).data.claimState, 'configure-dns');
+    assert.equal(JSON.parse(res.body).data.certificateState, 'awaiting-route');
+    assert.equal(JSON.parse(res.body).data.certificateValidityStatus, 'unavailable');
   });
 });
 
