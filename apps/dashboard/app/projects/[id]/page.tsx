@@ -46,6 +46,7 @@ import { summarizeProjectDomains } from '@/lib/project-domains';
 import { summarizeProjectDatabases } from '@/lib/project-databases';
 import { deployProjectAction } from '@/app/deployments/actions';
 import {
+  deleteProjectAction,
   inviteProjectMemberAction,
   redeliverProjectInvitationAction,
   removeProjectInvitationAction,
@@ -160,6 +161,14 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
     const sortedDeployments = deployments
       .slice()
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+    const activeDeletionBlockedDeployments = sortedDeployments.filter((deployment) =>
+      deployment.status === 'queued'
+      || deployment.status === 'building'
+      || deployment.status === 'running'
+    );
+    const activeDeletionBlockedDeploymentSummary = activeDeletionBlockedDeployments
+      .map((deployment) => `${deployment.serviceName ?? 'app'} (${deployment.status})`)
+      .join(', ');
     const primaryService = getPrimaryProjectService(project.services);
     const routeSummary = summarizeProjectDomains({
       project,
@@ -190,6 +199,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
         viewer.role === 'admin'
         || project.userId === viewer.userId
       );
+    const canDeleteProject = canTransferOwnership;
     let projectInvitations = [] as Awaited<ReturnType<typeof fetchProjectInvitations>>;
     let projectInvitationsReadErrorMessage: string | null = null;
 
@@ -261,7 +271,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
         <ActionToast
           status={searchParams?.status}
           message={searchParams?.message}
-          fallbackErrorMessage="Deployment action failed."
+          fallbackErrorMessage="Project action failed."
         />
 
         <div className="grid gap-4 md:grid-cols-5">
@@ -807,6 +817,82 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                 );
               })}
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-destructive/30">
+          <CardHeader>
+            <CardTitle className="text-sm text-destructive">Danger Zone</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
+              <p className="font-medium text-destructive">Delete this project</p>
+              <p className="mt-1 text-xs">
+                This permanently removes the project record, deployment history, environment variables, domain claims, membership/invitation data, and managed database records tracked for this project. Managed Postgres resources are deprovisioned as part of deletion when possible.
+              </p>
+              <p className="mt-2 text-xs">
+                Deletion is intentionally blocked while any deployment is queued, building, or running so we do not orphan live runtime or routing state.
+              </p>
+            </div>
+
+            {!viewer.user ? (
+              <p className="text-sm text-muted-foreground">
+                Complete account setup before deleting projects from the dashboard.
+              </p>
+            ) : null}
+
+            {viewer.user && !canDeleteProject ? (
+              <p className="text-sm text-muted-foreground">
+                Only the current project owner or a platform admin can delete this project.
+              </p>
+            ) : null}
+
+            {deploymentReadErrorMessage ? (
+              <p className="text-sm text-muted-foreground">
+                Current deployment activity could not be loaded here. The API will still refuse deletion if any service is queued, building, or running.
+              </p>
+            ) : null}
+
+            {!deploymentReadErrorMessage && activeDeletionBlockedDeployments.length > 0 ? (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
+                <p className="font-medium text-destructive">Deletion is currently blocked</p>
+                <p className="mt-1 text-xs">
+                  Stop or cancel these active deployments first: {activeDeletionBlockedDeploymentSummary}
+                </p>
+              </div>
+            ) : null}
+
+            {viewer.user && canDeleteProject ? (
+              <form action={deleteProjectAction} className="space-y-3 rounded-md border border-destructive/30 p-4">
+                <input type="hidden" name="projectId" value={project.id} readOnly />
+                <input type="hidden" name="projectName" value={project.name} readOnly />
+                <input type="hidden" name="returnPath" value={`/projects/${project.id}`} readOnly />
+                <div className="space-y-2">
+                  <Label htmlFor="project-delete-confirmation">
+                    Type <span className="font-mono text-foreground">{project.name}</span> to confirm project deletion
+                  </Label>
+                  <Input
+                    id="project-delete-confirmation"
+                    name="confirmName"
+                    placeholder={project.name}
+                    autoComplete="off"
+                    required
+                    disabled={activeDeletionBlockedDeployments.length > 0}
+                  />
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    This cannot be undone from the dashboard.
+                  </p>
+                  <FormSubmitButton
+                    idleText="Delete Project"
+                    pendingText="Deleting..."
+                    variant="destructive"
+                    disabled={activeDeletionBlockedDeployments.length > 0}
+                  />
+                </div>
+              </form>
+            ) : null}
           </CardContent>
         </Card>
 

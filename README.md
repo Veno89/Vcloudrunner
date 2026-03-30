@@ -24,6 +24,7 @@ What you can do with it today:
 - see queue / worker / API health from the dashboard
 - manage API tokens for dashboard and API access
 - use session-backed dashboard sign-in, stored user profiles, project membership, invitations, and ownership transfer
+- delete projects from a guarded dashboard danger zone once all active deployments have been stopped or cancelled
 - invite project members with claim links, ownership transfer, and optional outbound invite-delivery webhook automation
 
 Important current limitations:
@@ -216,6 +217,7 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 - `POST /v1/users/:userId/api-tokens/:tokenId/rotate`
 - `DELETE /v1/users/:userId/api-tokens/:tokenId`
 - `GET /v1/projects/:projectId`
+- `DELETE /v1/projects/:projectId`
 - `GET /v1/projects/:projectId/databases`
 - `GET /v1/projects/:projectId/databases/:databaseId/audit/export`
 - `POST /v1/projects/:projectId/databases`

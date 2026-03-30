@@ -74,6 +74,7 @@ async function withProjectsRoutesApp(
     onUpdateProjectMember?: (input: Record<string, unknown>) => unknown;
     onRemoveProjectMember?: (input: Record<string, unknown>) => unknown;
     onTransferProjectOwnership?: (input: Record<string, unknown>) => unknown;
+    onRemoveProject?: (input: Record<string, unknown>) => unknown;
   },
   run: (app: FastifyInstance) => Promise<void>
 ) {
@@ -377,6 +378,9 @@ async function withProjectsRoutesApp(
         email: 'member@example.com'
       }
     };
+  });
+  t.mock.method(ProjectsService.prototype, 'removeProject', async (input: Record<string, unknown>) => {
+    options.onRemoveProject?.(input);
   });
   t.mock.method(mockDbClient, 'select', (fields: Record<string, unknown>) => {
     if (Object.prototype.hasOwnProperty.call(fields, 'userId')) {
@@ -1714,5 +1718,52 @@ test('transfer project ownership rejects project-admin members who are not the c
 
     assert.equal(res.statusCode, 403);
     assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_PROJECT_OWNERSHIP_TRANSFER');
+  });
+});
+
+test('delete project allows current owners with projects:write scope', async (t) => {
+  let capturedInput: Record<string, unknown> | null = null;
+
+  await withProjectsRoutesApp(t, {
+    token: 'owner-delete-project-token-123',
+    actorUserId: ownerUserId,
+    scopes: ['projects:write'],
+    membershipRows: [],
+    onRemoveProject: (input) => {
+      capturedInput = input;
+    }
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/v1/projects/${projectId}`,
+      headers: {
+        authorization: 'Bearer owner-delete-project-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 204);
+    assert.deepEqual(capturedInput, {
+      projectId
+    });
+  });
+});
+
+test('delete project rejects project-admin members who are not the current owner', async (t) => {
+  await withProjectsRoutesApp(t, {
+    token: 'project-admin-delete-project-token-123',
+    actorUserId: memberUserId,
+    scopes: ['projects:write'],
+    membershipRows: [{ role: 'admin' }]
+  }, async (app) => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/v1/projects/${projectId}`,
+      headers: {
+        authorization: 'Bearer project-admin-delete-project-token-123'
+      }
+    });
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(JSON.parse(res.body).code, 'FORBIDDEN_PROJECT_DELETION');
   });
 });

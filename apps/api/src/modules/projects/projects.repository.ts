@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type {
   ProjectServiceDefinition,
@@ -15,8 +15,11 @@ import type {
 
 import type { DbClient } from '../../db/client.js';
 import {
+  containers,
+  deploymentLogs,
   deployments,
   domains,
+  environmentVariables,
   projectDomainEvents,
   projectInvitations,
   projectMembers,
@@ -151,6 +154,13 @@ export interface ProjectDomainEventRecord {
   nextStatus: string;
   detail: string;
   createdAt: Date;
+}
+
+export interface ProjectActiveDeploymentRecord {
+  id: string;
+  projectId: string;
+  serviceName: string;
+  status: 'queued' | 'building' | 'running';
 }
 
 export interface CreateProjectDomainInput {
@@ -329,6 +339,22 @@ export class ProjectsRepository {
     return this.db.query.projects.findFirst({
       where: eq(projects.id, id)
     });
+  }
+
+  async listActiveDeployments(projectId: string): Promise<ProjectActiveDeploymentRecord[]> {
+    return this.db
+      .select({
+        id: deployments.id,
+        projectId: deployments.projectId,
+        serviceName: deployments.serviceName,
+        status: deployments.status
+      })
+      .from(deployments)
+      .where(and(
+        eq(deployments.projectId, projectId),
+        inArray(deployments.status, ['queued', 'building', 'running'])
+      ))
+      .orderBy(asc(deployments.createdAt)) as Promise<ProjectActiveDeploymentRecord[]>;
   }
 
   async checkMembership(projectId: string, userId: string) {
@@ -1412,6 +1438,49 @@ export class ProjectsRepository {
         });
 
       return record ?? null;
+    });
+  }
+
+  async deleteProject(projectId: string) {
+    return this.db.transaction(async (tx) => {
+      const projectDeployments = await tx
+        .select({
+          id: deployments.id
+        })
+        .from(deployments)
+        .where(eq(deployments.projectId, projectId));
+      const deploymentIds = projectDeployments.map((deployment) => deployment.id);
+
+      await tx
+        .delete(domains)
+        .where(eq(domains.projectId, projectId));
+
+      await tx
+        .delete(environmentVariables)
+        .where(eq(environmentVariables.projectId, projectId));
+
+      if (deploymentIds.length > 0) {
+        await tx
+          .delete(deploymentLogs)
+          .where(inArray(deploymentLogs.deploymentId, deploymentIds));
+
+        await tx
+          .delete(containers)
+          .where(inArray(containers.deploymentId, deploymentIds));
+
+        await tx
+          .delete(deployments)
+          .where(eq(deployments.projectId, projectId));
+      }
+
+      const [deletedProject] = await tx
+        .delete(projects)
+        .where(eq(projects.id, projectId))
+        .returning({
+          id: projects.id
+        });
+
+      return deletedProject ?? null;
     });
   }
 }

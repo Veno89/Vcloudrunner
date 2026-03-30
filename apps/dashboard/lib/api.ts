@@ -879,6 +879,10 @@ export async function createProject(input: CreateProjectInput): Promise<ApiProje
   return response.data;
 }
 
+export async function deleteProject(projectId: string): Promise<void> {
+  await deleteRequest(`/v1/projects/${projectId}`);
+}
+
 export async function fetchProjectMembers(projectId: string): Promise<ApiProjectMember[]> {
   const response = await fetchJson<ApiDataResponse<ApiProjectMember[]>>(
     `/v1/projects/${projectId}/members`

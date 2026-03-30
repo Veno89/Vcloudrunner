@@ -1,6 +1,6 @@
 # Vcloudrunner MVP Progress Tracker
 
-Last updated: 2026-03-30 (Managed Postgres recovery control + audit batch + single-node roadmap guardrail)
+Last updated: 2026-03-30 (project deletion danger zone + safe teardown path)
 
 ## Legend
 
@@ -41,6 +41,53 @@ Last updated: 2026-03-30 (Managed Postgres recovery control + audit batch + sing
 - **Default decision rule for future slices:** when choosing between a simpler single-node implementation and a more abstract future-looking design, prefer the simpler single-node path unless current validated requirements clearly justify the added complexity.
 
 ## Implementation Log
+
+### Phase: Project lifecycle safety slice (2026-03-30, owner-gated delete + safe project teardown + dashboard danger zone)
+
+- what was built:
+  - added a first-class `DELETE /v1/projects/:projectId` API path so projects can now be removed intentionally instead of remaining permanently create-only
+  - made project deletion owner/platform-admin only with its own explicit authorization rule, rather than letting normal project-admin membership-management access delete the whole project
+  - made deletion conservative and truthful: the API now refuses deletion while any deployment is still `queued`, `building`, or `running`, so we do not orphan live runtime or reverse-proxy state behind a shallow record delete
+  - wired project delete cleanup to detach any recorded live route hosts before removing project records, and to deprovision linked managed Postgres resources through the existing managed-database service before deleting the project itself
+  - added repository-level project teardown cleanup for non-cascading project-owned records like environment variables, deployment logs, containers, deployments, and domain rows before removing the project row
+  - added a GitHub-style dashboard danger zone on the project detail page with exact-name confirmation, clear destructive copy, owner/admin permission messaging, and explicit blocking guidance when active deployments still exist
+  - updated the dashboard server action and API client flow so successful deletion returns to `/projects` with feedback, while auth, permission, active-deployment, and cleanup failures surface operator-readable messages
+  - documented the new delete capability in the repo README and verified the slice with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api run lint`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `README.md`
+  - `apps/api/src/server/domain-errors.ts`
+  - `apps/api/src/modules/auth/auth-utils.ts`
+  - `apps/api/src/modules/auth/auth-utils.test.ts`
+  - `apps/api/src/modules/projects/projects.repository.ts`
+  - `apps/api/src/modules/projects/projects.routes.ts`
+  - `apps/api/src/modules/projects/projects.routes.test.ts`
+  - `apps/api/src/modules/projects/projects.service.ts`
+  - `apps/api/src/modules/projects/projects.service.test.ts`
+  - `apps/api/src/server/build-server.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/app/projects/actions.ts`
+  - `apps/dashboard/app/projects/[id]/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - project deletion is intentionally conservative for now: operators still need to stop or cancel active deployments themselves before the project can be deleted, rather than the platform trying to auto-stop live workloads during deletion
+  - project teardown now removes platform records, route attachments, and managed Postgres resources, but there is still no broader archival/export flow for project history before deletion if we later want a softer offboarding path
+- next recommended step:
+  - return to the broader managed Postgres v1 roadmap path and deepen storage sizing plus stricter restore-execution / retention ownership controls, unless another operator-facing lifecycle gap like project archival becomes a higher-priority product decision first
+
+### Phase: CI lint follow-up slice (2026-03-30, unused test-fixture parameter cleanup)
+
+- what was built:
+  - removed the stale unused test callback parameter in the project-domain diagnostics refresh API test so repo-wide lint no longer fails on `@typescript-eslint/no-unused-vars`
+  - removed the named-but-unused Docker network connect stub parameter in the worker runtime-manager test fixture so the worker lint pass also clears the same rule
+  - verified the exact GitHub-reported path by rerunning `npm.cmd --workspace @vcloudrunner/api run lint`, `npm.cmd --workspace @vcloudrunner/worker run lint`, and root `npm.cmd run lint`
+- files created or changed:
+  - `apps/api/src/services/project-domain-diagnostics-refresh.service.test.ts`
+  - `apps/worker/src/services/runtime/docker-container-runtime-manager.test.ts`
+  - `docs/progress.md`
+- what is still missing:
+  - this slice only addressed the reported repo lint regressions; unrelated local startup/runtime fixes remain separate local changes until they are reviewed and committed deliberately
+- next recommended step:
+  - keep this lint fix bundled with the nearby local startup/runtime follow-up if we want one clean cleanup commit, or commit it independently if the CI unblock is the immediate priority
 
 ### Phase: Managed Postgres recovery control + audit batch (2026-03-30, artifact lifecycle controls + restore approval scaffolding + audit export)
 

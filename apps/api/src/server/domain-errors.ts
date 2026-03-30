@@ -332,6 +332,31 @@ export class ForbiddenProjectOwnershipTransferError extends DomainError {
   }
 }
 
+export class ForbiddenProjectDeletionError extends DomainError {
+  constructor() {
+    super(
+      'FORBIDDEN_PROJECT_DELETION',
+      'Only the current project owner or a platform admin can delete a project',
+      403
+    );
+  }
+}
+
+export class ProjectDeletionNotAllowedError extends DomainError {
+  constructor(serviceNames: string[] = []) {
+    const uniqueServiceNames = Array.from(new Set(
+      serviceNames.map((serviceName) => serviceName.trim()).filter((serviceName) => serviceName.length > 0)
+    ));
+    super(
+      'PROJECT_DELETION_NOT_ALLOWED',
+      uniqueServiceNames.length > 0
+        ? `Project cannot be deleted while active deployments exist for ${uniqueServiceNames.join(', ')}`
+        : 'Project cannot be deleted while active deployments exist',
+      409
+    );
+  }
+}
+
 export class ForbiddenProjectMembershipManagementError extends DomainError {
   constructor() {
     super(

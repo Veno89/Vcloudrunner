@@ -96,7 +96,7 @@ test('refreshStaleDomainDiagnostics continues after an individual project refres
   assert.equal(warnings[0]?.metadata.projectId, 'project-1');
 });
 
-test('start is idempotent and skips overlapping refresh runs until the active pass settles', async (t) => {
+test('start is idempotent and skips overlapping refresh runs until the active pass settles', async () => {
   const intervalHandlers: Array<() => void> = [];
   const clearCalls: Array<ReturnType<typeof setInterval>> = [];
   let releaseRefresh: (() => void) | null = null;

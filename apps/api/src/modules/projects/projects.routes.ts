@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   assertUserAccess,
   ensureProjectAccess,
+  ensureProjectDeletionAccess,
   ensureProjectMembershipManagementAccess,
   ensureProjectOwnershipTransferAccess,
   requireActor,
@@ -192,6 +193,20 @@ export const createProjectsRoutes = (
     const project = await ensureProjectAccess(projectsService, { projectId, actor });
 
     return { data: project };
+  });
+
+  app.delete('/projects/:projectId', async (request, reply) => {
+    const actor = requireActor(request);
+    const { projectId } = projectByIdParamsSchema.parse(request.params);
+
+    requireScope(actor, 'projects:write');
+    await ensureProjectDeletionAccess(projectsService, { projectId, actor });
+
+    await projectsService.removeProject({
+      projectId
+    });
+
+    return reply.code(204).send();
   });
 
   app.get('/projects/:projectId/members', async (request) => {

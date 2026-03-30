@@ -4,6 +4,7 @@ import { hasScope, type TokenScope } from './auth-scopes.js';
 import { requireAuthContext, type AuthContext } from '../../plugins/auth-context.js';
 import {
   ForbiddenProjectAccessError,
+  ForbiddenProjectDeletionError,
   ForbiddenProjectMembershipManagementError,
   ForbiddenProjectOwnershipTransferError,
   ForbiddenTokenScopeError,
@@ -114,4 +115,29 @@ export async function ensureProjectOwnershipTransferAccess(
   }
 
   throw new ForbiddenProjectOwnershipTransferError();
+}
+
+export async function ensureProjectDeletionAccess(
+  projectsService: ProjectsService,
+  input: { projectId: string; actor: ActorContext }
+) {
+  const project = await projectsService.getProjectById(input.projectId);
+  if (!project) {
+    throw new ProjectNotFoundError();
+  }
+
+  if (input.actor.role === 'admin' || project.userId === input.actor.userId) {
+    return project;
+  }
+
+  const membership = await projectsService.getMembership(
+    input.projectId,
+    input.actor.userId
+  );
+
+  if (!membership) {
+    throw new ForbiddenProjectAccessError();
+  }
+
+  throw new ForbiddenProjectDeletionError();
 }

@@ -11,6 +11,7 @@ import {
   ProjectDomainNotFoundError,
   ProjectDomainRemovalNotAllowedError,
   ProjectDomainReservedError,
+  ProjectDeletionNotAllowedError,
   ProjectInvitationAlreadyExistsError,
   ProjectInvitationEmailMismatchError,
   ProjectInvitationNotFoundError,
@@ -59,6 +60,7 @@ import {
   type ProjectInvitationRecord,
   type ProjectMemberRecord
 } from './projects.repository.js';
+import { ProjectDatabasesService } from '../project-databases/project-databases.service.js';
 
 function normalizeEmailAddress(email: string) {
   return email.trim().toLowerCase();
@@ -3072,17 +3074,20 @@ export class ProjectsService {
   private readonly invitationDelivery: ProjectInvitationDeliveryService;
   private readonly domainDiagnostics: ProjectDomainDiagnosticsInspector;
   private readonly domainRoutes: ProjectDomainRouteManager;
+  private readonly projectDatabasesService: ProjectDatabasesService;
 
   constructor(
     db: DbClient,
     invitationDelivery: ProjectInvitationDeliveryService = disabledProjectInvitationDeliveryService,
     domainDiagnostics: ProjectDomainDiagnosticsInspector = defaultProjectDomainDiagnosticsService,
-    domainRoutes: ProjectDomainRouteManager = defaultProjectDomainRouteService
+    domainRoutes: ProjectDomainRouteManager = defaultProjectDomainRouteService,
+    projectDatabasesService: ProjectDatabasesService = new ProjectDatabasesService(db)
   ) {
     this.repository = new ProjectsRepository(db);
     this.invitationDelivery = invitationDelivery;
     this.domainDiagnostics = domainDiagnostics;
     this.domainRoutes = domainRoutes;
+    this.projectDatabasesService = projectDatabasesService;
   }
 
   async createProject(input: CreateProjectInput) {
@@ -3680,6 +3685,38 @@ export class ProjectsService {
     return nextOwner;
   }
 
+  async removeProject(input: {
+    projectId: string;
+  }) {
+    const project = await this.repository.findById(input.projectId);
+    if (!project) {
+      throw new ProjectNotFoundError();
+    }
+
+    const activeDeployments = await this.repository.listActiveDeployments(input.projectId);
+    if (activeDeployments.length > 0) {
+      throw new ProjectDeletionNotAllowedError(
+        activeDeployments.map((deployment) => deployment.serviceName)
+      );
+    }
+
+    const projectDomains = await this.repository.listDomains(input.projectId);
+    await this.deactivateProjectRoutes(projectDomains);
+
+    const projectDatabases = await this.projectDatabasesService.listProjectDatabases(input.projectId);
+    for (const projectDatabase of projectDatabases) {
+      await this.projectDatabasesService.removeProjectDatabase({
+        projectId: input.projectId,
+        databaseId: projectDatabase.id
+      });
+    }
+
+    const deletedProject = await this.repository.deleteProject(input.projectId);
+    if (!deletedProject) {
+      throw new ProjectNotFoundError();
+    }
+  }
+
   async inviteProjectMember(input: {
     projectId: string;
     email: string;
@@ -3795,6 +3832,22 @@ export class ProjectsService {
       }
 
       throw error;
+    }
+  }
+
+  private async deactivateProjectRoutes(domains: ProjectDomainRecord[]) {
+    for (const record of domains) {
+      if (!record.deploymentId) {
+        continue;
+      }
+
+      try {
+        await this.domainRoutes.deactivateRoute({
+          host: record.host
+        });
+      } catch {
+        throw new ProjectDomainDeactivationFailedError(record.host);
+      }
     }
   }
 }

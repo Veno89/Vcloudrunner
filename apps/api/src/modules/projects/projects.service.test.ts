@@ -21,6 +21,7 @@ const {
   ProjectDomainNotFoundError,
   ProjectDomainRemovalNotAllowedError,
   ProjectDomainReservedError,
+  ProjectDeletionNotAllowedError,
   ProjectInvitationAlreadyExistsError,
   ProjectInvitationEmailMismatchError,
   ProjectInvitationNotFoundError,
@@ -2955,4 +2956,276 @@ test('transferProjectOwnership is idempotent when the target already owns the pr
   assert.equal(member.userId, baseInput.userId);
   assert.equal(member.isOwner, true);
   assert.equal(transferCallCount, 0);
+});
+
+test('removeProject throws when the project does not exist', async (t) => {
+  t.mock.method(ProjectsRepository.prototype, 'findById', async () => null);
+
+  const service = new ProjectsService({} as never);
+
+  await assert.rejects(
+    () => service.removeProject({
+      projectId: 'project-1'
+    }),
+    ProjectNotFoundError
+  );
+});
+
+test('removeProject rejects deletion while active deployments still exist', async (t) => {
+  t.mock.method(ProjectsRepository.prototype, 'findById', async () => ({
+    id: 'project-1',
+    userId: baseInput.userId
+  } as any));
+  t.mock.method(ProjectsRepository.prototype, 'listActiveDeployments', async () => ([
+    {
+      id: 'deployment-1',
+      projectId: 'project-1',
+      serviceName: 'frontend',
+      status: 'running'
+    }
+  ] as any));
+
+  const service = new ProjectsService({} as never);
+
+  await assert.rejects(
+    () => service.removeProject({
+      projectId: 'project-1'
+    }),
+    (error: unknown) => error instanceof ProjectDeletionNotAllowedError
+      && error.message.includes('frontend')
+  );
+});
+
+test('removeProject deactivates live routes, removes managed databases, and deletes the project', async (t) => {
+  const deactivatedHosts: string[] = [];
+  const removedDatabaseIds: string[] = [];
+  let deleteProjectCallCount = 0;
+
+  t.mock.method(ProjectsRepository.prototype, 'findById', async () => ({
+    id: 'project-1',
+    userId: baseInput.userId
+  } as any));
+  t.mock.method(ProjectsRepository.prototype, 'listActiveDeployments', async () => []);
+  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([
+    {
+      id: 'domain-1',
+      projectId: 'project-1',
+      deploymentId: 'deployment-1',
+      host: 'example-project.platform.example.com',
+      targetPort: 3000,
+      verificationToken: null,
+      verificationStatus: null,
+      verificationDetail: null,
+      verificationCheckedAt: null,
+      verificationStatusChangedAt: null,
+      verificationVerifiedAt: null,
+      ownershipStatus: null,
+      ownershipDetail: null,
+      tlsStatus: null,
+      tlsDetail: null,
+      certificateValidFrom: null,
+      certificateValidTo: null,
+      certificateSubjectName: null,
+      certificateIssuerName: null,
+      certificateSubjectAltNames: [],
+      certificateChainSubjects: [],
+      certificateChainEntries: [],
+      certificateRootSubjectName: null,
+      certificateChainChangedAt: null,
+      certificateChainObservedCount: 0,
+      certificateChainLastHealthyAt: null,
+      certificateLastHealthyChainEntries: [],
+      certificatePathValidityChangedAt: null,
+      certificatePathValidityObservedCount: 0,
+      certificatePathValidityLastHealthyAt: null,
+      certificateValidationReason: null,
+      certificateFingerprintSha256: null,
+      certificateSerialNumber: null,
+      certificateFirstObservedAt: null,
+      certificateChangedAt: null,
+      certificateLastRotatedAt: null,
+      certificateGuidanceChangedAt: null,
+      certificateGuidanceObservedCount: 0,
+      diagnosticsCheckedAt: null,
+      ownershipStatusChangedAt: null,
+      tlsStatusChangedAt: null,
+      ownershipVerifiedAt: null,
+      tlsReadyAt: null,
+      createdAt: new Date('2026-03-30T10:00:00.000Z'),
+      updatedAt: new Date('2026-03-30T10:00:00.000Z'),
+      deploymentStatus: 'stopped',
+      runtimeUrl: null,
+      serviceName: 'frontend',
+      serviceKind: 'web',
+      serviceExposure: 'public'
+    },
+    {
+      id: 'domain-2',
+      projectId: 'project-1',
+      deploymentId: null,
+      host: 'api.example.com',
+      targetPort: 3000,
+      verificationToken: null,
+      verificationStatus: null,
+      verificationDetail: null,
+      verificationCheckedAt: null,
+      verificationStatusChangedAt: null,
+      verificationVerifiedAt: null,
+      ownershipStatus: null,
+      ownershipDetail: null,
+      tlsStatus: null,
+      tlsDetail: null,
+      certificateValidFrom: null,
+      certificateValidTo: null,
+      certificateSubjectName: null,
+      certificateIssuerName: null,
+      certificateSubjectAltNames: [],
+      certificateChainSubjects: [],
+      certificateChainEntries: [],
+      certificateRootSubjectName: null,
+      certificateChainChangedAt: null,
+      certificateChainObservedCount: 0,
+      certificateChainLastHealthyAt: null,
+      certificateLastHealthyChainEntries: [],
+      certificatePathValidityChangedAt: null,
+      certificatePathValidityObservedCount: 0,
+      certificatePathValidityLastHealthyAt: null,
+      certificateValidationReason: null,
+      certificateFingerprintSha256: null,
+      certificateSerialNumber: null,
+      certificateFirstObservedAt: null,
+      certificateChangedAt: null,
+      certificateLastRotatedAt: null,
+      certificateGuidanceChangedAt: null,
+      certificateGuidanceObservedCount: 0,
+      diagnosticsCheckedAt: null,
+      ownershipStatusChangedAt: null,
+      tlsStatusChangedAt: null,
+      ownershipVerifiedAt: null,
+      tlsReadyAt: null,
+      createdAt: new Date('2026-03-30T10:00:00.000Z'),
+      updatedAt: new Date('2026-03-30T10:00:00.000Z'),
+      deploymentStatus: null,
+      runtimeUrl: null,
+      serviceName: 'frontend',
+      serviceKind: 'web',
+      serviceExposure: 'public'
+    }
+  ] as any));
+  t.mock.method(ProjectsRepository.prototype, 'deleteProject', async () => {
+    deleteProjectCallCount += 1;
+    return { id: 'project-1' } as any;
+  });
+
+  const service = new ProjectsService(
+    {} as never,
+    undefined,
+    undefined,
+    {
+      deactivateRoute: async ({ host }: { host: string }) => {
+        deactivatedHosts.push(host);
+      }
+    } as never,
+    {
+      listProjectDatabases: async () => ([
+        { id: 'db-1' },
+        { id: 'db-2' }
+      ]),
+      removeProjectDatabase: async (input: { databaseId: string }) => {
+        removedDatabaseIds.push(input.databaseId);
+      }
+    } as never
+  );
+
+  await service.removeProject({
+    projectId: 'project-1'
+  });
+
+  assert.deepEqual(deactivatedHosts, ['example-project.platform.example.com']);
+  assert.deepEqual(removedDatabaseIds, ['db-1', 'db-2']);
+  assert.equal(deleteProjectCallCount, 1);
+});
+
+test('removeProject surfaces live route deactivation failures before deleting records', async (t) => {
+  t.mock.method(ProjectsRepository.prototype, 'findById', async () => ({
+    id: 'project-1',
+    userId: baseInput.userId
+  } as any));
+  t.mock.method(ProjectsRepository.prototype, 'listActiveDeployments', async () => []);
+  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([
+    {
+      id: 'domain-1',
+      projectId: 'project-1',
+      deploymentId: 'deployment-1',
+      host: 'example-project.platform.example.com',
+      targetPort: 3000,
+      verificationToken: null,
+      verificationStatus: null,
+      verificationDetail: null,
+      verificationCheckedAt: null,
+      verificationStatusChangedAt: null,
+      verificationVerifiedAt: null,
+      ownershipStatus: null,
+      ownershipDetail: null,
+      tlsStatus: null,
+      tlsDetail: null,
+      certificateValidFrom: null,
+      certificateValidTo: null,
+      certificateSubjectName: null,
+      certificateIssuerName: null,
+      certificateSubjectAltNames: [],
+      certificateChainSubjects: [],
+      certificateChainEntries: [],
+      certificateRootSubjectName: null,
+      certificateChainChangedAt: null,
+      certificateChainObservedCount: 0,
+      certificateChainLastHealthyAt: null,
+      certificateLastHealthyChainEntries: [],
+      certificatePathValidityChangedAt: null,
+      certificatePathValidityObservedCount: 0,
+      certificatePathValidityLastHealthyAt: null,
+      certificateValidationReason: null,
+      certificateFingerprintSha256: null,
+      certificateSerialNumber: null,
+      certificateFirstObservedAt: null,
+      certificateChangedAt: null,
+      certificateLastRotatedAt: null,
+      certificateGuidanceChangedAt: null,
+      certificateGuidanceObservedCount: 0,
+      diagnosticsCheckedAt: null,
+      ownershipStatusChangedAt: null,
+      tlsStatusChangedAt: null,
+      ownershipVerifiedAt: null,
+      tlsReadyAt: null,
+      createdAt: new Date('2026-03-30T10:00:00.000Z'),
+      updatedAt: new Date('2026-03-30T10:00:00.000Z'),
+      deploymentStatus: 'failed',
+      runtimeUrl: null,
+      serviceName: 'frontend',
+      serviceKind: 'web',
+      serviceExposure: 'public'
+    }
+  ] as any));
+
+  const service = new ProjectsService(
+    {} as never,
+    undefined,
+    undefined,
+    {
+      deactivateRoute: async () => {
+        throw new Error('route cleanup failed');
+      }
+    } as never,
+    {
+      listProjectDatabases: async () => [],
+      removeProjectDatabase: async () => undefined
+    } as never
+  );
+
+  await assert.rejects(
+    () => service.removeProject({
+      projectId: 'project-1'
+    }),
+    ProjectDomainDeactivationFailedError
+  );
 });

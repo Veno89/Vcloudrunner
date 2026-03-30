@@ -99,14 +99,17 @@ export const buildServer = (dependencies: BuildServerDependencies = {}) => {
 
   const deploymentQueueClient = new DeploymentQueue(deploymentQueue as Pick<Queue<DeploymentJobPayload, unknown, 'deploy'>, 'add' | 'getJobs' | 'getJob'> & Partial<Pick<Queue<DeploymentJobPayload, unknown, 'deploy'>, 'close'>>);
 
+  const projectDatabasesService = new ProjectDatabasesService(dbClient);
   const projectsService = new ProjectsService(
     dbClient,
-    new WebhookProjectInvitationDeliveryService()
+    new WebhookProjectInvitationDeliveryService(),
+    undefined,
+    undefined,
+    projectDatabasesService
   );
   const projectDomainDiagnosticsRefresh = dependencies.projectDomainDiagnosticsRefresh
     ?? new ProjectDomainDiagnosticsRefreshService(projectsService, app.log);
   const apiTokensService = new ApiTokensService(dbClient);
-  const projectDatabasesService = new ProjectDatabasesService(dbClient);
   const deploymentsService = new DeploymentsService(dbClient, deploymentQueueClient, {
     projectDatabasesService
   });

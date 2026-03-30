@@ -8,6 +8,7 @@ import { buildDashboardAccountSetupHref } from '@/lib/dashboard-auth-navigation'
 import {
   createProject,
   createProjectDomain,
+  deleteProject,
   createDeployment,
   fetchProjectDomains,
   inviteProjectMember,
@@ -184,6 +185,32 @@ function createProjectOwnershipTransferErrorMessage(error: unknown): string {
   }
 
   return 'Failed to transfer project ownership.';
+}
+
+function createProjectDeletionErrorMessage(error: unknown): string {
+  const statusCode = extractApiStatusCode(error);
+
+  if (statusCode === 401) {
+    return 'Project deletion is unauthorized. Sign in again with an active dashboard session and retry.';
+  }
+
+  if (statusCode === 403) {
+    return 'Only the current project owner or a platform admin can delete this project.';
+  }
+
+  if (statusCode === 404) {
+    return 'That project no longer exists.';
+  }
+
+  if (statusCode === 409) {
+    return 'This project still has queued, building, or running deployments. Stop or cancel them before deleting the project.';
+  }
+
+  if (statusCode === 503) {
+    return 'Project deletion could not finish because a linked route or managed database resource could not be cleaned up right now. Retry shortly.';
+  }
+
+  return 'Failed to delete project.';
 }
 
 function createProjectInvitationUpdateErrorMessage(error: unknown): string {
@@ -992,6 +1019,61 @@ export async function transferProjectOwnershipAction(formData: FormData) {
     redirect(`${returnPath}?status=success&message=${encodeURIComponent(`Transferred project ownership to ${memberLabel}`)}`);
   } catch (error) {
     redirect(`${returnPath}?status=error&message=${encodeURIComponent(createProjectOwnershipTransferErrorMessage(error))}`);
+  }
+}
+
+export async function deleteProjectAction(formData: FormData) {
+  const requestAuth = getDashboardRequestAuth();
+  const { viewer, error: viewerContextError } = await resolveViewerContext();
+  const projectIdValue = formData.get('projectId');
+  const projectNameValue = formData.get('projectName');
+  const confirmNameValue = formData.get('confirmName');
+  const returnPath = normalizeActionReturnPath(formData.get('returnPath'));
+
+  if (!viewer) {
+    redirect(
+      createViewerContextFailureRedirect({
+        requestAuth,
+        ...(viewerContextError ? { error: viewerContextError } : {}),
+        redirectTo: returnPath,
+        fallbackPath: returnPath,
+        fallbackMessage: 'Project deletion is temporarily unavailable. Check dashboard/API connectivity and retry.'
+      })
+    );
+    return;
+  }
+
+  if (!viewer.user) {
+    redirect(buildDashboardAccountSetupHref({
+      redirectTo: returnPath
+    }));
+  }
+
+  if (
+    typeof projectIdValue !== 'string'
+    || projectIdValue.length === 0
+    || typeof projectNameValue !== 'string'
+    || projectNameValue.trim().length === 0
+  ) {
+    redirect(`${returnPath}?status=error&message=Invalid+project+deletion+request`);
+    return;
+  }
+
+  const projectName = projectNameValue.trim();
+  const confirmName = typeof confirmNameValue === 'string' ? confirmNameValue.trim() : '';
+
+  if (confirmName !== projectName) {
+    redirect(`${returnPath}?status=error&message=${encodeURIComponent(`Type "${projectName}" exactly to confirm deletion`)}`);
+    return;
+  }
+
+  try {
+    await deleteProject(projectIdValue);
+
+    revalidatePath('/projects');
+    redirect(`/projects?status=success&message=${encodeURIComponent(`Deleted project "${projectName}"`)}`);
+  } catch (error) {
+    redirect(`${returnPath}?status=error&message=${encodeURIComponent(createProjectDeletionErrorMessage(error))}`);
   }
 }
 

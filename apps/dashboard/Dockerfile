@@ -2,13 +2,16 @@ FROM node:20-alpine AS base
 WORKDIR /workspace
 
 COPY package.json tsconfig.base.json ./
+COPY packages/shared-types/package.json ./packages/shared-types/package.json
 COPY apps/dashboard/package.json ./apps/dashboard/package.json
 
 RUN npm install
 
+COPY packages/shared-types ./packages/shared-types
 COPY apps/dashboard ./apps/dashboard
 
-RUN npm --workspace @vcloudrunner/dashboard run build
+RUN npm --workspace @vcloudrunner/shared-types run build \
+  && npm --workspace @vcloudrunner/dashboard run build
 
 FROM node:20-alpine AS runtime
 WORKDIR /workspace
@@ -18,6 +21,8 @@ RUN apk add --no-cache wget
 
 COPY --from=base /workspace/package.json ./package.json
 COPY --from=base /workspace/node_modules ./node_modules
+COPY --from=base /workspace/packages/shared-types/package.json ./packages/shared-types/package.json
+COPY --from=base /workspace/packages/shared-types/dist ./packages/shared-types/dist
 COPY --from=base /workspace/apps/dashboard/package.json ./apps/dashboard/package.json
 COPY --from=base /workspace/apps/dashboard/.next ./apps/dashboard/.next
 COPY --from=base /workspace/apps/dashboard/next.config.mjs ./apps/dashboard/next.config.mjs

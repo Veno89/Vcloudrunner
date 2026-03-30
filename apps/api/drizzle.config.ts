@@ -1,6 +1,6 @@
 import { defineConfig } from 'drizzle-kit';
-import { loadEnvFiles } from './src/config/env-loader.js';
-import { requireDrizzleDatabaseUrl } from './src/config/drizzle-env.js';
+import { loadEnvFiles } from './src/config/env-loader.ts';
+import { requireDrizzleDatabaseUrl } from './src/config/drizzle-env.ts';
 
 loadEnvFiles();
 

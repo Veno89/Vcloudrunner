@@ -8,12 +8,14 @@ process.env.ENCRYPTION_KEY = '12345678901234567890123456789012';
 const {
   assertUserAccess,
   ensureProjectAccess,
+  ensureProjectDeletionAccess,
   ensureProjectMembershipManagementAccess,
   ensureProjectOwnershipTransferAccess,
   requireScope
 } = await import('./auth-utils.js');
 const {
   ForbiddenProjectAccessError,
+  ForbiddenProjectDeletionError,
   ForbiddenProjectMembershipManagementError,
   ForbiddenProjectOwnershipTransferError,
   ForbiddenTokenScopeError,
@@ -227,6 +229,52 @@ test('ensureProjectOwnershipTransferAccess rejects non-members who are not the o
 
   await assert.rejects(
     ensureProjectOwnershipTransferAccess(service, {
+      projectId: project.id,
+      actor: memberActor
+    }),
+    ForbiddenProjectAccessError
+  );
+});
+
+test('ensureProjectDeletionAccess allows project owners', async () => {
+  const service = buildProjectsService(project);
+
+  const result = await ensureProjectDeletionAccess(service, {
+    projectId: project.id,
+    actor: ownerActor
+  });
+
+  assert.deepEqual(result, project);
+});
+
+test('ensureProjectDeletionAccess allows platform admins', async () => {
+  const service = buildProjectsService(project);
+
+  const result = await ensureProjectDeletionAccess(service, {
+    projectId: project.id,
+    actor: adminActor
+  });
+
+  assert.deepEqual(result, project);
+});
+
+test('ensureProjectDeletionAccess rejects project-admin members who are not the owner', async () => {
+  const service = buildProjectsService(project, { role: 'admin' });
+
+  await assert.rejects(
+    ensureProjectDeletionAccess(service, {
+      projectId: project.id,
+      actor: memberActor
+    }),
+    ForbiddenProjectDeletionError
+  );
+});
+
+test('ensureProjectDeletionAccess rejects non-members who are not the owner or admin', async () => {
+  const service = buildProjectsService(project);
+
+  await assert.rejects(
+    ensureProjectDeletionAccess(service, {
       projectId: project.id,
       actor: memberActor
     }),

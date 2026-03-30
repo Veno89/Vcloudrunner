@@ -175,7 +175,7 @@ function createService(
       findBackupArtifactById: async () => createProjectDatabaseBackupArtifact(),
       updateBackupArtifact: async () => createProjectDatabaseBackupArtifact(),
       createRestoreRequest: async () => createProjectDatabaseRestoreRequest(),
-      findRestoreRequestById: async () => latestRestoreRequest,
+      findRestoreRequestById: async () => createProjectDatabaseRestoreRequest(),
       reviewRestoreRequest: async () => createProjectDatabaseRestoreRequest(),
       updateRestoreRequest: async () => createProjectDatabaseRestoreRequest(),
       replaceServiceLinks: async () => createProjectDatabaseRecord(),
