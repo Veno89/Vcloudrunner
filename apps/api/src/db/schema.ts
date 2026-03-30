@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   boolean,
   index,
   integer,
@@ -56,6 +57,65 @@ export const projectDatabaseHealthStatus = pgEnum('project_database_health_statu
   'credentials_invalid',
   'failing'
 ]);
+
+export const projectDatabaseBackupMode = pgEnum('project_database_backup_mode', [
+  'none',
+  'external'
+]);
+
+export const projectDatabaseBackupSchedule = pgEnum('project_database_backup_schedule', [
+  'daily',
+  'weekly',
+  'monthly',
+  'custom'
+]);
+
+export const projectDatabaseEventKind = pgEnum('project_database_event_kind', [
+  'provisioning',
+  'runtime_health',
+  'credentials',
+  'backup_policy',
+  'recovery_check',
+  'backup_operation',
+  'restore_operation',
+  'backup_artifact',
+  'restore_request'
+]);
+
+export const projectDatabaseOperationKind = pgEnum('project_database_operation_kind', [
+  'backup',
+  'restore'
+]);
+
+export const projectDatabaseOperationStatus = pgEnum('project_database_operation_status', [
+  'succeeded',
+  'failed'
+]);
+
+export const projectDatabaseBackupArtifactStorageProvider = pgEnum(
+  'project_database_backup_artifact_storage_provider',
+  ['s3', 'gcs', 'azure', 'local', 'other']
+);
+
+export const projectDatabaseBackupArtifactIntegrityStatus = pgEnum(
+  'project_database_backup_artifact_integrity_status',
+  ['unknown', 'verified', 'failed']
+);
+
+export const projectDatabaseBackupArtifactLifecycleStatus = pgEnum(
+  'project_database_backup_artifact_lifecycle_status',
+  ['active', 'archived', 'purged']
+);
+
+export const projectDatabaseRestoreRequestStatus = pgEnum(
+  'project_database_restore_request_status',
+  ['requested', 'in_progress', 'succeeded', 'failed', 'cancelled']
+);
+
+export const projectDatabaseRestoreRequestApprovalStatus = pgEnum(
+  'project_database_restore_request_approval_status',
+  ['pending', 'approved', 'rejected']
+);
 
 export const projectDomainOwnershipStatus = pgEnum('project_domain_ownership_status', [
   'managed',
@@ -330,6 +390,11 @@ export const projectDatabases = pgTable('project_databases', {
   lastHealthErrorAt: timestamp('last_health_error_at', { withTimezone: true }),
   consecutiveHealthCheckFailures: integer('consecutive_health_check_failures').notNull().default(0),
   credentialsRotatedAt: timestamp('credentials_rotated_at', { withTimezone: true }),
+  backupMode: projectDatabaseBackupMode('backup_mode').notNull().default('none'),
+  backupSchedule: projectDatabaseBackupSchedule('backup_schedule'),
+  backupRunbook: text('backup_runbook').notNull().default(''),
+  backupVerifiedAt: timestamp('backup_verified_at', { withTimezone: true }),
+  restoreVerifiedAt: timestamp('restore_verified_at', { withTimezone: true }),
   provisionedAt: timestamp('provisioned_at', { withTimezone: true }),
   lastProvisioningAttemptAt: timestamp('last_provisioning_attempt_at', { withTimezone: true }),
   lastErrorAt: timestamp('last_error_at', { withTimezone: true }),
@@ -357,4 +422,86 @@ export const projectDatabaseServiceLinks = pgTable('project_database_service_lin
     .on(table.projectDatabaseId, table.serviceName),
   projectDatabaseServiceLinksServiceIdx: index('project_database_service_links_service_idx')
     .on(table.serviceName)
+}));
+
+export const projectDatabaseEvents = pgTable('project_database_events', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  databaseId: uuid('database_id').notNull().references(() => projectDatabases.id, { onDelete: 'cascade' }),
+  kind: projectDatabaseEventKind('kind').notNull(),
+  previousStatus: varchar('previous_status', { length: 48 }),
+  nextStatus: varchar('next_status', { length: 48 }).notNull(),
+  detail: text('detail').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+}, (table) => ({
+  projectDatabaseEventsDatabaseCreatedIdx: index('project_database_events_database_created_idx')
+    .on(table.databaseId, table.createdAt),
+  projectDatabaseEventsProjectCreatedIdx: index('project_database_events_project_created_idx')
+    .on(table.projectId, table.createdAt)
+}));
+
+export const projectDatabaseOperations = pgTable('project_database_operations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  databaseId: uuid('database_id').notNull().references(() => projectDatabases.id, { onDelete: 'cascade' }),
+  kind: projectDatabaseOperationKind('kind').notNull(),
+  status: projectDatabaseOperationStatus('status').notNull(),
+  summary: text('summary').notNull(),
+  detail: text('detail').notNull().default(''),
+  recordedAt: timestamp('recorded_at', { withTimezone: true }).defaultNow().notNull()
+}, (table) => ({
+  projectDatabaseOperationsDatabaseRecordedIdx: index('project_database_operations_database_recorded_idx')
+    .on(table.databaseId, table.recordedAt),
+  projectDatabaseOperationsProjectRecordedIdx: index('project_database_operations_project_recorded_idx')
+    .on(table.projectId, table.recordedAt)
+}));
+
+export const projectDatabaseBackupArtifacts = pgTable('project_database_backup_artifacts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  databaseId: uuid('database_id').notNull().references(() => projectDatabases.id, { onDelete: 'cascade' }),
+  label: varchar('label', { length: 160 }).notNull(),
+  storageProvider: projectDatabaseBackupArtifactStorageProvider('storage_provider').notNull().default('other'),
+  location: text('location').notNull(),
+  sizeBytes: bigint('size_bytes', { mode: 'number' }),
+  producedAt: timestamp('produced_at', { withTimezone: true }).notNull(),
+  retentionExpiresAt: timestamp('retention_expires_at', { withTimezone: true }),
+  integrityStatus: projectDatabaseBackupArtifactIntegrityStatus('integrity_status').notNull().default('unknown'),
+  lifecycleStatus: projectDatabaseBackupArtifactLifecycleStatus('lifecycle_status').notNull().default('active'),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }),
+  lifecycleChangedAt: timestamp('lifecycle_changed_at', { withTimezone: true }).defaultNow().notNull(),
+  detail: text('detail').notNull().default(''),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+}, (table) => ({
+  projectDatabaseBackupArtifactsDatabaseProducedIdx: index('project_database_backup_artifacts_database_produced_idx')
+    .on(table.databaseId, table.producedAt),
+  projectDatabaseBackupArtifactsProjectCreatedIdx: index('project_database_backup_artifacts_project_created_idx')
+    .on(table.projectId, table.createdAt)
+}));
+
+export const projectDatabaseRestoreRequests = pgTable('project_database_restore_requests', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  databaseId: uuid('database_id').notNull().references(() => projectDatabases.id, { onDelete: 'cascade' }),
+  backupArtifactId: uuid('backup_artifact_id').references(() => projectDatabaseBackupArtifacts.id, { onDelete: 'set null' }),
+  status: projectDatabaseRestoreRequestStatus('status').notNull().default('requested'),
+  approvalStatus: projectDatabaseRestoreRequestApprovalStatus('approval_status').notNull().default('pending'),
+  approvalDetail: text('approval_detail').notNull().default(''),
+  approvalReviewedAt: timestamp('approval_reviewed_at', { withTimezone: true }),
+  target: varchar('target', { length: 160 }).notNull(),
+  summary: text('summary').notNull(),
+  detail: text('detail').notNull().default(''),
+  requestedAt: timestamp('requested_at', { withTimezone: true }).defaultNow().notNull(),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+}, (table) => ({
+  projectDatabaseRestoreRequestsDatabaseRequestedIdx: index('project_database_restore_requests_database_requested_idx')
+    .on(table.databaseId, table.requestedAt),
+  projectDatabaseRestoreRequestsProjectCreatedIdx: index('project_database_restore_requests_project_created_idx')
+    .on(table.projectId, table.createdAt),
+  projectDatabaseRestoreRequestsBackupArtifactIdx: index('project_database_restore_requests_backup_artifact_idx')
+    .on(table.backupArtifactId)
 }));

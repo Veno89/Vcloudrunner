@@ -184,6 +184,68 @@ export class ProjectDatabaseCredentialRotationFailedError extends DomainError {
   }
 }
 
+export class ProjectDatabaseRecoveryCheckNotAllowedError extends DomainError {
+  constructor() {
+    super(
+      'PROJECT_DATABASE_RECOVERY_CHECK_NOT_ALLOWED',
+      'Recovery checks can only be recorded after an external backup plan has been documented for this managed database',
+      409
+    );
+  }
+}
+
+export class ProjectDatabaseBackupArtifactNotAllowedError extends DomainError {
+  constructor() {
+    super(
+      'PROJECT_DATABASE_BACKUP_ARTIFACT_NOT_ALLOWED',
+      'Backup artifacts can only be recorded after an external backup plan has been documented for this managed database',
+      409
+    );
+  }
+}
+
+export class ProjectDatabaseBackupArtifactNotFoundError extends DomainError {
+  constructor() {
+    super('PROJECT_DATABASE_BACKUP_ARTIFACT_NOT_FOUND', 'Project database backup artifact not found', 404);
+  }
+}
+
+export class ProjectDatabaseBackupArtifactUnavailableError extends DomainError {
+  constructor() {
+    super(
+      'PROJECT_DATABASE_BACKUP_ARTIFACT_UNAVAILABLE',
+      'That backup artifact is no longer marked as restorable for this managed database',
+      409
+    );
+  }
+}
+
+export class ProjectDatabaseRestoreRequestNotAllowedError extends DomainError {
+  constructor() {
+    super(
+      'PROJECT_DATABASE_RESTORE_REQUEST_NOT_ALLOWED',
+      'Restore requests can only be created after an external backup plan has been documented for this managed database',
+      409
+    );
+  }
+}
+
+export class ProjectDatabaseRestoreRequestNotFoundError extends DomainError {
+  constructor() {
+    super('PROJECT_DATABASE_RESTORE_REQUEST_NOT_FOUND', 'Project database restore request not found', 404);
+  }
+}
+
+export class ProjectDatabaseRestoreRequestApprovalNotAllowedError extends DomainError {
+  constructor() {
+    super(
+      'PROJECT_DATABASE_RESTORE_REQUEST_APPROVAL_NOT_ALLOWED',
+      'That restore request must be approved before execution state can be advanced',
+      409
+    );
+  }
+}
+
 export class UserEmailTakenError extends DomainError {
   constructor() {
     super('USER_EMAIL_TAKEN', 'Email is already in use by another user', 409);

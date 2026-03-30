@@ -346,6 +346,102 @@ export interface ApiProjectDatabase {
   lastHealthErrorAt: string | null;
   consecutiveHealthCheckFailures: number;
   credentialsRotatedAt: string | null;
+  backupMode: 'none' | 'external';
+  backupSchedule: 'daily' | 'weekly' | 'monthly' | 'custom' | null;
+  backupRunbook: string;
+  backupVerifiedAt: string | null;
+  restoreVerifiedAt: string | null;
+  backupCoverage: {
+    status: 'missing' | 'documented' | 'backup-verified' | 'recovery-verified';
+    title: string;
+    detail: string;
+  };
+  backupExecution: {
+    status: 'not-configured' | 'not-recorded' | 'scheduled' | 'overdue' | 'attention' | 'custom';
+    title: string;
+    detail: string;
+    lastRecordedAt: string | null;
+    nextDueAt: string | null;
+  };
+  restoreExercise: {
+    status: 'not-configured' | 'not-recorded' | 'verified' | 'attention';
+    title: string;
+    detail: string;
+    lastRecordedAt: string | null;
+  };
+  backupInventory: {
+    status: 'missing' | 'recorded' | 'verified' | 'expiring-soon' | 'attention';
+    title: string;
+    detail: string;
+    latestProducedAt: string | null;
+    latestVerifiedAt: string | null;
+    artifactCount: number;
+  };
+  restoreWorkflow: {
+    status: 'idle' | 'awaiting-approval' | 'approved' | 'in-progress' | 'succeeded' | 'attention' | 'cancelled';
+    title: string;
+    detail: string;
+    latestRequestedAt: string | null;
+    activeRequestId: string | null;
+  };
+  recentEvents: Array<{
+    id: string;
+    kind:
+      | 'provisioning'
+      | 'runtime_health'
+      | 'credentials'
+      | 'backup_policy'
+      | 'recovery_check'
+      | 'backup_operation'
+      | 'restore_operation'
+      | 'backup_artifact'
+      | 'restore_request';
+    previousStatus: string | null;
+    nextStatus: string;
+    detail: string;
+    createdAt: string;
+  }>;
+  recentOperations: Array<{
+    id: string;
+    kind: 'backup' | 'restore';
+    status: 'succeeded' | 'failed';
+    summary: string;
+    detail: string;
+    recordedAt: string;
+  }>;
+  backupArtifacts: Array<{
+    id: string;
+    label: string;
+    storageProvider: 's3' | 'gcs' | 'azure' | 'local' | 'other';
+    location: string;
+    sizeBytes: number | null;
+    producedAt: string;
+    retentionExpiresAt: string | null;
+    integrityStatus: 'unknown' | 'verified' | 'failed';
+    lifecycleStatus: 'active' | 'archived' | 'purged';
+    verifiedAt: string | null;
+    lifecycleChangedAt: string;
+    detail: string;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  restoreRequests: Array<{
+    id: string;
+    backupArtifactId: string | null;
+    backupArtifactLabel: string | null;
+    status: 'requested' | 'in_progress' | 'succeeded' | 'failed' | 'cancelled';
+    approvalStatus: 'pending' | 'approved' | 'rejected';
+    approvalDetail: string;
+    approvalReviewedAt: string | null;
+    target: string;
+    summary: string;
+    detail: string;
+    requestedAt: string;
+    startedAt: string | null;
+    completedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }>;
   connectionString: string | null;
   provisionedAt: string | null;
   lastProvisioningAttemptAt: string | null;
@@ -856,6 +952,159 @@ export async function rotateProjectDatabaseCredentials(
   const response = await postJson<ApiDataResponse<ApiProjectDatabase>>(
     `/v1/projects/${projectId}/databases/${databaseId}/rotate-credentials`,
     {}
+  );
+
+  return response.data;
+}
+
+export async function updateProjectDatabaseBackupPolicy(
+  projectId: string,
+  databaseId: string,
+  input: {
+    backupMode: 'none' | 'external';
+    backupSchedule: 'daily' | 'weekly' | 'monthly' | 'custom' | null;
+    backupRunbook: string;
+  }
+): Promise<ApiProjectDatabase> {
+  const response = await putJson<ApiDataResponse<ApiProjectDatabase>>(
+    `/v1/projects/${projectId}/databases/${databaseId}/backup-policy`,
+    input
+  );
+
+  return response.data;
+}
+
+export async function recordProjectDatabaseRecoveryCheck(
+  projectId: string,
+  databaseId: string,
+  input: {
+    kind: 'backup' | 'restore';
+    status?: 'succeeded' | 'failed';
+    summary?: string;
+    detail?: string;
+  }
+): Promise<ApiProjectDatabase> {
+  const response = await postJson<ApiDataResponse<ApiProjectDatabase>>(
+    `/v1/projects/${projectId}/databases/${databaseId}/recovery-checks`,
+    input
+  );
+
+  return response.data;
+}
+
+export async function recordProjectDatabaseBackupArtifact(
+  projectId: string,
+  databaseId: string,
+  input: {
+    label: string;
+    storageProvider: 's3' | 'gcs' | 'azure' | 'local' | 'other';
+    location: string;
+    sizeBytes?: number | null;
+    producedAt: string;
+    retentionExpiresAt?: string | null;
+    integrityStatus?: 'unknown' | 'verified' | 'failed';
+    detail?: string;
+  }
+): Promise<ApiProjectDatabase> {
+  const response = await postJson<ApiDataResponse<ApiProjectDatabase>>(
+    `/v1/projects/${projectId}/databases/${databaseId}/backup-artifacts`,
+    {
+      label: input.label,
+      storageProvider: input.storageProvider,
+      location: input.location,
+      sizeBytes: input.sizeBytes ?? null,
+      producedAt: input.producedAt,
+      retentionExpiresAt: input.retentionExpiresAt ?? null,
+      integrityStatus: input.integrityStatus ?? 'unknown',
+      detail: input.detail ?? ''
+    }
+  );
+
+  return response.data;
+}
+
+export async function updateProjectDatabaseBackupArtifact(
+  projectId: string,
+  databaseId: string,
+  backupArtifactId: string,
+  input: {
+    integrityStatus: 'unknown' | 'verified' | 'failed';
+    lifecycleStatus: 'active' | 'archived' | 'purged';
+    retentionExpiresAt?: string | null;
+    detail?: string;
+  }
+): Promise<ApiProjectDatabase> {
+  const response = await putJson<ApiDataResponse<ApiProjectDatabase>>(
+    `/v1/projects/${projectId}/databases/${databaseId}/backup-artifacts/${backupArtifactId}`,
+    {
+      integrityStatus: input.integrityStatus,
+      lifecycleStatus: input.lifecycleStatus,
+      retentionExpiresAt: input.retentionExpiresAt ?? null,
+      detail: input.detail ?? ''
+    }
+  );
+
+  return response.data;
+}
+
+export async function createProjectDatabaseRestoreRequest(
+  projectId: string,
+  databaseId: string,
+  input: {
+    backupArtifactId?: string | null;
+    target: string;
+    summary: string;
+    detail?: string;
+  }
+): Promise<ApiProjectDatabase> {
+  const response = await postJson<ApiDataResponse<ApiProjectDatabase>>(
+    `/v1/projects/${projectId}/databases/${databaseId}/restore-requests`,
+    {
+      backupArtifactId: input.backupArtifactId ?? null,
+      target: input.target,
+      summary: input.summary,
+      detail: input.detail ?? ''
+    }
+  );
+
+  return response.data;
+}
+
+export async function reviewProjectDatabaseRestoreRequest(
+  projectId: string,
+  databaseId: string,
+  restoreRequestId: string,
+  input: {
+    approvalStatus: 'approved' | 'rejected';
+    approvalDetail?: string;
+  }
+): Promise<ApiProjectDatabase> {
+  const response = await putJson<ApiDataResponse<ApiProjectDatabase>>(
+    `/v1/projects/${projectId}/databases/${databaseId}/restore-requests/${restoreRequestId}/approval`,
+    {
+      approvalStatus: input.approvalStatus,
+      approvalDetail: input.approvalDetail ?? ''
+    }
+  );
+
+  return response.data;
+}
+
+export async function updateProjectDatabaseRestoreRequest(
+  projectId: string,
+  databaseId: string,
+  restoreRequestId: string,
+  input: {
+    status: 'requested' | 'in_progress' | 'succeeded' | 'failed' | 'cancelled';
+    detail?: string;
+  }
+): Promise<ApiProjectDatabase> {
+  const response = await putJson<ApiDataResponse<ApiProjectDatabase>>(
+    `/v1/projects/${projectId}/databases/${databaseId}/restore-requests/${restoreRequestId}`,
+    {
+      status: input.status,
+      detail: input.detail ?? ''
+    }
   );
 
   return response.data;

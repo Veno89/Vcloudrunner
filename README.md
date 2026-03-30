@@ -10,7 +10,7 @@ What you can do with it today:
 
 - create projects that point at Git repos
 - store per-project environment variables
-- provision managed Postgres resources with generated credentials, linked-service env injection, persisted runtime health, reconcile/rotation controls, and project-scoped delete controls
+- provision managed Postgres resources with generated credentials, linked-service env injection, persisted runtime health, reconcile/rotation controls, external backup runbooks, backup/restore operation journaling, backup artifact inventory, artifact lifecycle controls, restore request approval tracking, audit export, due-state visibility, and project-scoped delete controls
 - trigger deployments and watch logs
 - manage custom domains with TXT claim checks, DNS/TLS diagnostics, certificate guidance, presented-chain visibility, last-healthy issuer-path snapshots, intermediate-certificate validity surfacing, chain recovery history, certificate rotation telemetry, persistent certificate issue surfacing, and event-backed certificate trust / issuer-path recovery history
 - see queue / worker / API health from the dashboard
@@ -141,7 +141,8 @@ npm run dev:dashboard
   - optional `MANAGED_POSTGRES_RUNTIME_SSL_MODE` set to `disable`, `prefer`, or `require`
 - managed Postgres reconcile now re-checks runtime connectivity with the generated service credentials after provisioning work completes, so the dashboard can distinguish “provisioned” from “runtime healthy”
 - managed Postgres credential rotation is available from the dashboard/API, but linked services still need a redeploy after rotation so they receive the new generated password
-- managed Postgres backup scheduling and restore are not automated yet; keep an external backup process in place for any database you care about
+- managed Postgres now persists external backup mode/cadence, runbook notes, backup and restore operation history, backup artifact inventory, artifact lifecycle state, restore request approval history, verification timestamps, due/attention status, audit-export data, and recent database activity history in the dashboard/API
+- managed Postgres backup execution, backup retention enforcement, approval ownership, and restore execution are not automated yet; keep an external backup process and restore runbook in place for any database you care about
 - the compose stack now wires those managed-Postgres envs for the bundled single-node Postgres service and pins the default Docker network name to `vcloudrunner-platform`, which is the shared runtime network the worker uses when injecting managed Postgres connection strings into deployed containers
 
 ## MVP Infrastructure Model
@@ -167,7 +168,7 @@ No Kubernetes or multi-node orchestration is introduced in the MVP.
 ### Data + Runtime
 - Drizzle PostgreSQL schema for platform entities
 - Docker-based deployment runtime
-- managed Postgres control-plane resource model with generated credentials, linked-service env injection, persisted runtime health, and credential rotation
+- managed Postgres control-plane resource model with generated credentials, linked-service env injection, persisted runtime health, credential rotation, recovery scaffolding, manual backup/restore operation journaling, backup artifact inventory, artifact lifecycle controls, restore request approval scaffolding, and audit export
 - Environment variable encryption at rest (API)
 
 ### Local Infrastructure
@@ -204,9 +205,17 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 - `DELETE /v1/users/:userId/api-tokens/:tokenId`
 - `GET /v1/projects/:projectId`
 - `GET /v1/projects/:projectId/databases`
+- `GET /v1/projects/:projectId/databases/:databaseId/audit/export`
 - `POST /v1/projects/:projectId/databases`
 - `POST /v1/projects/:projectId/databases/:databaseId/reconcile`
 - `POST /v1/projects/:projectId/databases/:databaseId/rotate-credentials`
+- `PUT /v1/projects/:projectId/databases/:databaseId/backup-policy`
+- `POST /v1/projects/:projectId/databases/:databaseId/recovery-checks`
+- `POST /v1/projects/:projectId/databases/:databaseId/backup-artifacts`
+- `PUT /v1/projects/:projectId/databases/:databaseId/backup-artifacts/:backupArtifactId`
+- `POST /v1/projects/:projectId/databases/:databaseId/restore-requests`
+- `PUT /v1/projects/:projectId/databases/:databaseId/restore-requests/:restoreRequestId/approval`
+- `PUT /v1/projects/:projectId/databases/:databaseId/restore-requests/:restoreRequestId`
 - `PUT /v1/projects/:projectId/databases/:databaseId/service-links`
 - `DELETE /v1/projects/:projectId/databases/:databaseId`
 - `POST /v1/projects/:projectId/deployments`

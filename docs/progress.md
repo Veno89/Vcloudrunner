@@ -1,6 +1,6 @@
 # Vcloudrunner MVP Progress Tracker
 
-Last updated: 2026-03-29 (Managed Postgres operations batch)
+Last updated: 2026-03-30 (Managed Postgres recovery control + audit batch)
 
 ## Legend
 
@@ -10,7 +10,7 @@ Last updated: 2026-03-29 (Managed Postgres operations batch)
 
 
 
-## Phase Status Snapshot (2026-03-29)
+## Phase Status Snapshot (2026-03-30)
 
 - **Phase 1: Critical stabilization** — ~99% complete
   - done: deployment concurrency invariant (service + DB), queue enqueue failure mapping/state correction, deployment-create env-resolution failure correction so decrypt/read failures no longer strand active deployments, queued-cancel race/idempotency hardening, safer compose defaults, production dev-auth startup guard, stricter bootstrap token startup validation, strict env-boolean parsing for auth/ingress and worker archive-lifecycle flags, strict numeric env parsing for API/worker runtime settings so blank strings no longer coerce to `0`, telemetry startup that now honors the same boolean env semantics as the validated config layer, explicit rejection of invalid credentials during dev-auth fallback flows, root auth/error plugin inheritance fix, host-run worker `.env` loading that now matches the documented app-local override flow, cwd-independent repo-root env resolution for API/worker startup and API `drizzle-kit` commands, aligned `drizzle-kit` env loading/fail-fast behavior with the API runtime, pinned compose API dev auth off independently from local host-run `.env` settings, stricter Redis queue URL parsing so explicit database paths must be integer indexes instead of silently coercing invalid values, broader API auth/deployment regression coverage, fuller api-token route access coverage, and clearer dashboard auth/config failure states
@@ -27,6 +27,130 @@ Last updated: 2026-03-29 (Managed Postgres operations batch)
   - left (~0%): the current four-phase MVP plan is complete; broader auth/team maturity, richer outbound delivery providers, runtime adapter expansion, and advanced day-2 tooling now belong to the next planning pass rather than the original phase checklist
 
 ## Implementation Log
+
+### Phase: Managed Postgres recovery control + audit batch (2026-03-30, artifact lifecycle controls + restore approval scaffolding + audit export)
+
+- what was built:
+  - extended managed Postgres backup artifacts with first-class lifecycle state plus verification timing, so artifacts can now be marked `active`, `archived`, or `purged` instead of recovery inventory being only a flat list of labels and retention dates
+  - added explicit restore-request approval scaffolding with persisted approval status/detail/timing and execution guards, so restore workflows now distinguish “requested,” “approved and ready to run,” “in progress,” and “rejected” instead of letting execution updates jump forward without operator review
+  - taught the managed database service layer to derive more truthful backup-inventory and restore-workflow summaries from those new controls, including purged/non-restorable artifact handling, archived-artifact guidance, approval-aware restore status, and rejection follow-up messaging
+  - added a project-database audit export API plus dashboard proxy/download path so operators can export a fuller JSON snapshot of database recovery state, recent events, operations, artifacts, and restore requests instead of relying only on the page-level recent-history cards
+  - rebuilt the dashboard Databases page around those richer contracts with artifact lifecycle editing, restore approval controls, approval-aware execution actions, and per-database audit export links while keeping the platform honest that backup execution and restore execution are still operator-managed
+  - extended API and dashboard tests around the new artifact update routes, restore approval routes, audit export path, and approval/execution guardrails so the new recovery control plane stays fully validated end to end
+  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd exec --workspace @vcloudrunner/api -- tsx --test src/modules/project-databases/project-databases.service.test.ts src/modules/project-databases/project-databases.routes.test.ts`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `README.md`
+  - `apps/api/drizzle/0029_project_database_recovery_lifecycle.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/server/domain-errors.ts`
+  - `apps/api/src/modules/project-databases/project-databases.repository.ts`
+  - `apps/api/src/modules/project-databases/project-databases.routes.ts`
+  - `apps/api/src/modules/project-databases/project-databases.routes.test.ts`
+  - `apps/api/src/modules/project-databases/project-databases.service.ts`
+  - `apps/api/src/modules/project-databases/project-databases.service.test.ts`
+  - `apps/dashboard/app/api/project-database-audit/route.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-databases.ts`
+  - `apps/dashboard/app/projects/[id]/databases/actions.ts`
+  - `apps/dashboard/app/projects/[id]/databases/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - managed Postgres now has a much more truthful recovery control surface, but actual backup execution, retention enforcement, approval ownership attribution, and restore execution are still operator-managed rather than platform-automated
+  - storage sizing choices and deeper managed-Postgres lifecycle controls are still missing if we want to fully close the Postgres v1 surface before moving on
+  - only managed Postgres is modeled today; MongoDB and Redis still belong to later managed-data slices after the Postgres lifecycle is judged mature enough
+- next recommended step:
+  - either finish managed Postgres v1 with storage sizing choices plus stricter restore-execution / retention ownership controls, or treat Postgres as mature enough now and start the next managed-data resource pattern with MongoDB or Redis
+
+### Phase: Managed Postgres recovery inventory batch (2026-03-30, backup artifact inventory + restore request workflow scaffolding + broader audit visibility)
+
+- what was built:
+  - added first-class managed-database backup artifact inventory with persisted artifact metadata, integrity state, retention timestamps, and storage-provider labels, so operators can track real backup outputs instead of only logging that a backup happened
+  - added a persisted restore-request workflow model plus dedicated API routes for creating and updating restore requests, so restore drills now have an explicit request/status lifecycle instead of living only as freeform operation notes
+  - taught the managed database service layer to derive truthful backup-inventory and restore-workflow summaries from recent artifacts and restore requests, including artifact verification/retention attention states and requested/in-progress/failed restore workflow visibility
+  - extended the managed-database event history so backup artifact recording and restore-request lifecycle changes show up alongside the earlier provisioning, health, credential, and backup-policy activity
+  - rebuilt the dashboard Databases page around that richer contract with recorded-artifact cards, artifact/integrity detail, restore request creation and status updates, and clearer operator-facing audit/history visibility for recovery posture
+  - refreshed the top-level README operator notes and API endpoint inventory to document backup-artifact inventory plus restore-request workflow scaffolding while keeping the current limitation explicit that actual backup execution and restore execution are still operator-managed
+  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `README.md`
+  - `apps/api/drizzle/0028_project_database_recovery_inventory.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/server/domain-errors.ts`
+  - `apps/api/src/modules/project-databases/project-databases.repository.ts`
+  - `apps/api/src/modules/project-databases/project-databases.routes.ts`
+  - `apps/api/src/modules/project-databases/project-databases.routes.test.ts`
+  - `apps/api/src/modules/project-databases/project-databases.service.ts`
+  - `apps/api/src/modules/project-databases/project-databases.service.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-databases.ts`
+  - `apps/dashboard/app/projects/[id]/databases/actions.ts`
+  - `apps/dashboard/app/projects/[id]/databases/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - managed Postgres now has artifact inventory and restore-request workflow scaffolding, but actual backup execution, restore execution, retention enforcement, and longer-horizon/exportable audit views are still operator-managed rather than platform-automated
+  - only managed Postgres is modeled today; MongoDB and Redis still belong to later managed-data slices after the Postgres lifecycle and recovery surface are sturdier
+- next recommended step:
+  - continue managed databases v1 with restore execution / approval scaffolding, backup-artifact lifecycle controls, and longer-horizon audit/export visibility for managed Postgres before broadening the managed-data surface to MongoDB or Redis
+
+### Phase: Managed Postgres backup/restore operations batch (2026-03-30, first-class operation journal + due-state visibility + operator-facing history)
+
+- what was built:
+  - added a first-class managed-database operation journal with persisted `project_database_operations` plus explicit `backup_operation` / `restore_operation` database events, so backup runs and restore drills are no longer represented only as bare verification timestamps
+  - widened the managed database recovery-check write path into a richer backup/restore operation logger that records success or failure, summary text, and detailed notes while still updating the legacy verification checkpoints only for successful runs
+  - taught the managed database service layer to derive truthful backup-execution and restore-exercise states (`not-configured`, `not-recorded`, `scheduled`, `overdue`, `attention`, `custom`, and `verified`) from the new operation history plus the older verification timestamps, so operators can distinguish overdue backups from outright failures
+  - rebuilt the dashboard Databases page around that richer contract with backup-on-schedule and restore-verified summary cards, operation-journal forms, due/attention badges, next-due timing, and per-database operation history instead of only showing runbook metadata and generic recovery timestamps
+  - extended the managed-database API and dashboard contracts/tests so the new backup/restore journaling flow stays fully typed and validated across routes, service logic, and operator UI
+  - refreshed the top-level README operator notes to describe manual backup/restore operation journaling and the still-explicit limitation that backup execution and restore remain operator-managed
+  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `README.md`
+  - `apps/api/drizzle/0027_project_database_operations.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/modules/project-databases/project-databases.repository.ts`
+  - `apps/api/src/modules/project-databases/project-databases.routes.ts`
+  - `apps/api/src/modules/project-databases/project-databases.routes.test.ts`
+  - `apps/api/src/modules/project-databases/project-databases.service.ts`
+  - `apps/api/src/modules/project-databases/project-databases.service.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-databases.ts`
+  - `apps/dashboard/app/projects/[id]/databases/actions.ts`
+  - `apps/dashboard/app/projects/[id]/databases/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - managed Postgres now has a truthful manual operations ledger plus due/attention visibility, but backup execution is still operator-run, restore remains a logged drill instead of a first-class restore workflow, and the platform still does not track backup artifacts, restore requests, or longer-horizon audit/reporting beyond recent history
+  - only managed Postgres is modeled today; MongoDB and Redis still belong to later managed-data slices after the Postgres lifecycle and recovery surface are sturdier
+- next recommended step:
+  - continue managed databases v1 with backup artifact inventory plus restore request/workflow scaffolding and broader audit visibility for managed Postgres before expanding the managed-data surface to MongoDB or Redis
+
+### Phase: Managed Postgres recovery scaffolding batch (2026-03-29, external backup runbooks + recovery checkpoints + recent activity history)
+
+- what was built:
+  - extended the managed Postgres resource model with persisted external backup mode/cadence, runbook notes, backup verification timestamps, restore-drill timestamps, and first-class database event history, so recovery posture is now tracked as platform state instead of relying on out-of-band operator memory
+  - added dedicated project-database API routes for backup-policy updates and manual recovery-check recording, keeping those write paths behind the same project-admin membership-management boundary as the rest of the managed database control surface instead of burying them inside generic reconcile flows
+  - taught the managed database service layer to derive truthful backup-coverage states (`missing`, `documented`, `backup-verified`, `recovery-verified`) plus recent activity records for provisioning, runtime health, credentials, backup-policy changes, and recovery-check updates
+  - rebuilt the dashboard Databases page as a cohesive operator surface for this new contract, including backup runbook editing, recovery verification buttons, linked-service management, persisted runtime/backup status badges, and recent database activity history instead of leaving the new backup/recovery data invisible
+  - refreshed the top-level README operator notes and API endpoint inventory to document the new backup-policy / recovery-check flows while keeping the current limitation explicit that backup execution and restore automation are still operator-managed
+  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
+- files created or changed:
+  - `README.md`
+  - `apps/api/drizzle/0026_project_database_recovery_scaffolding.sql`
+  - `apps/api/src/db/schema.ts`
+  - `apps/api/src/server/domain-errors.ts`
+  - `apps/api/src/modules/project-databases/project-databases.repository.ts`
+  - `apps/api/src/modules/project-databases/project-databases.routes.ts`
+  - `apps/api/src/modules/project-databases/project-databases.routes.test.ts`
+  - `apps/api/src/modules/project-databases/project-databases.service.ts`
+  - `apps/api/src/modules/project-databases/project-databases.service.test.ts`
+  - `apps/dashboard/lib/api.ts`
+  - `apps/dashboard/lib/project-databases.ts`
+  - `apps/dashboard/app/projects/[id]/databases/actions.ts`
+  - `apps/dashboard/app/projects/[id]/databases/page.tsx`
+  - `docs/progress.md`
+- what is still missing:
+  - managed Postgres now has documented recovery scaffolding and recent activity history, but backup execution, restore automation, backup artifact inventory, and longer-horizon audit/reporting are still missing
+  - only managed Postgres is modeled today; MongoDB and Redis still belong to later managed-data slices after the Postgres lifecycle is sturdier
+- next recommended step:
+  - continue managed databases v1 with first-class backup execution / restore workflow scaffolding and longer-horizon database audit visibility before broadening the managed-data surface to MongoDB or Redis
 
 ### Phase: Managed Postgres operations batch (2026-03-29, persisted runtime health + health-aware reconcile + credential rotation + operator guidance)
 
@@ -3097,7 +3221,7 @@ Last updated: 2026-03-29 (Managed Postgres operations batch)
 
 ## 9) Testing Status
 
-- [~] Static checks attempted in current environment (shared-types `build`, API `typecheck`/`test`, worker `typecheck`/`test`, and dashboard `typecheck`/`lint` are all passing as of 2026-03-29 after the managed Postgres operations batch, with API tests now at `314/314` and worker tests at `235/235`; broader workspace validation is still missing only the true end-to-end compose/runtime pass in this environment)
+- [~] Static checks attempted in current environment (shared-types `build`, API `typecheck`/`test`, worker `typecheck`/`test`, and dashboard `typecheck`/`lint` are all passing as of 2026-03-30 after the managed Postgres recovery control + audit batch, with API tests now at `335/335` and worker tests last verified at `235/235`; broader workspace validation is still missing only the true end-to-end compose/runtime pass in this environment)
 - [ ] End-to-end compose validation (blocked by missing Docker CLI in this environment)
 - [~] Typecheck/test execution with installed dependencies (shared-types, API, dashboard typecheck, and worker package verified; broader workspace install/validation still environment-dependent)
 
@@ -3105,5 +3229,5 @@ Last updated: 2026-03-29 (Managed Postgres operations batch)
 
 ## Immediate Next Recommended Steps
 
-1. Continue managed databases v1 with managed Postgres follow-through: add backup scheduling / restore scaffolding plus clearer recovery/audit visibility around provisioned resources before broadening the managed-data surface further.
-2. After that Postgres follow-through is in place, decide whether the next managed-data slice should stay in Postgres (for example storage classes and stricter lifecycle controls) or expand the same resource pattern to MongoDB / Redis.
+1. Decide whether managed Postgres is mature enough to broaden the managed-data model, or whether the next slice should stay in Postgres for storage sizing choices plus stricter restore-execution / retention ownership controls.
+2. If the platform stays in Postgres first, finish that v1 surface before expanding the same resource pattern to MongoDB / Redis.
