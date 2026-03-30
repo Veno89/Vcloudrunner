@@ -1,6 +1,13 @@
 # Vcloudrunner
 
-Single-node self-hosted PaaS MVP monorepo. Think "a small Railway/Vercel-style platform that runs on one machine".
+Single-node self-hosted application-platform monorepo. Think "a small Railway/Vercel-style platform that runs on one machine," built intentionally around a strong single-node operating model rather than premature multi-node complexity.
+
+## Current Status
+
+- the original four-phase MVP plan is effectively complete
+- the project is now roadmap-driven, with domains/TLS significantly matured and managed Postgres v1 underway
+- the current product target is best-in-class single-node self-hosted, not multi-node / HA yet
+- multi-node work is intentionally deferred until the single-node platform has been validated with real users, real projects, and real data
 
 ## Start Here (Noob-Friendly)
 
@@ -9,19 +16,21 @@ Vcloudrunner takes a Git repository, builds it in Docker, runs it on the same ma
 What you can do with it today:
 
 - create projects that point at Git repos
+- define one project with multiple services, one primary public service, and internal-only services with stable service-to-service addressing
 - store per-project environment variables
 - provision managed Postgres resources with generated credentials, linked-service env injection, persisted runtime health, reconcile/rotation controls, external backup runbooks, backup/restore operation journaling, backup artifact inventory, artifact lifecycle controls, restore request approval tracking, audit export, due-state visibility, and project-scoped delete controls
 - trigger deployments and watch logs
 - manage custom domains with TXT claim checks, DNS/TLS diagnostics, certificate guidance, presented-chain visibility, last-healthy issuer-path snapshots, intermediate-certificate validity surfacing, chain recovery history, certificate rotation telemetry, persistent certificate issue surfacing, and event-backed certificate trust / issuer-path recovery history
 - see queue / worker / API health from the dashboard
 - manage API tokens for dashboard and API access
+- use session-backed dashboard sign-in, stored user profiles, project membership, invitations, and ownership transfer
 - invite project members with claim links, ownership transfer, and optional outbound invite-delivery webhook automation
 
 Important current limitations:
 
-- this is still an MVP aimed at local/self-hosted development, not a polished hosted SaaS
-- there is no sign-up / login UI yet
-- if `NEXT_PUBLIC_DEMO_USER_ID` and `API_AUTH_TOKEN` are not configured, the dashboard still loads, but user-scoped pages intentionally show explicit live-data unavailable guidance
+- this is still a self-hosted platform in active roadmap development, not a polished hosted SaaS
+- there is not yet a full end-user signup/password auth flow; current auth is centered on API tokens, session-backed dashboard access, invitations, and controlled local-dev bootstrap paths
+- if no live session/token or local dev bootstrap is configured, the dashboard still loads, but user-scoped pages intentionally show explicit auth-required or live-data-unavailable guidance
 - local deployed-app URLs under `*.apps.platform.example.com` need matching DNS or tunnel setup; the dashboard and API hostnames are the easiest things to test first
 
 ## Fastest Way To Try It
@@ -145,15 +154,15 @@ npm run dev:dashboard
 - managed Postgres backup execution, backup retention enforcement, approval ownership, and restore execution are not automated yet; keep an external backup process and restore runbook in place for any database you care about
 - the compose stack now wires those managed-Postgres envs for the bundled single-node Postgres service and pins the default Docker network name to `vcloudrunner-platform`, which is the shared runtime network the worker uses when injecting managed Postgres connection strings into deployed containers
 
-## MVP Infrastructure Model
+## Single-Node Infrastructure Model
 
-The MVP intentionally runs on **one machine** using Docker Engine and Docker Compose.
+The current product target intentionally runs on **one machine** using Docker Engine and Docker Compose.
 
 Traffic path:
 
 `Cloudflare Edge -> cloudflared -> Caddy -> API/deployed containers`
 
-No Kubernetes or multi-node orchestration is introduced in the MVP.
+Multi-node orchestration and HA coordination are intentionally out of scope for the current roadmap pass.
 
 ## Implemented so far
 
@@ -164,12 +173,15 @@ No Kubernetes or multi-node orchestration is introduced in the MVP.
 - Caddy route upsert integration from worker
 - Dashboard for status, projects, deployments, logs, environment variables, and token management
 - Deployment logs viewer with live SSE stream, export, reconnect handling, and terminal-state-aware fallbacks
+- Project composition with named services, one public entrypoint, internal-only services, and stable service-discovery env injection
 
 ### Data + Runtime
 - Drizzle PostgreSQL schema for platform entities
 - Docker-based deployment runtime
 - managed Postgres control-plane resource model with generated credentials, linked-service env injection, persisted runtime health, credential rotation, recovery scaffolding, manual backup/restore operation journaling, backup artifact inventory, artifact lifecycle controls, restore request approval scaffolding, and audit export
 - Environment variable encryption at rest (API)
+- Custom-domain lifecycle with TXT claim verification, DNS/TLS diagnostics, certificate guidance, chain visibility, and recovery history
+- Session-backed dashboard auth, persisted user/account bootstrap, project membership, invitations, and ownership transfer
 
 ### Local Infrastructure
 - `docker-compose` stack for: `dashboard`, `api`, `worker`, `postgres`, `redis`, `caddy` (+ optional `cloudflared` profile)
@@ -187,8 +199,8 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 
 ## Progress Tracking
 
-- See `docs/progress.md` for a live checklist of done vs remaining MVP tasks.
-- See `docs/roadmap.md` for the product roadmap and planned feature direction, including multi-service apps and managed databases.
+- See `docs/progress.md` for engineering progress, implementation slices, and the current single-node product guardrail.
+- See `docs/roadmap.md` for the product roadmap and planned feature direction beyond the original MVP checklist.
 
 ## API Endpoints
 
@@ -229,7 +241,7 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 - `GET /v1/projects/:projectId/deployments/:deploymentId/logs/export`
 
 
-## Minimal Auth Boundary (MVP)
+## Current Auth Model
 
 - All `/v1` project-scoped endpoints require `Authorization: Bearer <token>`.
 - API resolves auth context from DB-backed `api_tokens` (SHA-256 token hash + revocation/expiry checks) first, with `API_TOKENS_JSON` available only as a bootstrap/dev fallback.
@@ -242,7 +254,7 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 - `admin` role can access all projects; `user` role can access owned projects plus projects granted through `project_members`.
 - API tokens now support explicit scope sets (e.g. `projects:read`, `deployments:write`, `logs:read`, `tokens:write`) with route-level scope guards.
 - Existing legacy tokens without scope metadata are normalized to compatibility defaults during auth resolution.
-- Dashboard server-side API calls use `API_AUTH_TOKEN` when configured.
+- Dashboard supports session-backed sign-in/sign-out using a DB-backed API token, with `API_AUTH_TOKEN` still available as a server-side bootstrap/default path when explicitly configured.
 
 
 ## API Ingress Hardening
