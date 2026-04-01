@@ -1,5 +1,5 @@
 import { DeploymentEventBus } from './deployment-events.js';
-import { createWebhookDeploymentEventListener } from './webhook-deployment-event-listener.factory.js';
+import { createConfiguredWebhookDeploymentEventListener } from './configured-webhook-deployment-event-listener.factory.js';
 
 export interface DeploymentEventListener {
   attach(bus: DeploymentEventBus): void;
@@ -12,7 +12,7 @@ interface CreateConfiguredDeploymentEventBusOptions {
 export function createConfiguredDeploymentEventBus(
   options: CreateConfiguredDeploymentEventBusOptions = {}
 ): DeploymentEventBus {
-  const createListenerFn = options.createListener ?? createWebhookDeploymentEventListener;
+  const createListenerFn = options.createListener ?? createConfiguredWebhookDeploymentEventListener;
 
   const bus = new DeploymentEventBus();
   const listener = createListenerFn();

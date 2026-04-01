@@ -1,6 +1,6 @@
 ﻿# Vcloudrunner MVP Progress Tracker
 
-Last updated: 2026-04-01 (Code health audit — Batch E: project-databases.service.ts split)
+Last updated: 2026-04-01 (Code health audit — Batch F: worker factory chain collapse)
 
 ## Legend
 
@@ -82,7 +82,7 @@ Last updated: 2026-04-01 (Code health audit — Batch E: project-databases.servi
   - **medium-risk**: split `projects.service.ts` (3854 lines) into bounded service modules — **done (Batch C)**
   - **medium-risk**: split `projects.repository.ts` (53KB) by domain — **done (Batch D)**
   - **medium-risk**: split `project-databases.service.ts` (66KB) by concern — **done (Batch E)**
-  - **high-risk**: collapse worker factory chains for single-implementation seams (~59 factory files, ~8 with only one implementation, ~15-20 low-value wiring tests)
+  - **high-risk**: collapse worker factory chains for single-implementation seams (~59 factory files, ~8 with only one implementation, ~15-20 low-value wiring tests) — **done (Batch F)**
   - **deferred**: shared error code taxonomy between API and dashboard, dashboard unit tests, E2E tests
 - known issues:
   - compose runtime cannot be executed in this environment due to missing Docker CLI
@@ -200,6 +200,51 @@ Last updated: 2026-04-01 (Code health audit — Batch E: project-databases.servi
   - `npm test` — passed (337/337 tests, 0 failures)
 - next recommended step:
   - collapse worker factory chains for single-implementation seams (~59 factory files)
+
+### Phase: Code health audit — Batch F: worker factory chain collapse (2026-04-01)
+
+- audit context:
+  - the worker app contained ~61 factory files following a two-layer pattern: `X.factory.ts` (proxy) delegates to `configured-X.factory.ts` (real factory)
+  - survey identified 12 pure pass-through proxy factories that add zero logic, just `return createConfiguredX()`
+  - each proxy also had a wiring-only test file that tested nothing beyond "the proxy calls the configured version"
+  - 25 factories with meaningful logic (runtime family resolution, dependency aggregation, conditional routing, config assembly) were kept
+- what was built in this batch:
+  - **proxy factory collapse**: deleted 12 proxy factory files and 11 corresponding test files (23 files total)
+  - **caller import rewiring**: updated 9 production caller files to import directly from the configured factory instead of the deleted proxy
+  - **barrel re-export update**: updated `build-detection/index.ts` to re-export `createConfiguredBuildSystemResolver` instead of the deleted proxy export
+  - net result: 61 → 49 factory files, eliminating all pure pass-through indirection layers
+- proxy factories deleted:
+  - `services/deployment-runner.factory.ts` — proxy to `configured-deployment-runner.factory.ts`
+  - `services/caddy.service.factory.ts` — proxy to `configured-caddy.service.factory.ts`
+  - `services/webhook-deployment-event-listener.factory.ts` — proxy to `configured-webhook-deployment-event-listener.factory.ts`
+  - `services/runtime/deployment-image-builder.factory.ts` — proxy to `runtime/configured-deployment-image-builder.factory.ts`
+  - `services/http/outbound-http-client.factory.ts` — proxy to `http/configured-outbound-http-client.factory.ts`
+  - `services/ingress/ingress-manager.factory.ts` — proxy to `ingress/configured-ingress-manager.factory.ts`
+  - `services/archive-build/deployment-log-archive-builder.factory.ts` — proxy to `configured-deployment-log-archive-builder.factory.ts`
+  - `services/archive-store/deployment-log-archive-store.factory.ts` — proxy to `configured-deployment-log-archive-store.factory.ts`
+  - `services/archive-upload/deployment-log-archive-uploader.factory.ts` — proxy to `configured-deployment-log-archive-uploader.factory.ts`
+  - `services/archive-upload/archive-upload-provider.factory.ts` — proxy to `configured-archive-upload-provider.factory.ts`
+  - `services/build-detection/build-system-resolver.factory.ts` — proxy to `configured-build-system-resolver.factory.ts`
+  - `services/build-detection/repository-file-inspector.factory.ts` — proxy to `configured-repository-file-inspector.factory.ts`
+- caller files updated:
+  - `services/runtime/docker-runtime-executor.factory.ts` — `createDeploymentRunner` → `createConfiguredDeploymentRunner`
+  - `services/configured-deployment-runner.factory.ts` — `createDeploymentImageBuilder` → `createConfiguredDeploymentImageBuilder`
+  - `services/runtime/configured-deployment-image-builder.factory.ts` — `createBuildSystemResolver` → `createConfiguredBuildSystemResolver`
+  - `services/archive-upload/configured-deployment-log-archive-uploader.factory.ts` — `createOutboundHttpClient` → `createConfiguredOutboundHttpClient`, `createArchiveUploadProvider` → `createConfiguredArchiveUploadProvider`
+  - `services/deployment-state-service-dependencies.factory.ts` — 4 imports redirected: `createIngressManager`, `createDeploymentLogArchiveBuilder`, `createDeploymentLogArchiveStore`, `createDeploymentLogArchiveUploader`
+  - `services/deployment-event-bus.factory.ts` — `createWebhookDeploymentEventListener` → `createConfiguredWebhookDeploymentEventListener`
+  - `services/build-detection/dockerfile-detector.factory.ts` — `createRepositoryFileInspector` → `createConfiguredRepositoryFileInspector`
+  - `services/build-detection/index.ts` — barrel re-export updated
+  - `workers/deployment-job-processor-dependencies.factory.ts` — `createIngressManager` → `createConfiguredIngressManager`
+- files deleted: 23 (12 proxy factories + 11 test files)
+- files changed: 9 caller files + `docs/progress.md`
+- validation performed:
+  - `npx tsc --noEmit` — passed (zero new errors; 1 pre-existing mock type mismatch in `docker-container-runtime-manager.test.ts` unrelated to this batch)
+  - `npx eslint apps/worker/src` — passed (zero errors)
+  - `npm test` (worker) — passed (224/224 tests, 0 failures)
+  - `npm test` (API) — passed (337/337 tests, 0 failures)
+- next recommended step:
+  - auth-utils wrapper consolidation or remaining deferred audit items
 
 ### Phase: Deployment/auth/config hardening follow-through (2026-03-17)
 
