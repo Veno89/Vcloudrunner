@@ -1,6 +1,6 @@
-# Vcloudrunner MVP Progress Tracker
+﻿# Vcloudrunner MVP Progress Tracker
 
-Last updated: 2026-03-30 (project deletion danger zone + safe teardown path)
+Last updated: 2026-04-01 (Code health audit — Batch E: project-databases.service.ts split)
 
 ## Legend
 
@@ -10,7 +10,7 @@ Last updated: 2026-03-30 (project deletion danger zone + safe teardown path)
 
 
 
-## Phase Status Snapshot (2026-03-30)
+## Phase Status Snapshot (2026-03-19)
 
 - **Phase 1: Critical stabilization** — ~99% complete
   - done: deployment concurrency invariant (service + DB), queue enqueue failure mapping/state correction, deployment-create env-resolution failure correction so decrypt/read failures no longer strand active deployments, queued-cancel race/idempotency hardening, safer compose defaults, production dev-auth startup guard, stricter bootstrap token startup validation, strict env-boolean parsing for auth/ingress and worker archive-lifecycle flags, strict numeric env parsing for API/worker runtime settings so blank strings no longer coerce to `0`, telemetry startup that now honors the same boolean env semantics as the validated config layer, explicit rejection of invalid credentials during dev-auth fallback flows, root auth/error plugin inheritance fix, host-run worker `.env` loading that now matches the documented app-local override flow, cwd-independent repo-root env resolution for API/worker startup and API `drizzle-kit` commands, aligned `drizzle-kit` env loading/fail-fast behavior with the API runtime, pinned compose API dev auth off independently from local host-run `.env` settings, stricter Redis queue URL parsing so explicit database paths must be integer indexes instead of silently coercing invalid values, broader API auth/deployment regression coverage, fuller api-token route access coverage, and clearer dashboard auth/config failure states
@@ -18,1841 +18,188 @@ Last updated: 2026-03-30 (project deletion danger zone + safe teardown path)
 - **Phase 2: Production readiness foundation** — ~99% complete
   - done: improved failure taxonomy coverage, regression tests around constraint/error mapping paths, stronger cancellation/auth/config resilience under partial failures, direct route-level authorization coverage across the main API surfaces including SSE log streaming, the full deployment write/cancel path, the full API-token list/rotate/revoke path, the full environment read/write path, and the full top-level project read/write path, alert-monitor/operational-threshold unit coverage, idempotent alert-monitor startup behavior, overlap-safe alert-monitor polling during slow evaluations, fail-fast alert webhook delivery under network hangs, timeout-normalized alert/webhook/control-plane delivery failures across alert webhooks, deployment lifecycle webhooks, Caddy route updates, and GCS token exchange, idempotent worker background scheduler startup behavior, overlap-safe worker background task scheduling during slow sweeps, overlap-safe live-log SSE polling during slow log queries, fail-fast Caddy route updates with stable network-failure reporting, normalized deployment lifecycle webhook delivery under blank-url and network-failure cases, normalized archive upload and GCS token-fetch network failures under retry/timeout conditions, post-upload local archive cleanup that now degrades to a warning instead of downgrading a successful remote upload, best-effort deployment-log retention enforcement after worker state/log writes so secondary log trimming failures no longer turn successful transitions into job failures, best-effort failure/stop audit-log insertion after worker state transitions so post-status log insert failures no longer poison otherwise successful lifecycle writes, best-effort worker audit logging across pre-run, retry-scheduled, and post-run phases so informational log insert failures no longer override the real deployment outcome, best-effort worker deployment-event emission after authoritative state changes so lifecycle event sink failures no longer override the real build/running/failed outcomes, cancellation finalization safety fallbacks so cancelled worker jobs are best-effort marked `failed` when runtime cleanup succeeds but the final `stopped` persistence write still fails, consistent `deployment.cancelled` event emission for cancellation completions before execution, during execution, and after execution-error finalization, cancellation cleanup enforcement so worker jobs no longer finalize as `stopped` when runtime teardown still fails, runtime-cleanup failure propagation that now distinguishes real teardown failures from already-gone container/image races during cancellation finalization, startup-failure runtime cleanup propagation that now preserves the original deployment error context while surfacing real container/image teardown failures from the runner path, best-effort runtime and Caddy route cleanup after post-run persistence failures so torn-down deployments no longer leave live containers/images or stale reverse-proxy routes behind, per-item continuation across worker reconciliation/archive/upload/cleanup sweeps so one bad deployment or corrupted local artifact no longer aborts the full pass, per-item continuation across stale pre-run container cleanup so one failing old container removal no longer blocks later cleanup candidates, per-alert continuation inside operational alert evaluation so one failing webhook send no longer suppresses later alerts in the same cycle, per-signal continuation inside operational alert evaluation so broken queue metrics or worker-health reads no longer suppress alerts from the other source in the same cycle, normalized malformed GCS token success responses so invalid JSON and bad `expires_in` values no longer leak parser failures or poison the worker token cache, direct API health/shutdown regression coverage, fuller worker-health failure mapping and shutdown-resilience coverage in `buildServer()`, direct server-metrics contract coverage with explicit unavailable mapping, explicit ingress-contract coverage for allowlisted CORS plus global rate-limit headers/throttling, explicit `403` handling for disallowed CORS origins, proxy-aware forwarded-client rate-limit handling via configurable trusted-proxy support, preserved plugin-provided operational status codes like rate-limit `429` through the shared error handler, deterministic API and worker test bootstrap env fixtures that no longer inherit local developer `.env` values, startup/shutdown lifecycle hardening around the API and worker bootstrap paths, retryable worker ready-handling after synchronous scheduler-start failures, startup-failure cleanup even when API telemetry initialization itself throws, guarded worker startup work against repeated `ready` events, stricter integer parsing on live-log route query controls, worker deployment-network creation that now tolerates “already exists” races during startup, and clearer operator-facing startup/config guidance
   - left (~1%): deeper observability dimensions, migration safety gates, backup/restore automation checks, worker/service decomposition, and broader operational validation
-- **Phase 3: UI/UX trust and polish** — ~100% complete
-  - done: route architecture, loading/error boundaries, action feedback helpers, clearer deployment error messages, stopped-status consistency, in-context failure handling, live-data unavailable/degraded states across the dashboard, platform-health visibility even when project-scoped live data is unavailable, clearer status-page behavior under partial outages, more truthful platform-health badge semantics, preserved worker stale/unavailable distinctions, more accurate demo-mode/live-data messaging on top-level pages, timeout-bounded dashboard live-data/log-proxy fetching so hung upstream calls degrade into explicit timeout states instead of hanging route rendering, overlap-safe client-side queue-health polling for operational widgets, pending-aware/visibility-aware auto-refresh loops for deployment and log views, visibility-aware live log streaming with replay-safe resume behavior plus in-panel reconnect recovery, terminal-state-aware log streaming so stopped/failed deployments now keep historical logs visible without pretending to be actively streaming, terminal-state-aware log auto-refresh so stopped/failed deployments no longer keep polling the route while saying no new live logs are expected, partial-outage-aware global deployment/history loaders so one failing project no longer blanks top-level dashboard views, partial-outage-aware project detail panels so deployment or environment read failures no longer take down the full project page, project-scoped deployment/environment/log routes that now stay usable when their secondary live-data reads fail, a global environment shortcut that now stays live when the selected project’s variable read fails, deployment detail routing that no longer turns partial-outage misses into false not-found states, token settings that now keep creation available when the token inventory read fails, deployment detail pages that now explicitly disclose surrounding history outages when the current deployment remains available, status-page outcome summaries that now stay terminal-only, truthful operational-card labeling for running-deployment recency, and cancellation-requested deployment states that now show an explicit `cancelling` cue plus updated queued/building/stopped guidance across detail, summary, log-selector, project-overview, operational-metric, global-filter, and plain-text detail surfaces instead of masquerading as normal in-progress work
-  - left (~0%): core UI/UX trust and polish goals are complete; only optional future polish remains
-- **Phase 4: Extensibility and platform maturity** — ~100% complete
-  - done: API route and service composition (removing module-level singletons in favor of injected factories in fastify plugins), runtime and deployment lifecycle seams exist, basic domain boundaries are in place, worker runtime execution plus runtime-health inspection now share an adapter/factory seam instead of hard-wiring bootstrap reconciliation to Docker, worker ingress management now also goes through an explicit seam instead of naming `CaddyService` directly, lifecycle event emission now depends on an event-sink seam instead of a raw webhook-emitter function, archive upload request/auth logic now goes through a dedicated provider seam instead of living inside deployment state management, that archive upload request/auth layer is now further split into provider-specific `http`/`s3`/`gcs`/`azure` adapters behind a registry-driven selector instead of one branching class, deployment-log archive encoding/compression now also goes through a dedicated archive-builder seam instead of living inline inside the state service, worker outbound HTTP transport now also goes through a shared client seam instead of letting Caddy route updates, lifecycle webhooks, archive uploads, and GCS token exchange each hand-roll their own timeout and fetch logic, worker archive-upload composition now also goes through dedicated factories instead of letting the configured provider, GCS auth adapter, and configured uploader self-compose registries or HTTP clients inline, worker shell command execution now goes through a deployment-command-runner seam instead of living inline inside runtime orchestration, worker container/network lifecycle now also goes through a runtime-manager seam instead of binding `DeploymentRunner` straight to `dockerode`, worker Caddy service plus Docker runtime executor/inspector/manager composition now also goes through dedicated adapter-specific factories instead of letting those concrete infrastructure adapters self-compose outbound HTTP, deployment-runner, or Docker-client dependencies inside their constructors, worker workspace preparation/cleanup now goes through a workspace-manager seam instead of living inline inside runtime orchestration, build-file repository inspection now goes through a repository-file-inspector seam instead of letting Dockerfile detection shell out to git directly, build-system resolver, Dockerfile detector, and configured image-builder composition now also go through dedicated factories instead of self-composing detector lists, repository inspectors, command runners, or resolvers inside their constructors, local archive file handling now also goes through a deployment-log-archive-store seam instead of living inline inside deployment state management, build-system resolution now also goes through a dedicated resolver seam instead of letting `DeploymentRunner` call a static detector registry directly, the default build-detector list now also goes through a dedicated detector factory instead of being hard-wired inline inside the configured resolver, raw process-launch behavior for repository inspection and shell deployment commands now also goes through a shared exec-file runner seam instead of naming `execFile` separately inside each adapter, repository clone plus image-build orchestration now also goes through a deployment-image-builder seam instead of living inline inside `DeploymentRunner`, archive upload transport/retry behavior now also goes through a deployment-log-archive-uploader seam instead of living inline inside deployment state management, worker deployment-state construction now also goes through a factory seam instead of being named directly in the job processor and bootstrap composition roots, BullMQ deployment-worker construction now also goes through a dedicated factory seam instead of being hard-wired inline at the worker module boundary, deployment-worker default processor composition now also goes through a dedicated configured factory instead of letting the general worker factory self-compose a processor inline, worker bootstrap lifecycle composition now also goes through a dedicated configured factory instead of being wired inline in `index.ts`, worker background-scheduler plus heartbeat-Redis construction now also goes through a dedicated factory seam instead of being wired inline in the bootstrap entrypoint, deployment-state repository construction now also goes through a dedicated factory seam instead of being named directly inside state-service composition, deployment-state repository default queryable composition now also goes through a dedicated configured factory instead of letting the repository self-compose its database pool inside the constructor, deployment-state database-queryable / `pg` pool construction now also goes through a dedicated factory seam instead of living inline inside the repository, deployment-runner construction now also goes through a dedicated factory seam instead of being named directly inside the Docker runtime executor, deployment-runner default workspace/image/runtime collaborator composition now also goes through a dedicated configured factory instead of letting the runner self-compose those defaults inside its constructor, deployment-job-processor default dependency wiring now also goes through a dedicated factory seam instead of naming runtime/state/ingress/event/logger defaults inline inside the processor module, deployment-state-service default repository/ingress/archive collaborator wiring now also goes through a dedicated factory seam instead of being named inline inside the service constructor, Docker client construction now also goes through a shared factory seam instead of being named directly inside the Docker-backed runtime manager and inspector adapters, and duplicated worker runtime-family selection now also goes through a shared resolver seam instead of being repeated inline across the runtime executor, runtime inspector, and container-runtime-manager factories, while archive providers now use provider-native AWS/Azure SDK upload adapters plus `google-auth-library`-backed GCS token resolution instead of hand-rolled signing/token flows, and deployment-state service construction now also lives in a dedicated configured factory so the class itself no longer self-composes default collaborators, while heartbeat Redis, repository-file-inspector, deployment-state-queryable, Docker-client, outbound HTTP, Caddy service, webhook listener, ingress manager, deployment-log archive builder/store, and HTTP archive-provider default construction now also live behind dedicated configured or adapter-specific factories instead of being instantiated inline around the worker service graph, and worker queue Redis connection defaults now also go through dedicated configured and override-friendly factory seams instead of living as a module-level boundary constant
-  - done recently: projects now carry explicit service-definition contracts with one primary public service plus internal-only services, the worker build/runtime path honors the selected service root for workspace preparation, Dockerfile detection, Docker build context, and runtime project paths, deployments can now explicitly target named services with a per-project/per-service active-deployment invariant instead of a project-wide active lock, the API now generates `VCLOUDRUNNER_SERVICE_*` discovery env vars plus stable internal hostnames for each project service, the worker runtime now attaches matching Docker network aliases for those generated service hosts, runtime/ingress behavior now only exposes public web services, the dashboard now composes project status from per-service deployment state while surfacing each service's current deployment status, latest deployment, and internal host through project and deployment views, the dashboard now resolves its live user context through an authenticated `/v1/auth/me` API path instead of treating `NEXT_PUBLIC_DEMO_USER_ID` as the primary identity source, the authenticated actor payload now reports auth source plus persisted user profile details when available, Settings now includes a dedicated account/session surface instead of keeping auth state only in the overview, the dashboard now supports an interactive per-user sign-in/sign-out flow backed by an httpOnly session cookie that overrides the old shared env-token fallback, top-level dashboard routes now distinguish sign-in-required / session-expired states from true live-data outages while returning re-auth flows to the operator's original page, the remaining project-scoped pages plus global logs/environment/token surfaces now use the same auth-aware unavailable handling while live log streaming and log-export proxy messaging steer operators back into session re-auth instead of silently normalizing env-token fallback, direct deployment-detail access plus the remaining project/token server-action viewer-resolution failures now also redirect through the same auth-aware session recovery path instead of generic top-level redirects or `no user context` handling, the platform now has its first real persisted-user bootstrap path so authenticated bootstrap/dev actors can create a stored profile and move into DB-backed token workflows without staying stuck in token-only identity, sign-in / session-controls / project-create / token-management flows now treat account setup as the normal bridge out of bootstrap/dev identity instead of leaving those actors stranded in half-configured write paths, the first persisted project-membership groundwork now exists through owner-membership seeding, member listing, existing-user invites, and a project detail members surface with invite controls, owners/admins/project-admins can now update non-owner member roles or remove non-owner memberships directly from the project page through the same persisted project-membership model, the platform now stores pending project invitations for non-persisted emails while automatically accepting matching invitations when that user completes account setup with the same email, pending invitations can now be refreshed or cancelled directly from the dashboard while account-setup success feedback names accepted project memberships more clearly, invitation records now preserve `pending` / `accepted` / `cancelled` history with shareable claim links plus a dedicated dashboard claim page instead of disappearing on acceptance or cancellation, and project ownership can now be transferred explicitly to an existing member while keeping that operation owner-only and leaving the previous owner behind as a normal admin member
-  - left (~0%): the current four-phase MVP plan is complete; broader auth/team maturity, richer outbound delivery providers, runtime adapter expansion, and advanced day-2 tooling now belong to the next planning pass rather than the original phase checklist
-
-## Product Guardrail (2026-03-30)
-
-- **Primary target:** build Vcloudrunner into a best-in-class single-node self-hosted platform first, not a prematurely distributed or high-availability platform.
-- **Intentional stop line:** once the single-node product is strong, well-tested, and trustworthy under real usage, we should pause platform-expansion work instead of automatically continuing into multi-node architecture.
-- **What “done enough to stop” means for this roadmap pass:**
-  - the single-node platform is production-capable for real workloads, with strong day-2 operator ergonomics, truthful recovery and audit surfaces, and no major roadmap holes in the chosen single-node scope
-  - we have completed extensive validation with real users, real projects, and real data, including backup/restore drills, deploy/runtime workflows, auth/team workflows, and domain/TLS behavior
-  - remaining ideas are mostly scale-out or platform-breadth additions rather than blockers to a high-confidence single-node product
-- **What should *not* happen before that stop line:**
-  - do not introduce multi-node execution, distributed control-plane assumptions, or HA coordination just because they are interesting roadmap items
-  - do not overengineer single-node flows with abstractions whose main purpose is future multi-node support without a proven present-day need
-- **Explicit next-roadmap rule:** multi-node / HA work belongs in a later roadmap only after the single-node target has been reached and real-world testing with real users and real data shows where the current design actually breaks down or needs to scale.
-- **Default decision rule for future slices:** when choosing between a simpler single-node implementation and a more abstract future-looking design, prefer the simpler single-node path unless current validated requirements clearly justify the added complexity.
+- **Phase 3: UI/UX trust and polish** — ~93% complete
+  - done: route architecture, loading/error boundaries, action feedback helpers, clearer deployment error messages, stopped-status consistency, in-context failure handling, live-data unavailable/degraded states across the dashboard, platform-health visibility even when project-scoped live data is unavailable, clearer status-page behavior under partial outages, more truthful platform-health badge semantics, preserved worker stale/unavailable distinctions, more accurate demo-mode/live-data messaging on top-level pages, timeout-bounded dashboard live-data/log-proxy fetching so hung upstream calls degrade into explicit timeout states instead of hanging route rendering, overlap-safe client-side queue-health polling for operational widgets, pending-aware/visibility-aware auto-refresh loops for deployment and log views, visibility-aware live log streaming with replay-safe resume behavior plus in-panel reconnect recovery, partial-outage-aware global deployment/history loaders so one failing project no longer blanks top-level dashboard views, partial-outage-aware project detail panels so deployment or environment read failures no longer take down the full project page, project-scoped deployment/environment/log routes that now stay usable when their secondary live-data reads fail, a global environment shortcut that now stays live when the selected project’s variable read fails, deployment detail routing that no longer turns partial-outage misses into false not-found states, token settings that now keep creation available when the token inventory read fails, deployment detail pages that now explicitly disclose surrounding history outages when the current deployment remains available, and cancellation-requested deployment states that now show an explicit `cancelling` cue plus updated queued/building guidance across detail, summary, log-selector, operational-metric, and global-filter surfaces instead of masquerading as normal in-progress work
+  - left (~7%): richer deployment progress visibility, stronger logs ergonomics for investigation workflows, and a few remaining operational guidance states
+- **Phase 4: Extensibility and platform maturity** — ~15% complete
+  - done: runtime and deployment lifecycle seams exist, basic domain boundaries in place
+  - left (~85%): broader auth/user model evolution, runtime adapter expansion, advanced day-2 operational tooling
 
 ## Implementation Log
 
-### Phase: Project lifecycle safety slice (2026-03-30, owner-gated delete + safe project teardown + dashboard danger zone)
-
-- what was built:
-  - added a first-class `DELETE /v1/projects/:projectId` API path so projects can now be removed intentionally instead of remaining permanently create-only
-  - made project deletion owner/platform-admin only with its own explicit authorization rule, rather than letting normal project-admin membership-management access delete the whole project
-  - made deletion conservative and truthful: the API now refuses deletion while any deployment is still `queued`, `building`, or `running`, so we do not orphan live runtime or reverse-proxy state behind a shallow record delete
-  - wired project delete cleanup to detach any recorded live route hosts before removing project records, and to deprovision linked managed Postgres resources through the existing managed-database service before deleting the project itself
-  - added repository-level project teardown cleanup for non-cascading project-owned records like environment variables, deployment logs, containers, deployments, and domain rows before removing the project row
-  - added a GitHub-style dashboard danger zone on the project detail page with exact-name confirmation, clear destructive copy, owner/admin permission messaging, and explicit blocking guidance when active deployments still exist
-  - updated the dashboard server action and API client flow so successful deletion returns to `/projects` with feedback, while auth, permission, active-deployment, and cleanup failures surface operator-readable messages
-  - documented the new delete capability in the repo README and verified the slice with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api run lint`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `README.md`
-  - `apps/api/src/server/domain-errors.ts`
-  - `apps/api/src/modules/auth/auth-utils.ts`
-  - `apps/api/src/modules/auth/auth-utils.test.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.routes.ts`
-  - `apps/api/src/modules/projects/projects.routes.test.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/server/build-server.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/app/projects/actions.ts`
-  - `apps/dashboard/app/projects/[id]/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - project deletion is intentionally conservative for now: operators still need to stop or cancel active deployments themselves before the project can be deleted, rather than the platform trying to auto-stop live workloads during deletion
-  - project teardown now removes platform records, route attachments, and managed Postgres resources, but there is still no broader archival/export flow for project history before deletion if we later want a softer offboarding path
-- next recommended step:
-  - return to the broader managed Postgres v1 roadmap path and deepen storage sizing plus stricter restore-execution / retention ownership controls, unless another operator-facing lifecycle gap like project archival becomes a higher-priority product decision first
-
-### Phase: CI lint follow-up slice (2026-03-30, unused test-fixture parameter cleanup)
-
-- what was built:
-  - removed the stale unused test callback parameter in the project-domain diagnostics refresh API test so repo-wide lint no longer fails on `@typescript-eslint/no-unused-vars`
-  - removed the named-but-unused Docker network connect stub parameter in the worker runtime-manager test fixture so the worker lint pass also clears the same rule
-  - verified the exact GitHub-reported path by rerunning `npm.cmd --workspace @vcloudrunner/api run lint`, `npm.cmd --workspace @vcloudrunner/worker run lint`, and root `npm.cmd run lint`
-- files created or changed:
-  - `apps/api/src/services/project-domain-diagnostics-refresh.service.test.ts`
-  - `apps/worker/src/services/runtime/docker-container-runtime-manager.test.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - this slice only addressed the reported repo lint regressions; unrelated local startup/runtime fixes remain separate local changes until they are reviewed and committed deliberately
-- next recommended step:
-  - keep this lint fix bundled with the nearby local startup/runtime follow-up if we want one clean cleanup commit, or commit it independently if the CI unblock is the immediate priority
-
-### Phase: Managed Postgres recovery control + audit batch (2026-03-30, artifact lifecycle controls + restore approval scaffolding + audit export)
-
-- what was built:
-  - extended managed Postgres backup artifacts with first-class lifecycle state plus verification timing, so artifacts can now be marked `active`, `archived`, or `purged` instead of recovery inventory being only a flat list of labels and retention dates
-  - added explicit restore-request approval scaffolding with persisted approval status/detail/timing and execution guards, so restore workflows now distinguish “requested,” “approved and ready to run,” “in progress,” and “rejected” instead of letting execution updates jump forward without operator review
-  - taught the managed database service layer to derive more truthful backup-inventory and restore-workflow summaries from those new controls, including purged/non-restorable artifact handling, archived-artifact guidance, approval-aware restore status, and rejection follow-up messaging
-  - added a project-database audit export API plus dashboard proxy/download path so operators can export a fuller JSON snapshot of database recovery state, recent events, operations, artifacts, and restore requests instead of relying only on the page-level recent-history cards
-  - rebuilt the dashboard Databases page around those richer contracts with artifact lifecycle editing, restore approval controls, approval-aware execution actions, and per-database audit export links while keeping the platform honest that backup execution and restore execution are still operator-managed
-  - extended API and dashboard tests around the new artifact update routes, restore approval routes, audit export path, and approval/execution guardrails so the new recovery control plane stays fully validated end to end
-  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd exec --workspace @vcloudrunner/api -- tsx --test src/modules/project-databases/project-databases.service.test.ts src/modules/project-databases/project-databases.routes.test.ts`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `README.md`
-  - `apps/api/drizzle/0029_project_database_recovery_lifecycle.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/server/domain-errors.ts`
-  - `apps/api/src/modules/project-databases/project-databases.repository.ts`
-  - `apps/api/src/modules/project-databases/project-databases.routes.ts`
-  - `apps/api/src/modules/project-databases/project-databases.routes.test.ts`
-  - `apps/api/src/modules/project-databases/project-databases.service.ts`
-  - `apps/api/src/modules/project-databases/project-databases.service.test.ts`
-  - `apps/dashboard/app/api/project-database-audit/route.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-databases.ts`
-  - `apps/dashboard/app/projects/[id]/databases/actions.ts`
-  - `apps/dashboard/app/projects/[id]/databases/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - managed Postgres now has a much more truthful recovery control surface, but actual backup execution, retention enforcement, approval ownership attribution, and restore execution are still operator-managed rather than platform-automated
-  - storage sizing choices and deeper managed-Postgres lifecycle controls are still missing if we want to fully close the Postgres v1 surface before moving on
-  - only managed Postgres is modeled today; MongoDB and Redis still belong to later managed-data slices after the Postgres lifecycle is judged mature enough
-- next recommended step:
-  - either finish managed Postgres v1 with storage sizing choices plus stricter restore-execution / retention ownership controls, or treat Postgres as mature enough now and start the next managed-data resource pattern with MongoDB or Redis
-
-### Phase: Managed Postgres recovery inventory batch (2026-03-30, backup artifact inventory + restore request workflow scaffolding + broader audit visibility)
-
-- what was built:
-  - added first-class managed-database backup artifact inventory with persisted artifact metadata, integrity state, retention timestamps, and storage-provider labels, so operators can track real backup outputs instead of only logging that a backup happened
-  - added a persisted restore-request workflow model plus dedicated API routes for creating and updating restore requests, so restore drills now have an explicit request/status lifecycle instead of living only as freeform operation notes
-  - taught the managed database service layer to derive truthful backup-inventory and restore-workflow summaries from recent artifacts and restore requests, including artifact verification/retention attention states and requested/in-progress/failed restore workflow visibility
-  - extended the managed-database event history so backup artifact recording and restore-request lifecycle changes show up alongside the earlier provisioning, health, credential, and backup-policy activity
-  - rebuilt the dashboard Databases page around that richer contract with recorded-artifact cards, artifact/integrity detail, restore request creation and status updates, and clearer operator-facing audit/history visibility for recovery posture
-  - refreshed the top-level README operator notes and API endpoint inventory to document backup-artifact inventory plus restore-request workflow scaffolding while keeping the current limitation explicit that actual backup execution and restore execution are still operator-managed
-  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `README.md`
-  - `apps/api/drizzle/0028_project_database_recovery_inventory.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/server/domain-errors.ts`
-  - `apps/api/src/modules/project-databases/project-databases.repository.ts`
-  - `apps/api/src/modules/project-databases/project-databases.routes.ts`
-  - `apps/api/src/modules/project-databases/project-databases.routes.test.ts`
-  - `apps/api/src/modules/project-databases/project-databases.service.ts`
-  - `apps/api/src/modules/project-databases/project-databases.service.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-databases.ts`
-  - `apps/dashboard/app/projects/[id]/databases/actions.ts`
-  - `apps/dashboard/app/projects/[id]/databases/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - managed Postgres now has artifact inventory and restore-request workflow scaffolding, but actual backup execution, restore execution, retention enforcement, and longer-horizon/exportable audit views are still operator-managed rather than platform-automated
-  - only managed Postgres is modeled today; MongoDB and Redis still belong to later managed-data slices after the Postgres lifecycle and recovery surface are sturdier
-- next recommended step:
-  - continue managed databases v1 with restore execution / approval scaffolding, backup-artifact lifecycle controls, and longer-horizon audit/export visibility for managed Postgres before broadening the managed-data surface to MongoDB or Redis
-
-### Phase: Managed Postgres backup/restore operations batch (2026-03-30, first-class operation journal + due-state visibility + operator-facing history)
-
-- what was built:
-  - added a first-class managed-database operation journal with persisted `project_database_operations` plus explicit `backup_operation` / `restore_operation` database events, so backup runs and restore drills are no longer represented only as bare verification timestamps
-  - widened the managed database recovery-check write path into a richer backup/restore operation logger that records success or failure, summary text, and detailed notes while still updating the legacy verification checkpoints only for successful runs
-  - taught the managed database service layer to derive truthful backup-execution and restore-exercise states (`not-configured`, `not-recorded`, `scheduled`, `overdue`, `attention`, `custom`, and `verified`) from the new operation history plus the older verification timestamps, so operators can distinguish overdue backups from outright failures
-  - rebuilt the dashboard Databases page around that richer contract with backup-on-schedule and restore-verified summary cards, operation-journal forms, due/attention badges, next-due timing, and per-database operation history instead of only showing runbook metadata and generic recovery timestamps
-  - extended the managed-database API and dashboard contracts/tests so the new backup/restore journaling flow stays fully typed and validated across routes, service logic, and operator UI
-  - refreshed the top-level README operator notes to describe manual backup/restore operation journaling and the still-explicit limitation that backup execution and restore remain operator-managed
-  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `README.md`
-  - `apps/api/drizzle/0027_project_database_operations.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/modules/project-databases/project-databases.repository.ts`
-  - `apps/api/src/modules/project-databases/project-databases.routes.ts`
-  - `apps/api/src/modules/project-databases/project-databases.routes.test.ts`
-  - `apps/api/src/modules/project-databases/project-databases.service.ts`
-  - `apps/api/src/modules/project-databases/project-databases.service.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-databases.ts`
-  - `apps/dashboard/app/projects/[id]/databases/actions.ts`
-  - `apps/dashboard/app/projects/[id]/databases/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - managed Postgres now has a truthful manual operations ledger plus due/attention visibility, but backup execution is still operator-run, restore remains a logged drill instead of a first-class restore workflow, and the platform still does not track backup artifacts, restore requests, or longer-horizon audit/reporting beyond recent history
-  - only managed Postgres is modeled today; MongoDB and Redis still belong to later managed-data slices after the Postgres lifecycle and recovery surface are sturdier
-- next recommended step:
-  - continue managed databases v1 with backup artifact inventory plus restore request/workflow scaffolding and broader audit visibility for managed Postgres before expanding the managed-data surface to MongoDB or Redis
-
-### Phase: Managed Postgres recovery scaffolding batch (2026-03-29, external backup runbooks + recovery checkpoints + recent activity history)
-
-- what was built:
-  - extended the managed Postgres resource model with persisted external backup mode/cadence, runbook notes, backup verification timestamps, restore-drill timestamps, and first-class database event history, so recovery posture is now tracked as platform state instead of relying on out-of-band operator memory
-  - added dedicated project-database API routes for backup-policy updates and manual recovery-check recording, keeping those write paths behind the same project-admin membership-management boundary as the rest of the managed database control surface instead of burying them inside generic reconcile flows
-  - taught the managed database service layer to derive truthful backup-coverage states (`missing`, `documented`, `backup-verified`, `recovery-verified`) plus recent activity records for provisioning, runtime health, credentials, backup-policy changes, and recovery-check updates
-  - rebuilt the dashboard Databases page as a cohesive operator surface for this new contract, including backup runbook editing, recovery verification buttons, linked-service management, persisted runtime/backup status badges, and recent database activity history instead of leaving the new backup/recovery data invisible
-  - refreshed the top-level README operator notes and API endpoint inventory to document the new backup-policy / recovery-check flows while keeping the current limitation explicit that backup execution and restore automation are still operator-managed
-  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `README.md`
-  - `apps/api/drizzle/0026_project_database_recovery_scaffolding.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/server/domain-errors.ts`
-  - `apps/api/src/modules/project-databases/project-databases.repository.ts`
-  - `apps/api/src/modules/project-databases/project-databases.routes.ts`
-  - `apps/api/src/modules/project-databases/project-databases.routes.test.ts`
-  - `apps/api/src/modules/project-databases/project-databases.service.ts`
-  - `apps/api/src/modules/project-databases/project-databases.service.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-databases.ts`
-  - `apps/dashboard/app/projects/[id]/databases/actions.ts`
-  - `apps/dashboard/app/projects/[id]/databases/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - managed Postgres now has documented recovery scaffolding and recent activity history, but backup execution, restore automation, backup artifact inventory, and longer-horizon audit/reporting are still missing
-  - only managed Postgres is modeled today; MongoDB and Redis still belong to later managed-data slices after the Postgres lifecycle is sturdier
-- next recommended step:
-  - continue managed databases v1 with first-class backup execution / restore workflow scaffolding and longer-horizon database audit visibility before broadening the managed-data surface to MongoDB or Redis
-
-### Phase: Managed Postgres operations batch (2026-03-29, persisted runtime health + health-aware reconcile + credential rotation + operator guidance)
-
-- what was built:
-  - extended the managed Postgres control-plane model with persisted runtime-health telemetry, including current health state/detail, health timing, consecutive failure tracking, and credential-rotation timing, so the platform now distinguishes “provisioned” from “runtime healthy” instead of treating those as the same thing
-  - taught the managed Postgres provisioner seam to run runtime credential health checks and safe credential rotation with rollback-on-verification-failure, keeping the API truthfully aware of unreachable runtimes, rejected credentials, and post-rotation redeploy requirements instead of only reporting database-creation success
-  - upgraded managed database reconcile to refresh both provisioning state and runtime-health state together, so a ready database now comes back with an explicit runtime-health result instead of a stale provisioning-only status
-  - added a dedicated credential-rotation API route and dashboard action, keeping that write path behind the same project-admin membership-management boundary as other managed database controls instead of burying password changes inside generic reconcile behavior
-  - expanded the dashboard Databases page and shared summary helpers to surface provisioning badges, runtime-health badges, last-check / last-healthy / last-error timing, persistent failure counts, rotation timing, and operator-facing warnings about redeploys plus the still-missing backup/restore automation
-  - refreshed the top-level README operator notes and API endpoint inventory to document runtime-health-aware reconcile, credential rotation, and the current backup/restore limitation for managed Postgres
-  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `README.md`
-  - `apps/api/drizzle/0025_managed_project_database_operations.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/server/domain-errors.ts`
-  - `apps/api/src/services/managed-postgres-provisioner.service.ts`
-  - `apps/api/src/modules/project-databases/project-databases.repository.ts`
-  - `apps/api/src/modules/project-databases/project-databases.routes.ts`
-  - `apps/api/src/modules/project-databases/project-databases.routes.test.ts`
-  - `apps/api/src/modules/project-databases/project-databases.service.ts`
-  - `apps/api/src/modules/project-databases/project-databases.service.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-databases.ts`
-  - `apps/dashboard/app/projects/[id]/databases/actions.ts`
-  - `apps/dashboard/app/projects/[id]/databases/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - managed Postgres now has a much more truthful lifecycle surface, but backup scheduling, restore workflow, storage sizing controls, and longer-horizon incident/audit visibility are still missing
-  - only managed Postgres is modeled today; MongoDB and Redis still belong to later managed-data slices after the Postgres lifecycle is sturdier
-- next recommended step:
-  - continue managed databases v1 with backup scheduling / restore scaffolding plus operator-facing recovery/audit visibility for managed Postgres before expanding the managed-data surface to MongoDB or Redis
-
-### Phase: Managed Postgres groundwork batch (2026-03-29, first-class project database model + configurable provisioning seam + linked-service env injection + dashboard surface)
-
-- what was built:
-  - added the first managed-data resource model to the control plane with persisted `project_databases` plus per-service links, so projects can now carry first-class managed Postgres resources instead of relying only on hand-managed environment variables
-  - added a configurable managed Postgres provisioner seam backed by `MANAGED_POSTGRES_ADMIN_URL` plus runtime host/port/ssl settings, so the API can create logical databases and roles when admin access is configured while still reporting truthful `pending_config`, `ready`, and `failed` states when it is not
-  - added project-scoped managed database API routes for list/create/reconcile/delete and linked-service updates, keeping them behind the existing project access and project-admin membership-management boundaries instead of burying database actions inside generic project route logic
-  - taught deployment creation to inject generated managed Postgres connection variables into the selected service when that service is linked to a ready managed database, so linked services now receive stable keys like `<NAME>_DATABASE_URL` automatically on deploy without copying secrets into the normal env-variable store
-  - extended the worker runtime path with optional shared-platform network attachment and pinned the compose default network name to `vcloudrunner-platform`, so the generated managed Postgres connection strings are truthful for the bundled single-node stack instead of assuming unreachable control-plane hostnames
-  - added a dedicated project Databases page plus project-overview/subnav surfacing in the dashboard, including create/retry/delete actions, linked-service controls, generated env-key visibility, and masked credential / connection-string display
-  - refreshed the top-level README, architecture notes, compose env wiring, and app-local env examples to document the new managed Postgres operator flow and config knobs
-  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/worker run typecheck`, `npm.cmd --workspace @vcloudrunner/worker test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `README.md`
-  - `docs/architecture.md`
-  - `docker-compose.yml`
-  - `apps/api/.env.example`
-  - `apps/api/drizzle/0024_managed_project_databases.sql`
-  - `apps/api/src/config/env-core.ts`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/server/build-server.ts`
-  - `apps/api/src/server/domain-errors.ts`
-  - `apps/api/src/services/managed-postgres-provisioner.service.ts`
-  - `apps/api/src/modules/project-databases/project-databases.repository.ts`
-  - `apps/api/src/modules/project-databases/project-databases.routes.ts`
-  - `apps/api/src/modules/project-databases/project-databases.routes.test.ts`
-  - `apps/api/src/modules/project-databases/project-databases.service.ts`
-  - `apps/api/src/modules/project-databases/project-databases.service.test.ts`
-  - `apps/api/src/modules/deployments/deployments.service.ts`
-  - `apps/api/src/modules/deployments/deployments.service.test.ts`
-  - `apps/worker/.env.example`
-  - `apps/worker/src/config/env-core.ts`
-  - `apps/worker/src/services/deployment-runner.ts`
-  - `apps/worker/src/services/deployment-runner.test.ts`
-  - `apps/worker/src/services/runtime/container-runtime-manager.ts`
-  - `apps/worker/src/services/runtime/docker-container-runtime-manager.ts`
-  - `apps/worker/src/services/runtime/docker-container-runtime-manager.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-databases.ts`
-  - `apps/dashboard/components/project-subnav.tsx`
-  - `apps/dashboard/app/projects/[id]/page.tsx`
-  - `apps/dashboard/app/projects/[id]/databases/actions.ts`
-  - `apps/dashboard/app/projects/[id]/databases/page.tsx`
-  - `packages/shared-types/src/index.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - managed databases now have a real first-class model and can provision logical Postgres resources when configured, but Postgres follow-through is still missing deeper health checks, storage sizing enforcement, credential rotation, backup scheduling, restore flow, and broader incident/audit visibility
-  - only managed Postgres is modeled today; MongoDB and Redis still belong to later managed-data slices after the Postgres lifecycle is sturdier
-- next recommended step:
-  - continue managed databases v1 with Postgres follow-through: add health/reconcile telemetry, credential rotation, backup schedule + restore scaffolding, and clearer operator warnings before expanding the managed-data model to MongoDB or Redis
-
-### Phase: Roadmap certificate recovery-history batch (2026-03-29, trust/path event telemetry + persisted incident/recovery summaries + operator-facing recovery drill-down)
-
-- what was built:
-  - extended the persisted project-domain event model with explicit `certificate_trust` and `certificate_path_validity` event kinds, so hostname/trust regressions and issuer-path date problems now have first-class event history instead of only appearing as current-state diagnostics
-  - taught the domain refresh path to emit those trust/path events only when real certificate incidents, recoveries, or tracked issuer-path warning states occur, while keeping the existing higher-level certificate guidance and attention history intact
-  - added an event-backed certificate-history summary contract per host, so each domain now exposes tracked history counts, incident/recovery totals, issuer-path renewal-warning counts, per-category incident breakdown, and the latest incident/recovery timing without depending on fragile UI-only heuristics
-  - expanded the Domains page to surface certificate-history rollups in the route summary plus a per-host recovery-history drill-down, making it much easier to see whether a host has recurring trust/path/follow-up issues even when the latest check is no longer the first or only signal
-  - updated recent domain-activity labeling so the dashboard can show trust and issuer-path date transitions directly instead of collapsing everything into generic certificate wording
-  - refreshed the top-level README capability list to mention event-backed certificate trust / issuer-path recovery history as part of the custom-domain workflow
-  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `README.md`
-  - `apps/api/drizzle/0023_project_domain_event_certificate_history.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-domains.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - domains/TLS now preserve claim, DNS, TLS, trust, issuer-path, and certificate follow-up history much more truthfully, but the platform still does not provide managed ACME-style issuance / renewal automation, provider-driven certificate controls, or the next broader platform capabilities like managed data services
-- next recommended step:
-  - treat roadmap item 3 as sufficiently mature for now and move to the next broader roadmap area, starting with managed databases v1 groundwork (resource model, instance lifecycle, generated credentials/env injection, and dashboard/API surfaces)
-
-### Phase: Roadmap certificate-path validity telemetry batch (2026-03-29, per-certificate validity windows + issuer-path incident timeline + renewal-aware operator guidance)
-
-- what was built:
-  - extended stored presented-chain entries with per-certificate validity windows, so issuer-path snapshots now preserve each certificate's own `validFrom` / `validTo` timing instead of only the leaf certificate's dates
-  - added a derived certificate-path-validity contract on top of that stored chain metadata, so each host now reports whether the full presented issuer path is `valid`, `expiring-soon`, `expired`, `not-yet-valid`, or `unavailable` rather than hiding intermediate-certificate date issues behind leaf-only validity checks
-  - added persisted issuer-path-validity timeline fields on domains, so the control plane now tracks when the current path-validity state began, how many consecutive checks have observed it, and when the last fully in-date issuer path was confirmed
-  - wired certificate guidance to the new path-validity contract, so expiring or broken intermediate/root certificates now push operators into `renew-soon` / `renew-now` guidance instead of incorrectly reading as healthy just because the served leaf certificate still has time remaining
-  - updated the dashboard Domains page to surface issuer-path date badges, summary counts, timeline copy, and per-certificate validity details for both the current presented chain and the last healthy issuer-path snapshot
-  - refreshed the top-level README capability list to mention intermediate-certificate validity surfacing as part of the custom-domain workflow
-  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `README.md`
-  - `apps/api/drizzle/0022_project_domain_certificate_path_validity.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/services/project-domain-diagnostics.service.ts`
-  - `apps/api/src/services/project-domain-diagnostics.service.test.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-domains.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - domains/TLS now expose issuer-path validity much more truthfully, but the platform still does not preserve a longer-horizon renewal / issuer incident timeline beyond current-state streaks and recent events, and it still does not offer managed ACME-style issuance / renewal automation beyond observed DNS / HTTPS diagnostics
-- next recommended step:
-  - either continue roadmap item 3 with longer-horizon renewal / issuer incident history plus deeper recovery drill-down on the Domains page, or treat domains/TLS as sufficiently mature for now and move to the next broader roadmap area such as managed databases or richer operator tooling
-
-### Phase: Roadmap certificate issuer-path history batch (2026-03-29, structured chain entries + last-healthy snapshots + operator-facing issuer-path drift history)
-
-- what was built:
-  - extended stored project-domain diagnostics with structured per-certificate chain entries, so each host now preserves subject, issuer, fingerprint, serial, and self-issued metadata for the full presented chain instead of flattening chain visibility down to subject-name lists
-  - taught the TLS diagnostics path to capture those structured chain entries from the peer certificate, carry them through stored diagnostics, and reuse them during background refreshes instead of treating detailed issuer-path data as a transient request-time-only observation
-  - added a last-known-healthy chain snapshot on top of the current presented chain, so the control plane now keeps the most recent trusted issuer path available for truthful comparison after later regressions or suspicious path changes
-  - derived an explicit certificate-chain-history contract with `stable`, `rotated`, `degraded`, `drifted`, `baseline-missing`, and `unavailable` states so operators can distinguish healthy issuer rotation from drift away from the last healthy chain or hosts that have never presented a trusted baseline
-  - taught project-domain event history to compare structured chain entries instead of subject-only lists, which keeps `certificate_chain` history truthful when issuer path, serial, fingerprint, or self-issued characteristics change without a simple subject-name delta
-  - updated the dashboard Domains page to surface chain-history badges, current presented-certificate snapshots, last-healthy chain snapshots, and summary counts for healthy rotations, regressions, and missing trusted baselines
-  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `README.md`
-  - `apps/api/drizzle/0021_project_domain_certificate_chain_entries.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/services/project-domain-diagnostics.service.ts`
-  - `apps/api/src/services/project-domain-diagnostics.service.test.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-domains.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - the platform now preserves issuer-path snapshots much more truthfully, but it still does not expose full longer-horizon renewal history, richer intermediate-certificate validity/issuer telemetry beyond the captured presented-path metadata, or a managed ACME-style issuance / renewal control loop beyond observed DNS / HTTPS diagnostics
-- next recommended step:
-  - either continue roadmap item 3 with deeper renewal / issuer incident history and richer per-certificate validity surfacing for intermediates, or treat domains/TLS as sufficiently mature for now and move to the next broader roadmap area such as managed databases or richer operator tooling
-
-### Phase: Roadmap certificate chain recovery telemetry batch (2026-03-29, chain timeline persistence + intermediate issuer metadata + recovery-aware operator guidance)
-
-- what was built:
-  - extended stored project-domain diagnostics with presented-chain timeline fields, so each host now preserves when the current chain state began, how many consecutive checks have observed it, and when a full trusted chain was last confirmed
-  - expanded the derived certificate-chain contract with intermediate-issuer names and chain depth, so the control plane can expose more than a flat subject list when operators need to inspect how a host is being served
-  - added a chain-specific follow-up contract on top of that stored timeline, with healthy / monitor / action-needed / persistent-action-needed states so chain problems can become explicitly persistent even when the served chain itself has not changed
-  - taught project-domain event history to emit `certificate_chain` events on status-only recoveries or regressions even when the presented subject list stays the same, which keeps chain history truthful when trust changes instead of the raw chain payload
-  - updated the dashboard Domains page to surface chain follow-up badges, persistent chain-issue counts, intermediate issuer detail, chain depth, and last-healthy chain timing so operators can see both what is being served and how long chain issues have persisted
-  - refreshed the top-level README capability list to mention chain recovery history as part of the custom-domain workflow
-  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `README.md`
-  - `apps/api/drizzle/0020_project_domain_certificate_chain_timeline.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-domains.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - the platform now tracks presented-chain persistence and recovery much more truthfully, but it still does not preserve full per-certificate intermediate metadata beyond subject names, richer issuer drift / renewal incident history, or a managed ACME-style issuance / renewal control loop beyond observed DNS / HTTPS diagnostics
-- next recommended step:
-  - either continue roadmap item 3 with richer per-certificate issuer/intermediate metadata plus longer-horizon renewal / issuer incident history, or treat domains/TLS as sufficiently mature for now and move to the next broader roadmap area such as managed databases or richer operator tooling
-### Phase: Roadmap certificate chain diagnostics batch (2026-03-29, presented chain capture + chain-status derivation + operator-facing root/issuer detail)
-
-- what was built:
-  - extended stored project-domain diagnostics with persisted presented-certificate chain subjects plus the observed root subject, so each host now preserves more truthful issuer-chain context instead of flattening HTTPS checks down to only leaf-certificate metadata
-  - taught the TLS diagnostics path to capture the presented certificate chain from the peer certificate, carry that state through stored domain diagnostics, and reuse it during background refreshes instead of treating chain visibility as transient request-time-only detail
-  - added an explicit certificate-chain contract on top of the stored diagnostics, with statuses like `chained`, `leaf-only`, `incomplete`, `private-root`, `self-signed-leaf`, and `unavailable`, so operators can distinguish healthy presented chains from suspicious or incomplete certificate paths
-  - extended project-domain event history with `certificate_chain` events derived from observed chain changes, so the Domains page now records when a host starts presenting a different certificate chain instead of only tracking DNS, trust, and certificate-identity transitions
-  - updated the dashboard Domains page to surface certificate-chain badges, chain summary counts, root-subject detail, and a readable presented-chain display for each host, making issuer/root context far easier to inspect during certificate troubleshooting
-  - refreshed the top-level README capability list to mention presented-chain visibility as part of the custom-domain workflow
-  - verified the batch with `npm.cmd --workspace @vcloudrunner/api run typecheck`, `npm.cmd --workspace @vcloudrunner/api test`, `npm.cmd --workspace @vcloudrunner/dashboard run typecheck`, and `npm.cmd --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `README.md`
-  - `apps/api/drizzle/0019_project_domain_certificate_chain.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/services/project-domain-diagnostics.service.ts`
-  - `apps/api/src/services/project-domain-diagnostics.service.test.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-domains.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - the platform now exposes presented certificate chain visibility much more truthfully, but it still does not preserve full intermediate-certificate metadata beyond subject names, deeper issuer/renewal incident history, or a managed ACME-style issuance/renewal control loop beyond observed DNS / HTTPS diagnostics
-- next recommended step:
-  - either continue roadmap item 3 with richer issuer/intermediate-chain metadata plus longer-horizon certificate recovery history, or treat domains/TLS as sufficiently mature for now and move to the next broader roadmap area such as managed databases or richer operator tooling
-### Phase: Roadmap certificate attention telemetry batch (2026-03-29, guidance streak tracking + persistent certificate issue surfacing + operator-facing follow-up state)
-
-- what was built:
-  - extended stored project-domain diagnostics with persisted certificate-guidance timeline fields, so each host now keeps when the current certificate follow-up state began plus how many consecutive checks have observed that same state
-  - added an explicit certificate-attention contract on top of the existing lifecycle / trust / validity guidance, with `healthy`, `monitor`, `action-needed`, and `persistent-action-needed` states so operators can distinguish expected watch states from certificate problems that are now clearly persisting
-  - taught the domain refresh path to carry that guidance timeline forward across repeated checks and emit explicit `certificate_attention` history events when real certificate issues escalate or resolve, instead of only recording raw guidance-state changes
-  - updated the dashboard Domains page to surface certificate follow-up badges, summary counts, persistent-issue wording, and per-host “current follow-up state since / across N consecutive checks” guidance so stuck renewal or trust problems are much harder to miss
-  - refreshed the top-level README capability list to mention persistent certificate issue surfacing as part of the custom-domain workflow
-  - verified the batch with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `README.md`
-  - `apps/api/drizzle/0018_project_domain_certificate_attention.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.routes.test.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-domains.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - certificate follow-up is now much more truthful at the control-plane and dashboard level, but the platform still does not expose full presented issuer-chain detail, repeated issuer-chain drift history, or a managed ACME-style issuance / renewal control loop beyond observed DNS / HTTPS diagnostics
-- next recommended step:
-  - either continue roadmap item 3 with deeper certificate chain / issuer detail plus richer certificate recovery history, or treat domains/TLS as sufficiently mature for now and move to the next broader roadmap area such as managed databases or richer operator tooling
-### Phase: Roadmap certificate identity and rotation telemetry batch (2026-03-29, fingerprint/serial capture + rotation history + operator-facing identity guidance)
-
-- what was built:
-  - extended stored project-domain diagnostics with presented-certificate fingerprint and serial capture, so the control plane now preserves stable certificate identity instead of treating every HTTPS check as an isolated snapshot
-  - taught the TLS inspection path to record certificate fingerprint/serial details directly from the presented certificate and persist first-observed, changed-at, and last-rotated timestamps on each domain record
-  - added an explicit certificate-identity contract on top of that stored state, with statuses like `first-observed`, `stable`, `rotated`, `rotated-attention`, and `unavailable`, so operators can tell the difference between healthy rotation, suspicious rotation, and simple lack of cert data
-  - extended project-domain event history with `certificate_identity` events derived from fingerprint changes, so the Domains page now has a truthful rotation trail instead of only DNS / HTTPS / trust transitions
-  - updated the dashboard Domains page to surface certificate-identity summary counts, per-host identity badges, fingerprint and serial details, identity timing/history copy, and richer recent-activity details for certificate changes
-  - refreshed the top-level README capability list to mention certificate rotation telemetry as part of the custom-domain workflow
-  - verified the batch with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `README.md`
-  - `apps/api/drizzle/0017_project_domain_certificate_identity.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/services/project-domain-diagnostics.service.ts`
-  - `apps/api/src/services/project-domain-diagnostics.service.test.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/modules/projects/projects.routes.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-domains.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - the platform now exposes certificate identity, trust, expiry risk, and operator next steps much more truthfully, but it still does not model full issuer-chain detail, repeated renewal-failure history, or managed ACME-style issuance/renewal automation beyond observed certificate and HTTPS diagnostics
-- next recommended step:
-  - either continue roadmap item 3 with deeper certificate history / renewal telemetry such as issuer-chain detail and repeated renewal-failure surfacing, or treat domains/TLS as sufficiently mature for now and move to the next broader roadmap area such as managed databases or richer operator tooling
-### Phase: Roadmap certificate trust and guidance batch (2026-03-29, persisted cert metadata + trust guidance + certificate events)
-
-- what was built:
-  - extended stored project-domain diagnostics with richer certificate metadata, including presented subject, issuer, SAN coverage, and a normalized validation-reason field, so the control plane can now preserve more than just TLS reachability and validity dates
-  - taught the domain diagnostics path to capture that metadata from the presented TLS certificate and classify trust failures like hostname mismatch, self-signed/untrusted issuer, and date-invalid certificate problems instead of collapsing every failure into a generic invalid-TLS message
-  - added explicit certificate-trust and certificate-guidance contracts on top of the stored diagnostics, so each host now reports whether the cert is trusted, mismatched, untrusted, date-invalid, or unavailable plus a next-step state like `renew-now`, `renew-soon`, `fix-coverage`, `fix-trust`, `wait-for-issuance`, or `healthy`
-  - extended domain event history with certificate events derived from the guidance contract, so the Domains page now has a real certificate activity trail instead of only DNS and raw HTTPS-status transitions
-  - updated the dashboard Domains page to surface the new trust/guidance badges, issuer/subject/coverage details, validation reason, and summary counts for trust issues plus renewal attention, making certificate recovery work much more operator-readable
-  - refreshed the top-level README capability list to mention custom-domain TXT/DNS/TLS/certificate management directly
-  - verified the batch with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `README.md`
-  - `apps/api/drizzle/0016_project_domain_certificate_metadata.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/services/project-domain-diagnostics.service.ts`
-  - `apps/api/src/services/project-domain-diagnostics.service.test.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/modules/projects/projects.routes.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-domains.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - the platform now exposes certificate identity, trust, expiry risk, and operator next steps much more truthfully, but it still does not model full issuer-chain detail, renewal attempt history, or managed ACME-style issuance/renewal automation beyond observed certificate and HTTPS diagnostics
-- next recommended step:
-  - either continue roadmap item 3 with deeper certificate history / renewal telemetry (for example full chain detail, last-renewal-style eventing, or repeated-failure surfacing), or treat domains/TLS as sufficiently mature for now and move to the next broader roadmap area such as managed databases or richer operator tooling
-### Phase: Roadmap certificate validity-window surfacing (2026-03-29, persisted cert dates + expiry guidance)
-
-- what was built:
-  - added persisted certificate validity-window storage on project domains, so diagnostics can keep the presented certificate `validFrom` / `validTo` dates instead of collapsing HTTPS health to a boolean-style status only
-  - extended the project-domain diagnostics path to inspect the presented TLS certificate and capture those validity dates alongside the existing DNS / HTTPS readiness checks
-  - derived an explicit certificate-validity contract on top of the stored dates, with states like `valid`, `expiring-soon`, `expired`, `not-yet-valid`, and `unavailable`, so operators can tell whether HTTPS is healthy but nearing expiry versus already broken
-  - surfaced certificate-validity badges, summary counts, and the concrete valid-from / valid-until timestamps on the dashboard Domains page, so domain operations now expose actual certificate windows instead of only route/claim/provisioning guidance
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/drizzle/0015_project_domain_certificate_validity.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/services/project-domain-diagnostics.service.ts`
-  - `apps/api/src/services/project-domain-diagnostics.service.test.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/modules/projects/projects.routes.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-domains.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - the platform now surfaces certificate validity windows and near-expiry risk, but it still does not expose richer issuer / chain detail or a fuller managed ACME-style renewal workflow beyond presented-certificate inspection and health-check-based inference
-- next recommended step:
-  - either continue roadmap item 3 with richer certificate issuer / chain / renewal-history surfacing, or treat domains/TLS as sufficiently mature for now and move to the next broader roadmap area such as managed databases or richer operator tooling
-### Phase: Roadmap certificate lifecycle guidance (2026-03-28, explicit issuance/renewal state + operator guidance)
-
-- what was built:
-  - added a derived certificate-lifecycle contract to project-domain responses, with explicit states like `awaiting-route`, `awaiting-dns`, `provisioning`, `active`, `issuance-attention`, `renewal-attention`, and `check-unavailable`, so HTTPS no longer stops at raw `tlsStatus`
-  - taught the project-domain service to distinguish initial certificate issuance trouble from regressions after prior healthy HTTPS by reusing the existing `tlsReadyAt` and TLS status-change tracking, which makes renewal issues visible without inventing a separate certificate store
-  - surfaced the new lifecycle badges, summary counts, and operator-facing "Certificate lifecycle" guidance on the dashboard Domains page, so operators can quickly tell whether a host is blocked on routing, blocked on DNS, still provisioning, or needs issuance/renewal follow-up
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/modules/projects/projects.routes.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-domains.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - certificate lifecycle is now explicit at the control-plane level, but the platform still does not surface live certificate validity windows / expiry dates or run a fuller managed ACME-style issuance and renewal workflow beyond health-check-based inference
-- next recommended step:
-  - either continue roadmap item 3 with explicit certificate validity-window / expiry surfacing, or treat the current domains/TLS pass as sufficiently mature and move to the next broader roadmap area such as managed databases or richer operator tooling
-### Phase: Roadmap DNS challenge claim loop (2026-03-28, persisted TXT ownership challenge + explicit verify flow)
-
-- what was built:
-  - added a persisted per-domain TXT ownership challenge model for custom hosts, including stored verification tokens plus verification status/detail/timestamp state on the `domains` record, so custom-domain claims now have a first-class challenge contract instead of relying only on passive guidance
-  - extended the project-domain diagnostics path to verify ownership through a `_vcloudrunner.<host>` TXT record while still separately checking routing DNS and HTTPS readiness, letting the platform distinguish claim verification, ingress-target DNS, and certificate health as separate steps in the domain lifecycle
-  - added an explicit `POST /v1/projects/:projectId/domains/:domainId/verify` flow plus dashboard action/UI support, so operators can verify a single host on demand and get concrete claim-completion feedback instead of only running a broad refresh and inferring the result
-  - updated the Domains page to show the TXT ownership challenge record, the routing CNAME target, richer claim-state badges, and per-host verify/recheck controls, so the dashboard now exposes the full manual challenge loop end to end
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/drizzle/0014_project_domain_verification.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/services/project-domain-diagnostics.service.ts`
-  - `apps/api/src/services/project-domain-diagnostics.service.test.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/modules/projects/projects.routes.ts`
-  - `apps/api/src/modules/projects/projects.routes.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-domains.ts`
-  - `apps/dashboard/app/projects/actions.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - custom-domain claims now have a real TXT verification loop, but certificate issuance/renewal still only appears as best-effort HTTPS diagnostics rather than a richer managed lifecycle with clearer certificate state progression and recovery guidance
-- next recommended step:
-  - continue roadmap item 3 by deepening certificate issuance/renewal lifecycle tracking and operator guidance on top of the now-complete TXT claim loop, so certificate problems become as explicit and actionable as claim verification
-### Phase: Roadmap guided domain claim workflow (2026-03-28, operator-facing DNS action guidance)
-
-- what was built:
-  - extended the project-domain diagnostics API model with explicit claim guidance derived from the current route, DNS ownership, TLS status, and diagnostics freshness, so each host now reports a concrete next-step state like `configure-dns`, `fix-dns`, `wait-for-https`, `redeploy-public-service`, or `healthy`
-  - taught the project-domain service layer to attach recommended DNS record instructions for custom hosts, including the expected record type, host label, and target value when the operator still needs to point the domain at the platform
-  - surfaced that guidance on the dashboard Domains page with claim-state badges, operator-facing “Claim guide” messaging, and explicit DNS record instructions instead of leaving operators to infer the next action from raw DNS/TLS status alone
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-domains.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - the platform now guides operators through the manual domain-claim path, but it still does not run a real DNS challenge/claim loop with stored verification tokens, explicit claim-state progression, or managed certificate issuance/renewal workflows beyond best-effort HTTPS diagnostics
-- next recommended step:
-  - continue roadmap item 3 by turning the guided claim model into a real DNS challenge/claim loop with explicit ownership-token generation, verification-state progression, and operator-facing claim completion feedback
-### Phase: Roadmap domain diagnostics event history (2026-03-28, persisted DNS/TLS transition log)
-
-- what was built:
-  - added a persisted `project_domain_events` history model that records DNS and HTTPS status transitions per domain, so the platform now keeps a lightweight event trail instead of only the latest/current domain state
-  - updated the project-domain diagnostics refresh path to write ownership and TLS events whenever a host moves into a new status, including the first recorded state and later drift/regression transitions
-  - surfaced recent domain activity on the dashboard Domains page so each host now shows a short DNS/HTTPS transition timeline alongside the current freshness and drift messaging
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/drizzle/0013_project_domain_events.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-domains.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - project-domain diagnostics now include recent transition history, but the platform still does not run a fuller DNS challenge/claim workflow and still does not model certificate issuance/renewal as a richer managed lifecycle beyond best-effort HTTPS state observation
-- next recommended step:
-  - continue roadmap item 3 by deciding whether to turn the current event/history model into a more guided DNS claim workflow, or to move directly into a real DNS challenge/claim loop with operator-facing verification instructions and claim-state progression
-
-### Phase: Roadmap domain diagnostics drift surfacing (2026-03-28, current-status timing + regression visibility)
-
-- what was built:
-  - extended stored project-domain diagnostics state with `ownership_status_changed_at` and `tls_status_changed_at`, so the platform now tracks when the current DNS and HTTPS status first began instead of only storing the latest status value
-  - updated the project-domain diagnostics persistence flow so those status-change timestamps are backfilled on the first recorded state, preserved while a host stays in the same state, and reset when DNS/TLS move into a new status during later refreshes
-  - surfaced that history on the dashboard Domains page with drift/regression summaries plus per-host timeline messaging like current-state duration, DNS drift after prior verification, and HTTPS regression after prior healthy checks
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/drizzle/0012_project_domain_status_history.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-domains.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - project-domain diagnostics now show freshness plus status-duration/regression timing, but the platform still only stores the current/latest domain state rather than a fuller certificate issuance/renewal or ownership event history, and there is still no explicit DNS challenge/claim workflow beyond guidance plus best-effort verification
-- next recommended step:
-  - continue roadmap item 3 by choosing between a fuller certificate/ownership event history model and a real DNS challenge/claim loop, depending on whether operator visibility or claim automation is the more valuable next milestone
-
-### Phase: Roadmap domain diagnostics freshness surfacing (2026-03-28, explicit fresh/stale/unchecked host checks)
-
-- what was built:
-  - extended the project-domain API response model with explicit diagnostics freshness state derived from `diagnostics_checked_at`, so stored DNS and TLS results now distinguish `fresh`, `stale`, and `unchecked` instead of treating all recorded status as equally current
-  - updated the project-domain service layer so freshness is applied consistently to fallback reads and live refresh writes, keeping the API contract aligned with the same staleness window already used by the background diagnostics refresher
-  - surfaced diagnostics freshness badges, operator-facing freshness detail, and top-level stale/unrecorded counts on the dashboard Domains page, so latest-known DNS and certificate state is now visibly qualified instead of reading like guaranteed live truth
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-domains.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - project-domain diagnostics are now freshness-aware, but the platform still only stores the latest-known DNS/TLS state rather than a fuller certificate issuance/renewal or ownership-history timeline, and there is still no explicit DNS challenge/claim workflow beyond guidance plus best-effort verification
-- next recommended step:
-  - continue roadmap item 3 by deciding whether to deepen the freshness-aware model into explicit certificate/ownership history and drift surfacing, or move into a fuller DNS challenge/claim loop if that is the more valuable next platform milestone
-
-### Phase: Roadmap recurring domain diagnostics refresh (2026-03-28, background DNS/TLS reconciliation + last-known-good timing)
-
-- what was built:
-  - added an API-side `ProjectDomainDiagnosticsRefreshService` that periodically refreshes stale project-domain diagnostics in bounded batches, so DNS and TLS state no longer depend only on someone opening the Domains page or clicking the manual refresh action
-  - extended stored domain lifecycle state with `ownership_verified_at` and `tls_ready_at`, preserving the last-known successful DNS verification and last healthy HTTPS check even when a host later drifts into mismatch, pending, or invalid states
-  - refactored the project-domain diagnostics path so the dashboard refresh action and the background refresher now share the same `ProjectsService` persistence flow instead of maintaining separate update logic
-  - updated the Domains page to show the last-known DNS verification and HTTPS healthy timestamps alongside the latest diagnostics status, and clarified that diagnostics now refresh automatically in the background while still supporting on-demand checks
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/drizzle/0011_project_domain_diagnostics_lifecycle.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/config/env-core.ts`
-  - `apps/api/src/config/env-core.test.ts`
-  - `apps/api/.env.example`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/server/build-server.ts`
-  - `apps/api/src/server/build-server.test.ts`
-  - `apps/api/src/services/project-domain-diagnostics-refresh.service.ts`
-  - `apps/api/src/services/project-domain-diagnostics-refresh.service.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - the platform now has recurring diagnostics and last-known-good timing, but it still only stores the latest known lifecycle state rather than a fuller certificate issuance/renewal history, and there is still no explicit DNS challenge/ownership workflow beyond guidance plus best-effort verification
-- next recommended step:
-  - continue roadmap item 3 by deciding how far the platform model should go beyond latest-known host state: either add explicit certificate/ownership history and richer freshness surfacing, or move into a fuller DNS challenge/claim loop if that better fits the next platform milestone
-
-### Phase: Roadmap active custom-domain detach (2026-03-28, explicit live-route deactivation for removals)
-
-- what was built:
-  - replaced the old API-side "active custom domains cannot be removed yet" guard with an explicit live-route detach path for non-default hosts that are already attached to a deployment, so operators can now remove active custom domains without waiting for a redeploy or manual database cleanup
-  - added an API-side Caddy admin route-deactivation service plus configuration plumbing (`CADDY_ADMIN_URL` in the API env/compose config), letting the control plane delete the live reverse-proxy host before it removes the domain claim from the database
-  - kept the safety guard for queued/building deployments, because those jobs already carry a snapshotted `publicRouteHosts` list and could otherwise republish a just-removed host later in the same in-flight deployment
-  - updated the dashboard Domains page and removal messaging so running or stale custom hosts can be removed directly, while queued/building hosts now explain that removal has to wait for the deployment to finish or be cancelled
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/src/services/project-domain-route.service.ts`
-  - `apps/api/src/services/project-domain-route.service.test.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/server/domain-errors.ts`
-  - `apps/api/src/config/env-core.ts`
-  - `apps/api/.env.example`
-  - `apps/dashboard/app/projects/actions.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docker-compose.yml`
-  - `docs/progress.md`
-- what is still missing:
-  - DNS ownership and certificate state are now stored and removable routes can be detached safely, but certificate/verification data is still refreshed on demand rather than by a recurring reconciliation loop, and there is still no richer certificate issuance/renewal history beyond the latest recorded status
-- next recommended step:
-  - continue roadmap item 3 by building on the stored diagnostics model with richer certificate lifecycle tracking plus background DNS/TLS refresh/reconciliation instead of on-demand checks only
-
-### Phase: Roadmap persisted domain diagnostics state (2026-03-28, stored DNS/TLS status + on-demand refresh)
-
-- what was built:
-  - extended the `domains` model with persisted ownership status, ownership detail, TLS status, TLS detail, and `diagnostics_checked_at`, so project-domain health is now part of first-class platform state instead of existing only as ephemeral read-time probes
-  - updated the project-domain service flow so normal reads return stored diagnostics with safe fallbacks, while `includeDiagnostics=true` now performs a live DNS/TLS inspection and persists the refreshed state back onto each domain record for later reads
-  - added a dashboard-side “Refresh Checks” action on the Domains page, so operators can explicitly refresh DNS and certificate checks on demand while the page otherwise renders the stored status plus the last recorded refresh time
-  - kept route activation and detach behavior unchanged for this slice: active custom hosts still publish through the current ingress path, but the platform now has durable per-host verification/TLS status that can support the next removal/deactivation workflow cleanly
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/drizzle/0010_project_domain_diagnostics.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/app/projects/actions.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - active custom domains still cannot be detached safely through an explicit route-deactivation workflow, and certificate/verification state is still refreshed on demand rather than through background reconciliation or a richer certificate-history model
-- next recommended step:
-  - continue roadmap item 3 by adding live-route deactivation for active custom domains so removal no longer depends on the current safety guard, then follow with richer certificate lifecycle tracking on top of the stored diagnostics model
-
-### Phase: Roadmap domain diagnostics follow-through (2026-03-28, DNS ownership + TLS visibility)
-
-- what was built:
-  - added a best-effort domain diagnostics service on the API that inspects public DNS resolution and HTTPS reachability for project hosts, so the control plane can now distinguish platform-managed hosts, verified custom DNS, pending/mismatched DNS, and basic TLS readiness/validation problems per host
-  - extended `GET /v1/projects/:projectId/domains` with an opt-in `includeDiagnostics=true` mode, keeping the default route payload lightweight for general project dashboards while allowing the dedicated Domains page to request richer DNS/TLS state without turning every project listing into live network probes
-  - updated the dashboard Domains page to request those diagnostics explicitly and surface them through readable DNS/TLS badges plus operator-facing detail text alongside the existing route/deployment status, so claimed custom domains no longer stop at a generic `pending` story
-  - kept the diagnostics slice non-authoritative and read-time only for now: route activation is unchanged, but operators can finally see whether a host is unconfigured, pointed at the wrong target, waiting on HTTPS, or already serving a valid certificate
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/src/services/project-domain-diagnostics.service.ts`
-  - `apps/api/src/services/project-domain-diagnostics.service.test.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/modules/projects/projects.routes.ts`
-  - `apps/api/src/modules/projects/projects.routes.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-domains.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - DNS ownership and TLS are still derived from best-effort read-time probes rather than persisted platform state, there is still no explicit DNS challenge/claim loop or certificate issuance history, and active custom domains still rely on the current removal guard instead of a full route-detach workflow
-- next recommended step:
-  - continue roadmap item 3 by turning host diagnostics into first-class platform state: add explicit DNS verification / certificate lifecycle tracking where possible, then add live-route deactivation so active custom domains can be detached safely instead of remaining guarded
-
-### Phase: Roadmap custom-domain activation groundwork (2026-03-27, deployment route snapshots + worker ingress publish)
-
-- what was built:
-  - extended deployment queue payloads so the API now snapshots the public route host set for public-service deploys, including the reserved default host plus any claimed custom domains, instead of leaving the worker hard-wired to a single generated hostname
-  - updated worker route activation so public deploys now publish every queued host through Caddy, persist the default host plus successfully activated custom hosts back onto the deployment/domain model, and clean up all configured hosts together during post-run failure handling and startup reconciliation
-  - tightened domain lifecycle safety so custom domains now become live on the next successful public-service deployment, pending custom hosts stay truthful when per-host activation fails, and active/in-flight custom domains are blocked from removal until explicit live-route deactivation exists
-  - refreshed the dashboard Domains page guidance and controls to match the new behavior: claimed custom domains publish on the next successful deploy, while live custom routes remain visible but temporarily non-removable
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/worker run typecheck`, `npm --workspace @vcloudrunner/worker test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `packages/shared-types/src/index.ts`
-  - `apps/api/src/modules/deployments/deployments.service.ts`
-  - `apps/api/src/modules/deployments/deployments.service.test.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/modules/projects/projects.routes.test.ts`
-  - `apps/api/src/server/domain-errors.ts`
-  - `apps/worker/src/workers/deployment-job-processor.ts`
-  - `apps/worker/src/workers/deployment-job-processor.test.ts`
-  - `apps/worker/src/services/deployment-state.repository.ts`
-  - `apps/worker/src/services/deployment-state.repository.test.ts`
-  - `apps/worker/src/services/deployment-state.service.ts`
-  - `apps/worker/src/services/deployment-state.service.test.ts`
-  - `apps/dashboard/app/projects/actions.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - DNS ownership, certificate issuance/renewal, and explicit per-host TLS/problem state are still not first-class, and active custom domains currently rely on a safety guard instead of a full live-route deactivation/removal workflow
-- next recommended step:
-  - continue roadmap item 3 by adding DNS ownership plus TLS/certificate state on top of the now-live custom-host activation path, then follow with explicit live-route deactivation so active custom domains can be detached safely instead of remaining guarded
-
-### Phase: Roadmap domains management groundwork (2026-03-27, custom-domain claim add/remove + pending state)
-
-- what was built:
-  - added the first write-side project-domain workflow on the API through `POST /v1/projects/:projectId/domains` and `DELETE /v1/projects/:projectId/domains/:domainId`, so owners/admins/project-admins can now claim or remove custom hosts directly from the control plane instead of treating routing as read-only metadata
-  - extended project-domain state modeling with an explicit `pending` route status for claimed-but-not-yet-activated hosts, so undeployed custom domains no longer masquerade as healthy routing before ingress and TLS activation exist
-  - taught the dashboard Domains page to manage custom domains with role-aware add/remove controls, clearer operator guidance about the current claim-first workflow, and explicit distinction between the reserved default platform host and removable custom hosts
-  - introduced `PLATFORM_DOMAIN` into the API config layer so the control plane can consistently protect the platform-managed default hostname namespace while continuing to compute the expected generated host for each project
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/.env.example`
-  - `apps/api/src/config/env-core.ts`
-  - `apps/api/src/config/env-core.test.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/modules/projects/projects.routes.ts`
-  - `apps/api/src/modules/projects/projects.routes.test.ts`
-  - `apps/api/src/server/domain-errors.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/project-domains.ts`
-  - `apps/dashboard/app/projects/actions.ts`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - custom domains are stored as project claims today, but deployment payloads, worker ingress activation, and certificate lifecycle still only understand the default generated host; there is no DNS verification or first-class TLS status yet
-- next recommended step:
-  - continue roadmap item 3 by wiring claimed custom domains into deployment/runtime ingress activation, then add TLS/certificate state so the dashboard can distinguish claimed, active, and certificate-problem hosts
-
-### Phase: Roadmap domains/routing visibility foundation (2026-03-27, real route status + project domains dashboard)
-
-- what was built:
-  - added a real project-domain read path on the API through `GET /v1/projects/:projectId/domains`, backed by persisted `domains` rows and joined deployment metadata so the control plane can now describe each published host with its target deployment, target port, runtime URL, and service metadata instead of leaving route visibility implicit
-  - introduced computed route states (`active`, `degraded`, `stale`) in the project service layer so the dashboard can distinguish healthy public routing from running-without-runtime-url cases and stale host records that still point at stopped or failed deployments
-  - added a dedicated project Domains page plus project-subnav entry in the dashboard, showing published hosts, route state, deployment linkage, runtime URL visibility, and service/exposure metadata for the current project's public routing surface
-  - replaced the old hardcoded project hostname guess on the main dashboard surfaces with the real route summary when available, so project cards and the project overview now surface actual route state while still falling back to the expected default host when no route has been published yet
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/modules/projects/projects.routes.ts`
-  - `apps/api/src/modules/projects/projects.routes.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/loaders.ts`
-  - `apps/dashboard/lib/project-domains.ts`
-  - `apps/dashboard/lib/mock-data.ts`
-  - `apps/dashboard/components/project-card.tsx`
-  - `apps/dashboard/components/project-subnav.tsx`
-  - `apps/dashboard/app/projects/page.tsx`
-  - `apps/dashboard/app/projects/[id]/page.tsx`
-  - `apps/dashboard/app/projects/[id]/domains/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - the current domains slice is visibility-first and still read-only: there is no project-side add/remove domain workflow, no custom-domain claim/DNS verification loop, no first-class TLS/certificate state, and the runtime routing model is still centered on one default public host per project
-- next recommended step:
-  - continue roadmap item 3 by adding the first write-side domain workflow: project-scoped domain add/remove management with explicit claimed/pending/active guidance, then surface TLS/certificate state once the platform can manage more than the default generated host
-
-### Phase: Phase 4 invitation delivery closeout (2026-03-27, outbound webhook delivery + redelivery controls)
-
-- what was built:
-  - added a minimal outbound invitation delivery seam on the API side through a configurable webhook, so newly stored pending invitations can now emit a structured payload with the invited email, project metadata, inviter details, and the full claim URL instead of relying only on manual copy/share
-  - made invitation creation preserve the pending invite even when outbound delivery is disabled or fails, while returning explicit `delivered` / `disabled` / `failed` delivery outcomes so operators can act on the result without losing the invitation itself
-  - added a dedicated pending-invitation redelivery route plus dashboard control, so operators can resend the current claim link on demand without mutating role metadata or recreating the invite
-  - documented the new API env knobs for claim-link base URL and invitation delivery webhook auth, and verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/.env.example`
-  - `apps/api/src/config/env-core.ts`
-  - `apps/api/src/config/env-core.test.ts`
-  - `apps/api/src/services/project-invitation-delivery.service.ts`
-  - `apps/api/src/services/project-invitation-delivery.service.test.ts`
-  - `apps/api/src/server/build-server.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/modules/projects/projects.routes.ts`
-  - `apps/api/src/modules/projects/projects.routes.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/app/projects/actions.ts`
-  - `apps/dashboard/app/projects/[id]/page.tsx`
-  - `README.md`
-  - `docs/progress.md`
-- what is still missing:
-  - the original four-phase MVP plan is now closed; any deeper email-provider integration, full team/workspace model, or broader platform maturity work should be captured in the next roadmap-driven plan rather than reopening the original phase checklist
-- next recommended step:
-  - treat the current four-phase plan as complete, then start a fresh post-phase planning pass against `docs/roadmap.md` when you want to choose the next deliberate expansion slice
-
-### Phase: Phase 4 project ownership transfer follow-through (2026-03-26, final project-admin lifecycle seam)
-
-- what was built:
-  - added an explicit project-ownership transfer API path plus owner-only transfer guard so ownership can move to an existing member without widening that control to ordinary project-admin memberships
-  - extended the project service/repository layer so ownership transfer promotes the new owner into an admin-capable membership, preserves the previous owner as an admin member, and then rehydrates the updated project member state from the canonical membership list
-  - upgraded the dashboard project members panel with an owner-only "Make Owner" action plus clearer copy explaining that ownership transfer keeps the previous owner on the project as an admin until later removal
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/src/server/domain-errors.ts`
-  - `apps/api/src/modules/auth/auth-utils.ts`
-  - `apps/api/src/modules/auth/auth-utils.test.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/modules/projects/projects.routes.ts`
-  - `apps/api/src/modules/projects/projects.routes.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/app/projects/actions.ts`
-  - `apps/dashboard/app/projects/[id]/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - project membership now has a real owner-transfer path, but Phase 4 still has one open decision around whether lightweight outbound invitation delivery belongs in-scope or whether the current shareable claim-link model is enough to close the phase
-- next recommended step:
-  - make the Phase 4 closeout decision on outbound invitation delivery: either add a minimal delivery seam/workflow now, or explicitly treat the current claim-link invite model as sufficient and close Phase 4 before moving back to broader roadmap additions
-
-### Phase: Phase 4 project invitation claim/history follow-through (2026-03-26, shareable claim links + preserved invitation lifecycle)
-
-- what was built:
-  - upgraded project invitations from disposable pending rows into a preserved lifecycle model with `pending` / `accepted` / `cancelled` states, claim tokens, and retained acceptance/cancellation timestamps so invitation history no longer disappears once an invite changes state
-  - added unauthenticated invitation-claim lookup plus authenticated claim acceptance API routes, allowing shareable invitation URLs to resolve into project/role details and letting the invited persisted user accept access directly from that claim token
-  - extended account-setup auto-accept to mark matching invitations as accepted instead of deleting them, so the system now keeps historical invitation truth while still onboarding invited users automatically by email
-  - upgraded the dashboard with a dedicated `/invitations/[claimToken]` claim page, session-aware claim actions, pending-invite claim links on the project members page, and a new invitation history view for accepted/cancelled invites
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/drizzle/0009_project_invitation_lifecycle.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/server/domain-errors.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/modules/projects/projects.routes.ts`
-  - `apps/api/src/modules/projects/projects.routes.test.ts`
-  - `apps/api/src/modules/auth/auth.service.ts`
-  - `apps/api/src/modules/auth/auth.service.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/app/invitations/[claimToken]/page.tsx`
-  - `apps/dashboard/app/invitations/[claimToken]/actions.ts`
-  - `apps/dashboard/app/projects/[id]/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - invitations now have shareable claim primitives and preserved history, but there is still no real outbound email delivery, resend automation, ownership transfer flow, or broader workspace/team lifecycle above per-project membership
-- next recommended step:
-  - continue Phase 4 auth/user-model work by closing out the remaining membership-admin gap: decide and implement ownership-transfer / final project-admin lifecycle semantics on top of the new invitation history model, then revisit whether outbound delivery automation still belongs inside Phase 4 or a later maturity pass
-
-### Phase: Phase 4 project invitation management follow-through (2026-03-26, pending invite refresh/cancel + clearer acceptance visibility)
-
-- what was built:
-  - extended the project-membership API with pending-invitation update and delete operations, so owners/admins/project-admins can now refresh or cancel stored invitations instead of treating pending emails as immutable rows
-  - added repository, service, and route coverage for those pending-invite management paths, including explicit `404` handling when an invitation has already been claimed or removed
-  - upgraded the dashboard project detail members panel so each pending invitation now has inline save/refresh and cancel actions, plus clearer copy explaining that account setup auto-accepts matching invites and that saving refreshes follow-up visibility
-  - improved account-setup feedback so profile creation now names accepted projects and roles when pending invitations are claimed, and clarified the same auto-accept behavior in the account settings UI
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/src/server/domain-errors.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/modules/projects/projects.routes.ts`
-  - `apps/api/src/modules/projects/projects.routes.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/app/projects/actions.ts`
-  - `apps/dashboard/app/projects/[id]/page.tsx`
-  - `apps/dashboard/app/settings/account/actions.ts`
-  - `apps/dashboard/app/settings/account/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - pending invitations are now storable, manageable, and auto-accepted during account setup, but there is still no real email delivery, deep-link/tokenized acceptance flow, accepted/cancelled invitation history, or ownership-transfer/workspace-team model yet
-- next recommended step:
-  - continue Phase 4 auth/user-model work by finishing the invitation lifecycle beyond dashboard-local management: add invitation delivery/claim primitives and clearer accepted/cancelled history, then decide whether ownership transfer belongs in that same final membership pass or immediately after it
-
-### Phase: Phase 4 project invitation storage and acceptance follow-through (2026-03-26, pending invites + account-setup auto-accept)
-
-- what was built:
-  - added a persisted `project_invitations` model plus API support for listing pending invitations, so project membership no longer stops at already-persisted users and managers can see which email-based invites are still waiting to be claimed
-  - changed project invite behavior so existing persisted users still become members immediately, while unknown emails now create pending invitations instead of erroring, with duplicate pending invites rejected cleanly
-  - extended account setup so saving a new persisted profile automatically accepts any pending project invitations that match the saved email, then rehydrates the dashboard with a success message that reflects accepted invitations when relevant
-  - updated the dashboard project detail members surface to show pending invitations alongside active members and clarified the direct-member-vs-pending-invite behavior in the invite flow
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/drizzle/0008_project_invitations.sql`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/server/domain-errors.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/modules/projects/projects.routes.ts`
-  - `apps/api/src/modules/projects/projects.routes.test.ts`
-  - `apps/api/src/modules/auth/auth.service.ts`
-  - `apps/api/src/modules/auth/auth.service.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/app/projects/actions.ts`
-  - `apps/dashboard/app/projects/[id]/page.tsx`
-  - `apps/dashboard/app/settings/account/actions.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - pending invitations now exist and can be auto-accepted during account setup, but there is still no explicit invitation cancellation/resend path, no email delivery or deep-link acceptance workflow, and no richer ownership-transfer or workspace-level team model yet
-- next recommended step:
-  - continue Phase 4 auth/user-model work by adding invitation management follow-through around pending invites: cancellation/resend controls, clearer invite acceptance visibility for operators, and then decide whether ownership transfer belongs in the same team-admin slice or a later pass
-
-### Phase: Phase 4 project membership lifecycle follow-through (2026-03-26, role updates + member removal)
-
-- what was built:
-  - expanded the new project-membership API with role updates and member removal for existing non-owner memberships, while keeping project-owner membership immutable so ownership does not get accidentally stripped before invitation acceptance and richer transfer rules exist
-  - added route and service coverage for those new membership lifecycle operations, including explicit `404` handling for missing members and `409` handling when callers try to mutate the owner membership
-  - upgraded the dashboard project detail members panel so operators with owner/admin/project-admin access can now change member roles inline or remove non-owner members without leaving the project page, while self-removal safely redirects back to the broader projects view
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/src/server/domain-errors.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/modules/projects/projects.routes.ts`
-  - `apps/api/src/modules/projects/projects.routes.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/app/projects/actions.ts`
-  - `apps/dashboard/app/projects/[id]/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - project membership is now manageable for existing persisted users, but invitations still only work for users who already exist in the database, there is no stored invitation/acceptance or delivery lifecycle yet, and there is still no ownership-transfer or broader team/workspace model above per-project membership
-- next recommended step:
-  - continue Phase 4 auth/user-model work by introducing stored invitation records and acceptance flows so project membership can include users who have not completed account setup yet, then decide whether ownership transfer belongs in the same lifecycle pass or a later team-admin slice
-
-### Phase: Phase 4 project membership groundwork (2026-03-26, owner seeding + member list/invite foundations)
-
-- what was built:
-  - updated project creation to seed an owner membership row and fixed project membership lookup semantics so later project-role checks operate on a correct per-project/per-user foundation instead of a permissive membership query
-  - added authenticated API groundwork for project member listing and existing-user invites, including owner/admin/project-admin authorization rules and explicit conflict/not-found domain errors for duplicate membership and missing persisted users
-  - extended the dashboard project detail page with a members panel, current member list, and an invite form for operators who already have the right project-management role, while keeping missing-profile actors on the account-setup path before they attempt membership writes
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/src/server/domain-errors.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/modules/projects/projects.routes.ts`
-  - `apps/api/src/modules/projects/projects.routes.test.ts`
-  - `apps/api/src/modules/auth/auth-utils.ts`
-  - `apps/api/src/modules/auth/auth-utils.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/app/projects/actions.ts`
-  - `apps/dashboard/app/projects/[id]/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - project membership now has a real persistence and UI foothold, but invitations still only target already-persisted users, there is no invitation acceptance or delivery lifecycle yet, and owners/admins still cannot change roles or remove members through the product
-- next recommended step:
-  - continue Phase 4 auth/user-model work by expanding this into a fuller project-membership lifecycle, starting with role updates and member removal for existing memberships, then shaping stored invitation/acceptance flows for users who are not yet present in the database
-
-### Phase: Phase 4 onboarding bridge follow-through (2026-03-26, sign-in and write-path guidance)
-
-- what was built:
-  - updated dashboard sign-in so accepted bootstrap-token sessions with no persisted user record now redirect into account setup instead of pretending the operator is already fully onboarded
-  - taught `/settings/account`, session controls, and the Settings overview to surface missing-profile state more explicitly and preserve safe return targets so account setup can act as the bridge back to the page the operator was originally trying to reach
-  - added missing-profile guards to token-management actions and project creation so write paths that require a persisted `users` row now route into account setup rather than falling through to broken bootstrap/dev-auth behavior
-  - refreshed dashboard auth/setup guidance in the sign-in page and README so bootstrap/dev paths are described as transitional setup tools rather than normal long-term operator identity
-  - verified the slice with `npm --workspace @vcloudrunner/dashboard run typecheck` and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/dashboard/lib/dashboard-auth-navigation.ts`
-  - `apps/dashboard/app/sign-in/actions.ts`
-  - `apps/dashboard/app/sign-in/page.tsx`
-  - `apps/dashboard/app/settings/account/actions.ts`
-  - `apps/dashboard/app/settings/account/page.tsx`
-  - `apps/dashboard/app/settings/page.tsx`
-  - `apps/dashboard/components/dashboard-session-controls.tsx`
-  - `apps/dashboard/app/projects/actions.ts`
-  - `apps/dashboard/app/tokens/actions.ts`
-  - `apps/dashboard/README.md`
-  - `docs/progress.md`
-- what is still missing:
-  - the onboarding bridge now works much more intentionally, but the platform still lacks the first real membership/invitation workflow and still has some broader bootstrap/dev-auth assumptions to reduce outside the immediate sign-in and write-path guidance
-- next recommended step:
-  - continue Phase 4 auth/user-model work by starting the first persisted membership/invitation groundwork from the now-stored user model, while cleaning up any remaining bootstrap/dev-auth assumptions that still read as normal operator state
-
-### Phase: Phase 4 persisted-user bootstrap onboarding (2026-03-26, first real user-profile workflow)
-
-- what was built:
-  - added an authenticated API profile upsert route at `/v1/auth/me/profile`, backed by auth-service persistence logic that can create or refresh the current actor's `users` record while mapping duplicate-email conflicts cleanly
-  - added the first real dashboard account-onboarding form on `/settings/account`, so viewers without a persisted profile can create one in place and existing users can keep their stored name/email current
-  - updated Settings and token management to treat persisted profile setup as a first-class prerequisite for DB-backed token workflows instead of assuming every authenticated actor already has a stored user row
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/src/modules/auth/auth.routes.ts`
-  - `apps/api/src/modules/auth/auth.routes.test.ts`
-  - `apps/api/src/modules/auth/auth.service.ts`
-  - `apps/api/src/modules/auth/auth.service.test.ts`
-  - `apps/api/src/server/domain-errors.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/app/settings/account/actions.ts`
-  - `apps/dashboard/app/settings/account/page.tsx`
-  - `apps/dashboard/app/settings/page.tsx`
-  - `apps/dashboard/components/token-management-page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - the platform now has a real persisted-user bootstrap loop, but several operator-facing flows still assume bootstrap/dev-auth as acceptable long-term identity paths, and there is still no richer membership/invitation model beyond single-user token ownership
-- next recommended step:
-  - continue Phase 4 auth/user-model work by carrying this onboarding path through the remaining bootstrap/dev-auth surfaces, especially sign-in and settings guidance, then begin the first membership/invitation groundwork from the now-persisted user model
-
-### Phase: Phase 4 deployment-detail auth recovery and action redirect follow-through (2026-03-26, remaining auth-aware route and action cleanup)
-
-- what was built:
-  - removed the old deployment-detail fallback redirect so direct deployment URLs now show an explicit sign-in / re-auth state when live access is unavailable instead of bouncing operators back to the deployments index
-  - added a shared action-side auth redirect helper and wired project creation plus token create/rotate/revoke actions through it so missing or expired viewer context now routes through sign-in recovery rather than generic `no user context` redirects
-  - refreshed the remaining dashboard copy that still over-emphasized `API_AUTH_TOKEN`, including the projects action feedback path, auth transport description, and dashboard README guidance, so per-user session cookies read as the normal operator path and the env token is clearly documented as fallback-only
-  - verified the slice with `npm --workspace @vcloudrunner/dashboard run typecheck` and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/dashboard/lib/dashboard-action-auth.ts`
-  - `apps/dashboard/app/deployments/[id]/page.tsx`
-  - `apps/dashboard/app/projects/actions.ts`
-  - `apps/dashboard/app/tokens/actions.ts`
-  - `apps/dashboard/app/projects/page.tsx`
-  - `apps/dashboard/lib/viewer-auth.ts`
-  - `apps/dashboard/README.md`
-  - `docs/progress.md`
-- what is still missing:
-  - the dashboard auth/session experience is now largely coherent, but the broader Phase 4 auth/user-model work still stops at token-backed identity and dashboard session recovery; there is still no first-class persisted user bootstrap/onboarding flow or richer team/membership model beyond token ownership and dev-auth/bootstrap paths
-- next recommended step:
-  - continue Phase 4 auth/user-model work by starting the first real persisted-user workflow beyond token-only identity, beginning with a concrete bootstrap/onboarding slice that reduces the remaining dev/bootstrap-token assumptions in operator-facing flows while preparing for later team membership and invitation work
-
-### Phase: Phase 4 project-scoped auth gating and session-aware proxy follow-through (2026-03-26, remaining live page auth recovery)
-
-- what was built:
-  - added a shared dashboard unavailable-state wrapper that chooses between explicit sign-in / re-auth guidance and true outage messaging from the same request-auth context
-  - applied that auth-aware unavailable handling across the remaining project-scoped pages, plus the global environment, logs, settings, account, and token-management views, so those routes no longer collapse missing or expired auth into a generic live-data outage
-  - updated live log streaming to offer a direct sign-in-again recovery path from the current page and updated the log proxy routes to describe session expiry, access denial, and server-fallback rejection more explicitly
-  - tightened several dashboard auth and action error messages so `API_AUTH_TOKEN` is framed as a temporary fallback rather than the normal operator workflow
-  - verified the slice with `npm --workspace @vcloudrunner/dashboard run typecheck` and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/dashboard/components/dashboard-unavailable-state.tsx`
-  - `apps/dashboard/app/projects/[id]/page.tsx`
-  - `apps/dashboard/app/projects/[id]/deployments/page.tsx`
-  - `apps/dashboard/app/projects/[id]/environment/page.tsx`
-  - `apps/dashboard/app/projects/[id]/logs/page.tsx`
-  - `apps/dashboard/app/environment/page.tsx`
-  - `apps/dashboard/app/logs/page.tsx`
-  - `apps/dashboard/app/settings/page.tsx`
-  - `apps/dashboard/app/settings/account/page.tsx`
-  - `apps/dashboard/components/token-management-page.tsx`
-  - `apps/dashboard/components/logs-live-stream.tsx`
-  - `apps/dashboard/app/api/log-stream/route.ts`
-  - `apps/dashboard/app/api/log-export/route.ts`
-  - `apps/dashboard/app/tokens/actions.ts`
-  - `apps/dashboard/lib/helpers.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - the dashboard now handles auth-required and expired-session states much more consistently, but the direct deployment-detail route still falls back through a top-level redirect instead of exposing its own auth-aware unavailable state, and several server actions still redirect with coarse `no user context` style failures instead of explicit re-auth guidance
-- next recommended step:
-  - continue Phase 4 auth/user-model work by making direct deployment-detail access and the remaining server-action redirects auth-aware, then finish scrubbing the last env-token-first messaging and docs so per-user sessions read as the default operator workflow
-
-### Phase: Phase 4 dashboard auth gating and re-auth recovery (2026-03-26, top-level session-aware live pages)
-
-- what was built:
-  - taught the shared dashboard loader to distinguish auth-required states from genuine live-data outages so top-level pages can stop treating missing or expired auth like generic API failure
-  - added a reusable auth-required empty state with explicit sign-in and session-clear actions, then applied it to the top-level Projects, Deployments, and Operational Status routes instead of silently dropping into old demo/mock-mode when auth is missing
-  - updated the dashboard sign-in flow to preserve a safe in-app return target so sign-in and re-auth can send operators back to the page they were trying to access
-  - surfaced expired-session state in the global dashboard session controls so rejected session cookies are visible and easy to recover from
-  - kept the older sample-data fallback only for genuine live-data outage mode, so auth problems and upstream outages are now presented differently
-  - verified the slice with `npm --workspace @vcloudrunner/dashboard run typecheck` and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/helpers.ts`
-  - `apps/dashboard/lib/loaders.ts`
-  - `apps/dashboard/lib/dashboard-auth-navigation.ts`
-  - `apps/dashboard/components/dashboard-auth-required-state.tsx`
-  - `apps/dashboard/components/dashboard-session-controls.tsx`
-  - `apps/dashboard/app/sign-in/actions.ts`
-  - `apps/dashboard/app/sign-in/page.tsx`
-  - `apps/dashboard/app/projects/page.tsx`
-  - `apps/dashboard/app/deployments/page.tsx`
-  - `apps/dashboard/app/status/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - the top-level dashboard is now session-aware, but the same explicit auth-required / re-auth behavior is not yet applied consistently across every project-scoped live page, proxy flow, and token/env management edge case, and the broader user/team membership model is still token-centric
-- next recommended step:
-  - continue Phase 4 auth/user-model work by carrying the same explicit sign-in gating and return-to-page re-auth behavior through the remaining project-scoped pages and log/environment/token proxy paths, then reduce the remaining places that still frame `API_AUTH_TOKEN` as the normal operator path
-
-### Phase: Phase 4 interactive dashboard session flow (2026-03-26, per-user sign-in and sign-out)
-
-- what was built:
-  - added a dashboard-side session helper that stores a per-user API token in an httpOnly cookie and resolves request auth transport from session cookie, server env bearer fallback, optional dev-auth header hint, or an unconfigured state
-  - updated the dashboard API client and proxy routes so server-side API calls now prefer the signed-in session cookie over `API_AUTH_TOKEN`, while preserving the env token as a fallback when no browser session exists
-  - added a dedicated `/sign-in` route plus server actions for sign-in and sign-out, validating submitted tokens through `/v1/auth/me` before establishing the dashboard session
-  - added global session controls in the dashboard shell so operators can see whether the request is using a session cookie, env fallback, or dev auth, and can sign in or sign out without digging through settings
-  - updated the settings and token-management surfaces to point missing-auth flows toward sign-in and to distinguish between a true per-user session and the older env-token fallback path
-  - refreshed dashboard auth messaging so unauthorized or missing-auth states now reference the active dashboard session path instead of assuming `API_AUTH_TOKEN` is the only live auth option
-  - verified the slice with `npm --workspace @vcloudrunner/dashboard run typecheck` and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/dashboard/lib/dashboard-session.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/viewer-auth.ts`
-  - `apps/dashboard/lib/loaders.ts`
-  - `apps/dashboard/lib/helpers.ts`
-  - `apps/dashboard/app/sign-in/actions.ts`
-  - `apps/dashboard/app/sign-in/page.tsx`
-  - `apps/dashboard/components/dashboard-session-controls.tsx`
-  - `apps/dashboard/app/layout.tsx`
-  - `apps/dashboard/app/api/log-stream/route.ts`
-  - `apps/dashboard/app/api/log-export/route.ts`
-  - `apps/dashboard/app/settings/page.tsx`
-  - `apps/dashboard/app/settings/account/page.tsx`
-  - `apps/dashboard/components/token-management-page.tsx`
-  - `apps/dashboard/app/tokens/actions.ts`
-  - `apps/dashboard/app/projects/page.tsx`
-  - `apps/dashboard/components/logs-live-stream.tsx`
-  - `apps/dashboard/README.md`
-  - `docs/progress.md`
-- what is still missing:
-  - the dashboard now has the first real per-user session workflow, but unauthenticated top-level pages can still fall back into older demo/mock-mode patterns instead of consistently steering operators into the live sign-in path, and there is still no richer user/team membership workflow beyond token-backed identity
-- next recommended step:
-  - continue Phase 4 by making the live dashboard experience fully session-aware: replace the remaining auth-missing mock/demo fallbacks with explicit sign-in gating or sign-in CTAs on live pages, then add better expired-session and re-auth handling so unauthorized states recover cleanly without forcing env-token fallbacks
-
-### Phase: Phase 4 account/session surface follow-through (2026-03-26, API-backed auth source and viewer profile visibility)
-
-- what was built:
-  - added an API-side auth service behind `/v1/auth/me` so the authenticated viewer payload now includes the auth source (`database-token`, `bootstrap-token`, `dev-user-header`, or `dev-admin-token`), derived auth mode, and persisted user profile details when a matching user record exists
-  - extended the API auth context to preserve source metadata across DB-backed tokens, bootstrap tokens, and explicit local dev-auth paths so account/session state no longer has to be guessed purely from dashboard environment variables
-  - added a dedicated `/settings/account` dashboard surface plus settings navigation/sidebar entries to show the resolved actor, stored name/email when present, effective scopes, live session source, and current dashboard request transport
-  - simplified the main Settings overview into launcher-style cards for account/session and token management so the detailed auth/session state now has a first-class home instead of living only as overview diagnostics
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/src/plugins/auth-context.ts`
-  - `apps/api/src/plugins/auth-context.test.ts`
-  - `apps/api/src/modules/auth/auth.service.ts`
-  - `apps/api/src/modules/auth/auth.service.test.ts`
-  - `apps/api/src/modules/auth/auth.routes.ts`
-  - `apps/api/src/modules/auth/auth.routes.test.ts`
-  - `apps/api/src/modules/auth/auth-utils.ts`
-  - `apps/api/src/modules/auth/auth-utils.test.ts`
-  - `apps/api/src/server/build-server.ts`
-  - `apps/api/src/server/api-routes.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/viewer-auth.ts`
-  - `apps/dashboard/app/settings/page.tsx`
-  - `apps/dashboard/app/settings/account/page.tsx`
-  - `apps/dashboard/components/settings-subnav.tsx`
-  - `apps/dashboard/components/sidebar.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - the product now has a real account/session visibility surface, but it still lacks an interactive sign-in/sign-out flow, per-user dashboard sessions, and broader team/invitation workflows beyond token-backed actor resolution
-- next recommended step:
-  - continue Phase 4 by introducing the first interactive dashboard auth workflow: let operators sign in with a DB-backed API token into a per-user server-side session/cookie, resolve viewer context from that session instead of a shared server env token, and add explicit sign-out/session lifecycle UI
-
-### Phase: Phase 4 settings auth visibility follow-through (2026-03-26, current actor and auth-source diagnostics)
-
-- what was built:
-  - updated the dashboard Settings overview to resolve the authenticated viewer through the existing viewer-context path and surface the current actor's user id, role, and effective scopes directly in the UI
-  - added explicit auth diagnostics to the Settings overview so operators can see whether dashboard API calls are currently using bearer-token auth, local dev-auth header hints, or an unconfigured auth path
-  - exposed the active API base URL, viewer endpoint, and optional dev-auth user hint in the Settings overview so the viewer-context behavior is inspectable without reading environment variables or source code
-  - updated the settings token card copy so it now reflects viewer-scoped token management instead of the older implicit demo-user model
-  - verified the slice with `npm --workspace @vcloudrunner/dashboard run typecheck` and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/dashboard/app/settings/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - the dashboard now exposes the resolved viewer and auth path in Settings, but the product still lacks a broader in-UI account/session surface and any first-class team membership or invitation workflows beyond token-backed actor resolution
-- next recommended step:
-  - continue Phase 4 by promoting the resolved viewer context into a dedicated account/session surface beyond the Settings overview, then begin the first real user/session workflow slice so login and account state stop being inferred purely from token-backed diagnostics
-
-### Phase: Phase 4 authenticated dashboard viewer-context follow-through (2026-03-26, API-backed current actor resolution)
-
-- what was built:
-  - added an authenticated `/v1/auth/me` API route so the platform can expose the current actor's user id, role, and scopes without requiring a user-id path parameter just to discover who the caller is
-  - added dashboard-side viewer-context resolution helpers so pages and server actions can resolve the current authenticated actor first and then target the right user-scoped project/token APIs from that live context
-  - rewired dashboard project loading, project detail pages, global environment/log views, and token management flows to use the resolved viewer context instead of hard-gating on `NEXT_PUBLIC_DEMO_USER_ID`
-  - kept `NEXT_PUBLIC_DEMO_USER_ID` as an optional local dev-auth header hint rather than the dashboard's primary identity source, and aligned log proxy routes with the shared dashboard auth-header builder so proxy auth matches the rest of the dashboard
-  - updated dashboard messaging and README guidance to reflect the new viewer-context-first auth model
-  - verified the slice with `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/api/src/modules/auth/auth.routes.ts`
-  - `apps/api/src/modules/auth/auth.routes.test.ts`
-  - `apps/api/src/server/build-server.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/helpers.ts`
-  - `apps/dashboard/lib/loaders.ts`
-  - `apps/dashboard/app/projects/actions.ts`
-  - `apps/dashboard/app/tokens/actions.ts`
-  - `apps/dashboard/components/token-management-page.tsx`
-  - `apps/dashboard/app/environment/page.tsx`
-  - `apps/dashboard/app/logs/page.tsx`
-  - `apps/dashboard/app/projects/[id]/page.tsx`
-  - `apps/dashboard/app/projects/[id]/environment/page.tsx`
-  - `apps/dashboard/app/projects/[id]/deployments/page.tsx`
-  - `apps/dashboard/app/projects/[id]/logs/page.tsx`
-  - `apps/dashboard/app/projects/page.tsx`
-  - `apps/dashboard/app/api/log-stream/route.ts`
-  - `apps/dashboard/app/api/log-export/route.ts`
-  - `apps/dashboard/README.md`
-  - `docs/progress.md`
-- what is still missing:
-  - the dashboard can now resolve and act as the authenticated viewer without a hardcoded demo-user identity, but the product still lacks a first-class in-UI account/session surface and broader team/session workflows beyond token-backed actor resolution
-- next recommended step:
-  - continue Phase 4 by surfacing the current authenticated actor in the Settings overview with role/scope visibility and clearer auth-source diagnostics, then use that foundation to shape the next login/session and team-permission steps without reintroducing hidden identity assumptions
-
-### Phase: Phase 4 project-composition service status follow-through (2026-03-26, composed per-service dashboard visibility)
-
-- what was built:
-  - added a dedicated dashboard-side project service-status composition helper so multi-service project state is derived per service instead of collapsing to whichever deployment happened most recently
-  - updated project list loading to derive composed project health labels such as `healthy`, `deploying`, `degraded`, and `partial` from the latest deployment recorded for each service rather than the single latest deployment in the project
-  - updated the projects list cards to show a compact service-status summary line so multi-service projects expose a per-service state breakdown directly from the overview page
-  - updated the project detail page to show a composed service-status summary card plus per-service status badges, latest deployment timing, latest deployment links, and public runtime URLs when available
-  - verified the slice with `npm --workspace @vcloudrunner/dashboard run typecheck` and `npm --workspace @vcloudrunner/dashboard run lint`
-- files created or changed:
-  - `apps/dashboard/lib/project-service-status.ts`
-  - `apps/dashboard/lib/loaders.ts`
-  - `apps/dashboard/components/project-card.tsx`
-  - `apps/dashboard/app/projects/page.tsx`
-  - `apps/dashboard/app/projects/[id]/page.tsx`
-  - `apps/dashboard/lib/mock-data.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - project health is now composed from service deployment state, but the dashboard still depends on the demo-user bootstrap path and service visibility is still deployment-derived rather than driven by first-class health checks or broader auth-aware operator workflows
-- next recommended step:
-  - continue Phase 4 by starting the broader auth/user-model evolution, beginning with reducing the dashboard's `NEXT_PUBLIC_DEMO_USER_ID` coupling in favor of first-class authenticated user context and project access flows before layering on larger team/session UX
-
-### Phase: Phase 4 project-composition service discovery follow-through (2026-03-26, generated service env + internal service addressing)
-
-- what was built:
-  - added shared service-discovery helpers so project services now resolve to stable, Docker-safe internal hostnames and consistent env-token naming across the API, worker, and dashboard
-  - added API-side generated `VCLOUDRUNNER_SERVICE_*` discovery env output for the selected deployment service and every configured project service, including service name, kind, exposure, source root, host, port, and combined address values
-  - merged those generated discovery vars into queued deployment payload env so services receive a consistent reserved platform-level service map without relying on manually curated project env entries
-  - updated the worker runtime path to attach the selected service's generated internal hostname as a Docker network alias so cross-service communication can use the same hostname surfaced through the generated env contract
-  - surfaced each generated internal host on the dashboard project detail page so the internal addressing convention is visible alongside service role, exposure, and source-root metadata
-  - verified the slice with `npm --workspace @vcloudrunner/shared-types run build`, `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, `npm --workspace @vcloudrunner/worker run typecheck`, and `npm --workspace @vcloudrunner/worker test`
-- files created or changed:
-  - `packages/shared-types/src/index.ts`
-  - `apps/api/src/modules/deployments/service-discovery-env.ts`
-  - `apps/api/src/modules/deployments/service-discovery-env.test.ts`
-  - `apps/api/src/modules/deployments/deployments.service.ts`
-  - `apps/api/src/modules/deployments/deployments.service.test.ts`
-  - `apps/worker/src/services/runtime/container-runtime-manager.ts`
-  - `apps/worker/src/services/runtime/docker-container-runtime-manager.ts`
-  - `apps/worker/src/services/runtime/docker-container-runtime-manager.test.ts`
-  - `apps/worker/src/services/deployment-runner.ts`
-  - `apps/worker/src/services/deployment-runner.test.ts`
-  - `apps/dashboard/app/projects/[id]/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - services can now discover each other through stable generated env and internal hostnames, but the platform still collapses project operational state to deployment-centric views instead of showing a composed per-service health and status picture
-- next recommended step:
-  - continue the project-composition model by surfacing composed per-service health/status in the dashboard and project-level loaders so internal services become operationally first-class in day-to-day visibility, not just deploy targeting and runtime wiring
-
-### Phase: Phase 4 project-composition service targeting follow-through (2026-03-26, named-service deploy selection + service-scoped active concurrency)
-
-- what was built:
-  - made the selected deployment service first-class on deployment records instead of metadata-only by adding a persisted `service_name` field plus a migration that backfills existing rows from stored service metadata or the default `app` service
-  - replaced the project-wide single-active deployment invariant with a per-project/per-service active-deployment invariant so different services in the same project can now queue/build/run independently while still preventing overlapping deployments of the same service
-  - updated deployment creation to persist the resolved service name alongside service metadata and to return service-specific conflict errors when a target service already has queued/building/running work
-  - surfaced the selected service through dashboard deployment list/detail/project-history views so targeted service deploys are visible without relying purely on metadata inference
-  - verified the slice with `npm --workspace @vcloudrunner/shared-types run build`, `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, `npm --workspace @vcloudrunner/worker run typecheck`, and `npm --workspace @vcloudrunner/worker test`
-- files created or changed:
-  - `apps/api/drizzle/0007_deployment_service_name.sql`
-  - `apps/api/drizzle/meta/_journal.json`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/modules/deployments/deployments.repository.ts`
-  - `apps/api/src/modules/deployments/deployments.service.ts`
-  - `apps/api/src/modules/deployments/deployments.service.test.ts`
-  - `apps/api/src/server/domain-errors.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/loaders.ts`
-  - `apps/dashboard/components/deployment-table.tsx`
-  - `apps/dashboard/app/deployments/page.tsx`
-  - `apps/dashboard/app/deployments/[id]/page.tsx`
-  - `apps/dashboard/app/projects/[id]/page.tsx`
-  - `apps/dashboard/lib/mock-data.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - multi-service projects can now target and deploy services independently, but service-to-service wiring is still manual through project-level env vars and project-level health/status views still lean on the latest deployment rather than a composed per-service picture
-- next recommended step:
-  - continue the project-composition model by defining service-to-service internal addressing and service-aware env conventions, then surface composed per-service health/status in the dashboard so internal services become operationally first-class instead of just independently deployable
-
-### Phase: Phase 4 project-composition runtime follow-through (2026-03-26, `serviceSourceRoot`-aware worker build path)
-
-- what was built:
-  - threaded the selected project-service `serviceSourceRoot` through worker workspace preparation, image-build orchestration, and runtime execution so deployments no longer assume the repository root is the only build target
-  - added worker-side normalization and validation for service source roots so malformed or escaping paths fail as deployment-configuration errors instead of silently escaping the prepared workspace
-  - updated Dockerfile detection and Docker build command composition to scope candidate search, fallback tree scans, and Docker build context to the selected service subtree rather than the whole repository
-  - updated the prepared workspace contract to return the selected service path inside the cloned repository so runtime execution metadata reflects the actual deployed service root
-  - verified the slice with `npm --workspace @vcloudrunner/worker run typecheck` and `npm --workspace @vcloudrunner/worker test`
-- files created or changed:
-  - `apps/worker/src/services/deployment-source-root.ts`
-  - `apps/worker/src/services/deployment-source-root.test.ts`
-  - `apps/worker/src/services/deployment-runner.ts`
-  - `apps/worker/src/services/deployment-runner.test.ts`
-  - `apps/worker/src/services/build-detection/build-system-detector.ts`
-  - `apps/worker/src/services/build-detection/build-system-resolver.ts`
-  - `apps/worker/src/services/build-detection/configured-build-system-resolver.ts`
-  - `apps/worker/src/services/build-detection/configured-build-system-resolver.test.ts`
-  - `apps/worker/src/services/build-detection/dockerfile-detector.ts`
-  - `apps/worker/src/services/build-detection/dockerfile-detector.test.ts`
-  - `apps/worker/src/services/runtime/deployment-workspace-manager.ts`
-  - `apps/worker/src/services/runtime/local-deployment-workspace-manager.ts`
-  - `apps/worker/src/services/runtime/local-deployment-workspace-manager.test.ts`
-  - `apps/worker/src/services/runtime/deployment-image-builder.ts`
-  - `apps/worker/src/services/runtime/configured-deployment-image-builder.ts`
-  - `apps/worker/src/services/runtime/configured-deployment-image-builder.test.ts`
-  - `apps/worker/src/services/runtime/deployment-command-runner.ts`
-  - `apps/worker/src/services/runtime/shell-deployment-command-runner.ts`
-  - `apps/worker/src/services/runtime/shell-deployment-command-runner.test.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - deployments still always resolve to the primary public service, so service kind/exposure semantics and internal-service orchestration remain metadata rather than executable runtime behavior
-- next recommended step:
-  - continue the project-composition model by letting deployments target a named project service and by carrying `serviceKind` / `serviceExposure` into ingress and runtime decisions so internal services stop assuming public web behavior
-
-### Phase: Phase 4 project-composition groundwork (2026-03-26, project service-definition contract)
-
-- what was built:
-  - added an explicit project `services` contract in shared types and API persistence with a safe default single-service shape so existing projects still resolve to one public `app` service rooted at `.`
-  - added API validation and normalization for multi-service project definitions, including unique service names, exactly one public service, and repo-relative `sourceRoot` validation
-  - updated deployment creation to resolve the primary public service from the project contract, merge its runtime defaults into deployment runtime selection, and include the chosen service metadata in the queued job payload
-  - updated the dashboard project list and project detail views to surface service counts, the primary public service, and each configured service's role, exposure, source root, and runtime defaults
-  - verified the slice with `npm --workspace @vcloudrunner/shared-types run build`, `npm --workspace @vcloudrunner/api run typecheck`, `npm --workspace @vcloudrunner/api test`, `npm --workspace @vcloudrunner/dashboard run typecheck`, `npm --workspace @vcloudrunner/worker run typecheck`, and `npm --workspace @vcloudrunner/worker test`
-- files created or changed:
-  - `packages/shared-types/src/index.ts`
-  - `apps/api/drizzle/0006_project_services.sql`
-  - `apps/api/drizzle/meta/_journal.json`
-  - `apps/api/src/db/schema.ts`
-  - `apps/api/src/modules/projects/projects.repository.ts`
-  - `apps/api/src/modules/projects/projects.service.ts`
-  - `apps/api/src/modules/projects/projects.service.test.ts`
-  - `apps/api/src/modules/projects/projects.routes.ts`
-  - `apps/api/src/modules/projects/projects.routes.test.ts`
-  - `apps/api/src/modules/deployments/deployments.service.ts`
-  - `apps/api/src/modules/deployments/deployments.service.test.ts`
-  - `apps/api/src/modules/deployments/deployments.routes.test.ts`
-  - `apps/api/src/modules/environment/environment.routes.test.ts`
-  - `apps/api/src/modules/logs/logs.routes.test.ts`
-  - `apps/dashboard/lib/api.ts`
-  - `apps/dashboard/lib/loaders.ts`
-  - `apps/dashboard/lib/mock-data.ts`
-  - `apps/dashboard/components/project-card.tsx`
-  - `apps/dashboard/components/project-create-form.tsx`
-  - `apps/dashboard/components/project-create-panel.tsx`
-  - `apps/dashboard/app/projects/page.tsx`
-  - `apps/dashboard/app/projects/[id]/page.tsx`
-  - `docs/progress.md`
-- what is still missing:
-  - the platform can now describe multi-service projects, but the worker/runtime path still largely assumes a root-level single build target once a deployment starts executing
-- next recommended step:
-  - continue the project-composition model by making build detection, workspace preparation, and runtime execution honor `serviceSourceRoot` from the selected project service so non-root services can actually deploy
-
-### Phase: Phase 4 worker simple-adapter composition closeout (2026-03-26, configured HTTP/ingress/archive seams)
-
-- what was built:
-  - extracted dedicated configured factories for the worker outbound HTTP client, Caddy service, webhook deployment-event listener, ingress manager, deployment-log archive builder, and deployment-log archive store so those remaining simple adapters no longer instantiate their concrete defaults inline at the surrounding service boundaries
-  - rewired the existing top-level factories for those services to delegate through the new configured seams while preserving straightforward override hooks for focused tests
-  - added an explicit HTTP archive upload provider factory and rewired the archive upload provider registry to compose every provider through adapter-specific factories instead of constructing the HTTP provider inline
-  - added focused coverage for the new configured factory seams and re-verified the worker package with `npm --workspace @vcloudrunner/worker run typecheck` and `npm --workspace @vcloudrunner/worker test`
-- files created or changed:
-  - `apps/worker/src/services/http/configured-outbound-http-client.factory.ts`
-  - `apps/worker/src/services/http/configured-outbound-http-client.factory.test.ts`
-  - `apps/worker/src/services/http/outbound-http-client.factory.ts`
-  - `apps/worker/src/services/configured-caddy.service.factory.ts`
-  - `apps/worker/src/services/configured-caddy.service.factory.test.ts`
-  - `apps/worker/src/services/caddy.service.factory.ts`
-  - `apps/worker/src/services/configured-webhook-deployment-event-listener.factory.ts`
-  - `apps/worker/src/services/configured-webhook-deployment-event-listener.factory.test.ts`
-  - `apps/worker/src/services/webhook-deployment-event-listener.factory.ts`
-  - `apps/worker/src/services/ingress/configured-ingress-manager.factory.ts`
-  - `apps/worker/src/services/ingress/configured-ingress-manager.factory.test.ts`
-  - `apps/worker/src/services/ingress/ingress-manager.factory.ts`
-  - `apps/worker/src/services/archive-build/configured-deployment-log-archive-builder.factory.ts`
-  - `apps/worker/src/services/archive-build/configured-deployment-log-archive-builder.factory.test.ts`
-  - `apps/worker/src/services/archive-build/deployment-log-archive-builder.factory.ts`
-  - `apps/worker/src/services/archive-store/configured-deployment-log-archive-store.factory.ts`
-  - `apps/worker/src/services/archive-store/configured-deployment-log-archive-store.factory.test.ts`
-  - `apps/worker/src/services/archive-store/deployment-log-archive-store.factory.ts`
-  - `apps/worker/src/services/archive-upload/http-archive-upload-provider.factory.ts`
-  - `apps/worker/src/services/archive-upload/http-archive-upload-provider.factory.test.ts`
-  - `apps/worker/src/services/archive-upload/archive-upload-provider.registry.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - the worker service graph is now much more uniformly factory-driven, so the next meaningful extensibility work should shift from small composition cleanup to the first multi-service project-composition slice
-- next recommended step:
-  - begin the first project-composition model slice by introducing multi-service project definitions and shared service-level env/runtime wiring for one public service plus internal-only services
-
-### Phase: Phase 4 worker queue/connection composition follow-through (2026-03-26, BullMQ Redis connection factory seam)
-
-- what was built:
-  - removed the remaining module-level BullMQ Redis connection default from the worker path so queue connection parsing/composition is no longer hard-wired in the shared `redis.ts` module
-  - added dedicated configured and override-friendly Redis connection factories so production wiring can resolve `env.REDIS_URL` through a proper seam while tests and adjacent composition can still inject explicit URLs or connections
-  - updated `createDeploymentWorker()` to delegate its default connection through the new factory seam while preserving explicit connection overrides for focused tests
-  - added focused coverage around configured/default Redis connection creation plus deployment-worker default wiring and verified the worker package with `npm --workspace @vcloudrunner/worker run typecheck` and `npm --workspace @vcloudrunner/worker test`
-- files created or changed:
-  - `apps/worker/src/queue/redis.ts`
-  - `apps/worker/src/queue/configured-redis-connection.factory.ts`
-  - `apps/worker/src/queue/configured-redis-connection.factory.test.ts`
-  - `apps/worker/src/queue/redis-connection.factory.ts`
-  - `apps/worker/src/queue/redis-connection.factory.test.ts`
-  - `apps/worker/src/workers/deployment.worker.factory.ts`
-  - `apps/worker/src/workers/deployment.worker.factory.test.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - the worker queue/bootstrap graph is now consistently factory-driven, but Phase 4 still needs a final closeout pass to confirm the remaining composition edges are clean before shifting focus to the project-composition model
-- next recommended step:
-  - finish the Phase 4 closeout audit around remaining composition seams, then begin the first project-composition model slice so one project can describe multiple named services
-
-### Phase: Phase 4 worker infrastructure adapter factory follow-through (2026-03-26, heartbeat Redis + simple configured adapters)
-
-- what was built:
-  - extracted heartbeat Redis construction out of `background-scheduler.factory.ts` into a dedicated `createHeartbeatRedis()` seam and added a configured background-scheduler factory so scheduler composition no longer directly instantiates Redis inline
-  - added dedicated configured factories for the repository file inspector, deployment-state queryable, and Docker client so those remaining simple infrastructure adapters now follow the same top-level-factory plus configured-factory pattern as the rest of the worker graph
-  - updated the top-level scheduler, repository-inspector, deployment-state-queryable, and Docker-client factories to delegate default production composition through those new configured seams while preserving explicit override hooks for focused tests
-  - refreshed factory coverage around heartbeat Redis wiring plus the new configured scheduler/queryable/repository-inspector/Docker-client seams
-  - verified the worker package with `npm --workspace @vcloudrunner/worker run typecheck` and `npm --workspace @vcloudrunner/worker test`
-- files created or changed:
-  - `apps/worker/src/services/heartbeat-redis.factory.ts`
-  - `apps/worker/src/services/heartbeat-redis.factory.test.ts`
-  - `apps/worker/src/services/configured-background-scheduler.factory.ts`
-  - `apps/worker/src/services/configured-background-scheduler.factory.test.ts`
-  - `apps/worker/src/services/background-scheduler.factory.ts`
-  - `apps/worker/src/services/background-scheduler.factory.test.ts`
-  - `apps/worker/src/services/build-detection/configured-repository-file-inspector.factory.ts`
-  - `apps/worker/src/services/build-detection/configured-repository-file-inspector.factory.test.ts`
-  - `apps/worker/src/services/build-detection/repository-file-inspector.factory.ts`
-  - `apps/worker/src/services/configured-deployment-state-queryable.factory.ts`
-  - `apps/worker/src/services/configured-deployment-state-queryable.factory.test.ts`
-  - `apps/worker/src/services/deployment-state-queryable.factory.ts`
-  - `apps/worker/src/services/runtime/configured-docker-client.factory.ts`
-  - `apps/worker/src/services/runtime/configured-docker-client.factory.test.ts`
-  - `apps/worker/src/services/runtime/docker-client.factory.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - the worker factory graph is much more consistently configured now, but the queue/worker path still has a small amount of default BullMQ/Redis connection wiring left to push behind the same style of seam before Phase 4 closeout feels complete
-- next recommended step:
-  - continue Phase 4 by extracting the default BullMQ/Redis connection wiring out of the deployment-worker path so queue/worker construction is as factory-driven as the rest of the worker bootstrap graph
-
-### Phase: Phase 4 worker state-service composition follow-through (2026-03-26, configured deployment state service factory)
-
-- what was built:
-  - removed the remaining default collaborator composition from `DeploymentStateService`, so the class now accepts fully resolved dependencies instead of self-composing its own repository/ingress/archive defaults
-  - added a dedicated `createConfiguredDeploymentStateService()` seam so default worker state-service wiring now lives in a proper configured factory alongside the rest of the Phase 4 worker composition graph
-  - updated the top-level `createDeploymentStateService()` factory to preserve ergonomic override-based construction for tests and adjacent worker wiring while delegating default production composition through the new configured seam
-  - refreshed the deployment-state service, archive auth/upload, and factory test suites so they build the service through explicit dependency options instead of relying on constructor-owned default wiring
-  - verified the worker package with `npm --workspace @vcloudrunner/worker run typecheck` and `npm --workspace @vcloudrunner/worker test`
-- files created or changed:
-  - `apps/worker/src/services/configured-deployment-state.service.factory.ts`
-  - `apps/worker/src/services/configured-deployment-state.service.factory.test.ts`
-  - `apps/worker/src/services/deployment-state.service.ts`
-  - `apps/worker/src/services/deployment-state.service.factory.ts`
-  - `apps/worker/src/services/deployment-state.service.factory.test.ts`
-  - `apps/worker/src/services/deployment-state-service-dependencies.factory.ts`
-  - `apps/worker/src/services/deployment-state.archive-auth.test.ts`
-  - `apps/worker/src/services/deployment-state.archive-upload.integration.test.ts`
-  - `apps/worker/src/services/deployment-state.service.test.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - the state-service path is now aligned with the rest of the worker composition model, but a few infrastructure-oriented worker factories still directly instantiate their concrete adapters
-- next recommended step:
-  - continue Phase 4 by extracting the remaining direct infrastructure adapter construction from worker factories, starting with the heartbeat Redis wiring in `background-scheduler.factory.ts` and the last simple concrete adapter seams
-
-### Phase: Phase 4 worker archive provider-native integration follow-through (2026-03-25, SDK-backed S3/Azure + Google Auth GCS)
-
-- what was built:
-  - replaced the manual SigV4 S3 upload path with an AWS SDK-backed archive upload client behind a dedicated provider/client factory seam
-  - replaced the manual Azure SharedKey signing path with an Azure Blob SDK-backed archive upload client behind a dedicated provider/client factory seam
-  - replaced the hand-rolled GCS service-account JWT/token exchange path with a `google-auth-library`-backed access-token resolver while preserving the existing static-token fallback
-  - expanded the archive upload request/uploader contract so provider-specific adapters can choose HTTP or native SDK transports behind the same configured archive upload seam
-  - refreshed unit and integration coverage around configured archive upload delegation, GCS auth resolution, provider factories, and end-to-end archive upload behavior for S3/GCS/Azure
-  - verified the worker package with `npm --workspace @vcloudrunner/worker run typecheck` and `npm --workspace @vcloudrunner/worker test`
-- files created or changed:
-  - `apps/worker/package.json`
-  - `package-lock.json`
-  - `apps/worker/src/services/archive-upload/archive-upload-provider.ts`
-  - `apps/worker/src/services/archive-upload/archive-upload-provider.registry.ts`
-  - `apps/worker/src/services/archive-upload/configured-archive-upload-provider.ts`
-  - `apps/worker/src/services/archive-upload/configured-archive-upload-provider.test.ts`
-  - `apps/worker/src/services/archive-upload/deployment-log-archive-uploader.ts`
-  - `apps/worker/src/services/archive-upload/configured-deployment-log-archive-uploader.ts`
-  - `apps/worker/src/services/archive-upload/configured-deployment-log-archive-uploader.test.ts`
-  - `apps/worker/src/services/archive-upload/s3-archive-upload-client.ts`
-  - `apps/worker/src/services/archive-upload/s3-archive-upload-client.factory.ts`
-  - `apps/worker/src/services/archive-upload/aws-sdk-s3-archive-upload-client.ts`
-  - `apps/worker/src/services/archive-upload/s3-archive-upload-provider.ts`
-  - `apps/worker/src/services/archive-upload/s3-archive-upload-provider.factory.ts`
-  - `apps/worker/src/services/archive-upload/s3-archive-upload-provider.factory.test.ts`
-  - `apps/worker/src/services/archive-upload/azure-archive-upload-client.ts`
-  - `apps/worker/src/services/archive-upload/azure-archive-upload-client.factory.ts`
-  - `apps/worker/src/services/archive-upload/azure-blob-archive-upload-client.ts`
-  - `apps/worker/src/services/archive-upload/azure-archive-upload-provider.ts`
-  - `apps/worker/src/services/archive-upload/azure-archive-upload-provider.factory.ts`
-  - `apps/worker/src/services/archive-upload/azure-archive-upload-provider.factory.test.ts`
-  - `apps/worker/src/services/archive-upload/gcs-access-token-resolver.ts`
-  - `apps/worker/src/services/archive-upload/gcs-access-token-resolver.factory.ts`
-  - `apps/worker/src/services/archive-upload/gcs-access-token-resolver.factory.test.ts`
-  - `apps/worker/src/services/archive-upload/google-auth-gcs-access-token-resolver.ts`
-  - `apps/worker/src/services/archive-upload/google-auth-gcs-access-token-resolver.test.ts`
-  - `apps/worker/src/services/archive-upload/gcs-archive-upload-provider.ts`
-  - `apps/worker/src/services/archive-upload/gcs-archive-upload-provider.factory.ts`
-  - `apps/worker/src/services/deployment-state.service.ts`
-  - `apps/worker/src/services/deployment-state.archive-auth.test.ts`
-  - `apps/worker/src/services/deployment-state.archive-upload.integration.test.ts`
-  - `apps/worker/src/services/deployment-state.service.test.ts`
-  - `apps/worker/src/services/deployment-state-service-dependencies.factory.test.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - archive upload providers are now on stable provider-native SDK/auth seams, but the worker still has a few remaining constructor/default-composition paths to finish before Phase 4 can be considered complete
-- next recommended step:
-  - continue Phase 4 by pulling the remaining default collaborator composition out of `DeploymentStateService` and adjacent worker service constructors so the runtime/state path is consistently factory-driven
-
-### Phase: Phase 4 API service composition (2026-03-22)
-
-- what was built:
-  - extracted module-level `db` pool instantiation into a dedicated `createDbClient()` factory
-  - extracted API setup out of `index.ts` into a dedicated `api-lifecycle.factory.ts`
-  - extracted module-level service singletons from `api-tokens`, `deployments`, `environment`, `logs`, and `projects` routes
-  - updated all API route plugins to accept their dependencies (services, database clients) as arguments
-  - updated `build-server.ts` to instantiate and inject these dependencies, achieving a clean factory-driven architecture
-  - updated API test suites to inject mock database clients and queue dependencies, removing the hardcoded global singletons
-- files created or changed:
-  - `apps/api/src/db/client.ts`
-  - `apps/api/src/index.ts`
-  - `apps/api/src/server/api-lifecycle.factory.ts`
-  - `apps/api/src/server/build-server.ts`
-  - `apps/api/src/server/build-server.test.ts`
-  - `apps/api/src/modules/api-tokens/api-tokens.routes.ts`
-  - `apps/api/src/modules/deployments/deployments.routes.ts`
-  - `apps/api/src/modules/deployments/deployments.routes.test.ts`
-  - `apps/api/src/modules/environment/environment.routes.ts`
-  - `apps/api/src/modules/logs/logs.routes.ts`
-  - `apps/api/src/modules/logs/logs.routes.test.ts`
-  - `apps/api/src/modules/projects/projects.routes.ts`
-  - `apps/api/src/plugins/auth-context.test.ts`
-  - `apps/api/src/modules/auth/auth-utils.test.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - Phase 4 dependency injection patterns are now established in `apps/api` routing, but further decoupling of services to pure abstractions remains for later phases.
-- next recommended step:
-  - continue Phase 4 by removing remaining implicit global singletons across the platform
-
-
-### Phase: Phase 4 worker transport/event composition follow-through (2026-03-22, deployment event bus)
-
-- what was built:
-  - extracted webhook delivery out of `deployment-events.ts` into a dedicated `WebhookDeploymentEventListener` class with explicit dependencies (outbound HTTP, logger, config)
-  - replaced the module-level auto-subscribed event bus with a pure `DeploymentEventBus` implementation
-  - added dedicated factories to compose the webhook listener and attach it to the event bus, so the worker event sink no longer depends on inline module-level instantiation
-  - updated unit tests to inject listener seams directly, allowing webhook logic and pure event bus emission to be tested in isolation
-- files created or changed:
-  - `apps/worker/src/services/webhook-deployment-event-listener.ts`
-  - `apps/worker/src/services/webhook-deployment-event-listener.factory.ts`
-  - `apps/worker/src/services/webhook-deployment-event-listener.test.ts`
-  - `apps/worker/src/services/deployment-event-bus.factory.ts`
-  - `apps/worker/src/services/deployment-event-bus.factory.test.ts`
-  - `apps/worker/src/services/deployment-events.ts`
-  - `apps/worker/src/services/deployment-events.test.ts`
-  - `apps/worker/src/services/deployment-event-sink.factory.ts`
-  - `apps/worker/src/services/deployment-event-sink.factory.test.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - the core event bus is much cleaner, but additional listeners or alternate transport backends (e.g., streaming logs over events) are future work
-- next recommended step:
-  - continue Phase 4 by removing the next remaining inline defaults from service constructors or module-level singleton wiring so composition continues moving outward toward dedicated configured factories
-
-### Phase: Phase 4 worker bootstrap composition follow-through (2026-03-22, configured lifecycle factory)
-
-- what was built:
-  - extracted a dedicated configured worker-lifecycle factory so the worker bootstrap graph is no longer hand-wired inline in `index.ts`
-  - moved default state-service, runtime-inspector, and background-scheduler composition behind that new seam while preserving the existing ready/completed/failed/shutdown lifecycle behavior
-  - added focused coverage that proves the configured factory wires scheduler startup, heartbeat publishing, reconciliation, and runtime inspection together correctly
-- files created or changed:
-  - `apps/worker/src/configured-worker-lifecycle.factory.ts`
-  - `apps/worker/src/configured-worker-lifecycle.factory.test.ts`
-  - `apps/worker/src/index.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - the worker bootstrap entrypoint is cleaner now, but more service-constructor and singleton/default composition still remains around adjacent worker services
-- next recommended step:
-  - continue Phase 4 by removing the next remaining inline defaults from service constructors or module-level singleton wiring so composition continues moving outward toward dedicated configured factories
-
-### Phase: Phase 4 worker composition follow-through (2026-03-22, configured deployment worker factory)
-
-- what was built:
-  - extracted a dedicated configured deployment-worker factory so the general BullMQ worker factory no longer self-composes a default job processor inline
-  - rewired the exported worker singleton to use that new configured factory while preserving the existing queue name, Redis connection, and concurrency behavior
-  - kept the base worker factory override-friendly by requiring an explicit processor, which makes the composition boundary clearer in both production wiring and tests
-- files created or changed:
-  - `apps/worker/src/workers/configured-deployment.worker.factory.ts`
-  - `apps/worker/src/workers/configured-deployment.worker.factory.test.ts`
-  - `apps/worker/src/workers/deployment.worker.factory.ts`
-  - `apps/worker/src/workers/deployment.worker.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - the worker composition root is cleaner now, but more singleton/default wiring still remains around adjacent services and future runtime/backend variants
-- next recommended step:
-  - continue Phase 4 by removing the next remaining inline defaults from service constructors or module-level singleton wiring so composition continues moving outward toward dedicated configured factories
-
-### Phase: Phase 4 worker storage/runtime composition follow-through (2026-03-22, configured repository factory)
-
-- what was built:
-  - extracted a dedicated configured deployment-state-repository factory so `DeploymentStateRepository` no longer self-composes its database queryable inside the constructor
-  - rewired the existing top-level repository factory to delegate through that new seam while preserving the current injected-pool override path used by the service wiring and tests
-  - kept the storage adapter constructor explicit, which makes the worker repository path match the same factory-first composition pattern used across the other runtime and infrastructure seams
-- files created or changed:
-  - `apps/worker/src/services/configured-deployment-state.repository.factory.ts`
-  - `apps/worker/src/services/configured-deployment-state.repository.factory.test.ts`
-  - `apps/worker/src/services/deployment-state.repository.factory.ts`
-  - `apps/worker/src/services/deployment-state.repository.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - the worker storage path is cleaner to compose now, but alternate persistence backends and broader operator/day-2 tooling are still future work
-- next recommended step:
-  - continue Phase 4 by removing the next remaining inline defaults from runtime-adjacent worker services and module-level singleton wiring
-
-### Phase: Phase 4 worker runtime composition follow-through (2026-03-22, configured runner factory)
-
-- what was built:
-  - extracted a dedicated configured deployment-runner factory so `DeploymentRunner` no longer self-composes its workspace manager, image builder, and runtime manager defaults inside the constructor
-  - rewired the existing top-level deployment-runner factory to delegate through that new composition seam while preserving the current runtime behavior
-  - updated runner unit coverage to use explicit injected collaborators by default, which keeps the tests aligned with the same composition boundary used in production
-- files created or changed:
-  - `apps/worker/src/services/configured-deployment-runner.factory.ts`
-  - `apps/worker/src/services/configured-deployment-runner.factory.test.ts`
-  - `apps/worker/src/services/deployment-runner.factory.ts`
-  - `apps/worker/src/services/deployment-runner.ts`
-  - `apps/worker/src/services/deployment-runner.test.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - the worker runtime path is cleaner to compose now, but alternate runtime families and broader day-2 operational tooling are still future work
-- next recommended step:
-  - continue Phase 4 by removing the next remaining inline defaults from runtime-adjacent worker services so composition continues moving outward toward dedicated seams
-
-### Phase: Phase 4 worker infrastructure/runtime composition follow-through (2026-03-22, adapter-specific factories)
-
-- what was built:
-  - extracted dedicated factories for the Caddy service plus the Docker runtime executor, runtime inspector, and container-runtime manager so those concrete infrastructure adapters no longer self-compose outbound HTTP, deployment-runner, or Docker-client dependencies inside their constructors
-  - rewired the ingress manager, runtime executor, runtime inspector, and container-runtime-manager family factories to delegate through those new adapter-specific composition seams while preserving the current runtime-family selection behavior
-  - updated Caddy service unit coverage to exercise the injected outbound HTTP seam directly instead of mocking global `fetch`, which keeps the tests aligned with the runtime composition boundary
-- files created or changed:
-  - `apps/worker/src/services/caddy.service.factory.ts`
-  - `apps/worker/src/services/caddy.service.factory.test.ts`
-  - `apps/worker/src/services/caddy.service.ts`
-  - `apps/worker/src/services/caddy.service.test.ts`
-  - `apps/worker/src/services/ingress/ingress-manager.factory.ts`
-  - `apps/worker/src/services/runtime/docker-runtime-executor.factory.ts`
-  - `apps/worker/src/services/runtime/docker-runtime-executor.factory.test.ts`
-  - `apps/worker/src/services/runtime/docker-runtime-executor.ts`
-  - `apps/worker/src/services/runtime/docker-runtime-inspector.factory.ts`
-  - `apps/worker/src/services/runtime/docker-runtime-inspector.factory.test.ts`
-  - `apps/worker/src/services/runtime/docker-runtime-inspector.ts`
-  - `apps/worker/src/services/runtime/docker-container-runtime-manager.factory.ts`
-  - `apps/worker/src/services/runtime/docker-container-runtime-manager.factory.test.ts`
-  - `apps/worker/src/services/runtime/docker-container-runtime-manager.ts`
-  - `apps/worker/src/services/runtime/runtime-executor.factory.ts`
-  - `apps/worker/src/services/runtime/runtime-inspector.factory.ts`
-  - `apps/worker/src/services/runtime/container-runtime-manager.factory.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - the worker infrastructure adapters are cleaner to compose now, but alternate runtime families and broader operator/day-2 tooling are still future work
-- next recommended step:
-  - continue Phase 4 by removing the next remaining inline defaults from cross-cutting worker infrastructure such as event/webhook wiring or other concrete storage/runtime adapters that still own their own composition
-### Phase: Phase 4 worker build/runtime composition follow-through (2026-03-22, build-path composition factories)
-
-- what was built:
-  - extracted dedicated factories for the configured build-system resolver, Dockerfile detector, and configured deployment image-builder so those concrete build-path adapters no longer self-compose detector lists, repository inspectors, command runners, or resolvers inside their constructors
-  - rewired the existing build-detector, build-system-resolver, and deployment-image-builder top-level factories to delegate through those new composition seams while preserving the current build detection and image-build behavior
-  - added focused factory coverage for each new composition seam so the worker build path stays independently testable as Phase 4 keeps splitting responsibilities apart
-- files created or changed:
-  - `apps/worker/src/services/build-detection/dockerfile-detector.factory.ts`
-  - `apps/worker/src/services/build-detection/dockerfile-detector.factory.test.ts`
-  - `apps/worker/src/services/build-detection/configured-build-system-resolver.factory.ts`
-  - `apps/worker/src/services/build-detection/configured-build-system-resolver.factory.test.ts`
-  - `apps/worker/src/services/build-detection/build-system-detector.factory.ts`
-  - `apps/worker/src/services/build-detection/build-system-resolver.factory.ts`
-  - `apps/worker/src/services/build-detection/configured-build-system-resolver.ts`
-  - `apps/worker/src/services/build-detection/dockerfile-detector.ts`
-  - `apps/worker/src/services/runtime/configured-deployment-image-builder.factory.ts`
-  - `apps/worker/src/services/runtime/configured-deployment-image-builder.factory.test.ts`
-  - `apps/worker/src/services/runtime/configured-deployment-image-builder.ts`
-  - `apps/worker/src/services/runtime/deployment-image-builder.factory.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - the worker build path is cleaner to extend now, but alternate build-detector families and richer runtime/build adapter variants are still future work
-- next recommended step:
-  - continue Phase 4 by removing the next remaining self-composed collaborators from the runtime and infrastructure adapters so the remaining concrete worker services depend even less on inline defaults
-
-### Phase: Phase 4 worker archive/runtime composition follow-through (2026-03-22, archive upload composition factories)
-
-- what was built:
-  - extracted dedicated factories for the configured archive-upload provider, the configured archive uploader, and the GCS upload provider so those concrete adapters no longer self-compose registries or outbound HTTP clients inside their constructors
-  - rewired the archive-upload registry and top-level provider/uploader factories to use those new composition seams while keeping the archive-upload behavior and public interfaces unchanged
-  - tightened uploader unit tests around the injected outbound HTTP seam so upload behavior is now validated through the same dependency boundary used in production composition
-- files created or changed:
-  - `apps/worker/src/services/archive-upload/configured-archive-upload-provider.factory.ts`
-  - `apps/worker/src/services/archive-upload/configured-archive-upload-provider.factory.test.ts`
-  - `apps/worker/src/services/archive-upload/configured-deployment-log-archive-uploader.factory.ts`
-  - `apps/worker/src/services/archive-upload/configured-deployment-log-archive-uploader.factory.test.ts`
-  - `apps/worker/src/services/archive-upload/gcs-archive-upload-provider.factory.ts`
-  - `apps/worker/src/services/archive-upload/gcs-archive-upload-provider.factory.test.ts`
-  - `apps/worker/src/services/archive-upload/archive-upload-provider.factory.ts`
-  - `apps/worker/src/services/archive-upload/archive-upload-provider.registry.ts`
-  - `apps/worker/src/services/archive-upload/configured-archive-upload-provider.ts`
-  - `apps/worker/src/services/archive-upload/configured-deployment-log-archive-uploader.ts`
-  - `apps/worker/src/services/archive-upload/configured-deployment-log-archive-uploader.test.ts`
-  - `apps/worker/src/services/archive-upload/deployment-log-archive-uploader.factory.ts`
-  - `apps/worker/src/services/archive-upload/gcs-archive-upload-provider.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - the archive-upload branch is now cleaner to extend, but alternate provider registries, richer retry policies, and provider-native SDK composition are still future work
-- next recommended step:
-  - continue Phase 4 by removing the next remaining self-composed collaborators from the worker runtime/build adapters so concrete services depend even less on inline defaults
-
-### Phase: Phase 4 worker storage/runtime decomposition follow-through (2026-03-22)
-
-- what was built:
-  - split the worker archive-upload request/auth layer into provider-specific `http`, `s3`, `gcs`, and `azure` adapters instead of keeping all target-url, signing, and token-fetch logic inside one branching class
-  - added a dedicated archive-upload provider registry so the configured selector now delegates by provider key rather than owning every provider implementation detail inline
-  - preserved the existing deployment-state/archive-upload behavior while making future provider-native SDK/signing swaps cleaner and more local to one adapter at a time
-  - added direct coverage for configured-provider delegation plus registry wiring so the new provider-specific composition stays locked in independently from the broader archive integration tests
-- files created or changed:
-  - `apps/worker/src/services/archive-upload/archive-upload-provider.ts`
-  - `apps/worker/src/services/archive-upload/archive-upload-provider.shared.ts`
-  - `apps/worker/src/services/archive-upload/archive-upload-provider.registry.ts`
-  - `apps/worker/src/services/archive-upload/archive-upload-provider.registry.test.ts`
-  - `apps/worker/src/services/archive-upload/http-archive-upload-provider.ts`
-  - `apps/worker/src/services/archive-upload/s3-archive-upload-provider.ts`
-  - `apps/worker/src/services/archive-upload/gcs-archive-upload-provider.ts`
-  - `apps/worker/src/services/archive-upload/azure-archive-upload-provider.ts`
-  - `apps/worker/src/services/archive-upload/configured-archive-upload-provider.ts`
-  - `apps/worker/src/services/archive-upload/configured-archive-upload-provider.test.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - provider-native SDK/signing backends are still future work; this slice just makes that follow-through much easier to land incrementally
-- next recommended step:
-  - continue Phase 4 by expanding the same storage/runtime seam approach into provider-native adapters or the next remaining runtime/backend abstraction boundary
-
-### Phase: Phase 4 worker storage/runtime decomposition follow-through (2026-03-22, archive builder seam)
-
-- what was built:
-  - extracted deployment-log archive format/compression into a dedicated archive-builder seam instead of letting `DeploymentStateService` assemble NDJSON and gzip payloads inline
-  - added a default gzip+NDJSON archive-builder implementation plus a factory so future alternate archive formats or compression strategies can be introduced without reopening state-service orchestration
-  - added focused unit coverage for the archive-builder output, factory wiring, dependency wiring, and state-service delegation into the injected archive builder
-- files created or changed:
-  - `apps/worker/src/services/archive-build/deployment-log-archive-builder.ts`
-  - `apps/worker/src/services/archive-build/gzip-ndjson-deployment-log-archive-builder.ts`
-  - `apps/worker/src/services/archive-build/deployment-log-archive-builder.factory.ts`
-  - `apps/worker/src/services/archive-build/gzip-ndjson-deployment-log-archive-builder.test.ts`
-  - `apps/worker/src/services/archive-build/deployment-log-archive-builder.factory.test.ts`
-  - `apps/worker/src/services/deployment-state-service-dependencies.factory.ts`
-  - `apps/worker/src/services/deployment-state-service-dependencies.factory.test.ts`
-  - `apps/worker/src/services/deployment-state.service.ts`
-  - `apps/worker/src/services/deployment-state.service.test.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - the archive builder is still a single default format; provider-native archive shapes and richer retention/export formats remain future work
-- next recommended step:
-  - continue Phase 4 by pulling the next remaining runtime/storage responsibility behind a similarly focused backend seam
-
-### Phase: Phase 4 worker transport/runtime decomposition follow-through (2026-03-22, outbound HTTP client seam)
-
-- what was built:
-  - extracted shared outbound HTTP timeout/abort handling into a dedicated client seam instead of letting worker services each hand-roll `fetch` + `AbortController` logic inline
-  - rewired Caddy route updates, deployment lifecycle webhook delivery, archive upload transport, and GCS token exchange to use that shared outbound client while preserving each service’s existing operator-facing error wording
-  - added focused unit coverage for the new outbound client factory and request behavior so timeout normalization and signal wiring are now locked independently from the higher-level service tests
-- files created or changed:
-  - `apps/worker/src/services/http/outbound-http-client.ts`
-  - `apps/worker/src/services/http/outbound-http-client.factory.ts`
-  - `apps/worker/src/services/http/outbound-http-client.test.ts`
-  - `apps/worker/src/services/http/outbound-http-client.factory.test.ts`
-  - `apps/worker/src/services/caddy.service.ts`
-  - `apps/worker/src/services/deployment-events.ts`
-  - `apps/worker/src/services/archive-upload/configured-deployment-log-archive-uploader.ts`
-  - `apps/worker/src/services/archive-upload/gcs-archive-upload-provider.ts`
-  - `docs/progress.md`
-- what is still missing:
-  - the worker still uses one concrete fetch-backed outbound client; alternate transport implementations and richer retry/policy layering remain future work
-- next recommended step:
-  - continue Phase 4 by pushing the same seam strategy into the next remaining backend-specific responsibility rather than duplicating transport behavior in new adapters
+### Phase: Code health audit — Batch A: safe cleanup + dashboard API module split (2026-04-01)
+
+- audit context:
+  - conducted a code health audit cross-referencing audit findings against the current repo state
+  - many originally-flagged items were already resolved: `page.tsx.bak` deleted, `.tmp-*` scratch scripts deleted, `mock-data.ts` removed, production mock fallbacks replaced with real loaders, `.editorconfig` and `.gitattributes` already in place, `createProjectErrorReason` already uses centralized `deriveApiErrorKind`
+  - remaining audit findings were classified into immediate cleanup, safe refactors, medium-risk refactors, and deferred items
+- what was built in this batch:
+  - **dead file cleanup**: deleted vestigial `.gitkeep` at repo root and `.tmp/` directory containing scratch build/test/lint output artifacts
+  - **gitignore hardening**: added `.tmp/` to `.gitignore` so scratch artifact directories are excluded by default
+  - **dashboard `api.ts` domain split**: decomposed the monolithic 1308-line `apps/dashboard/lib/api.ts` into 12 focused domain modules under `apps/dashboard/lib/api/`:
+    - `types.ts` — all 21 exported interface/type definitions
+    - `client.ts` — shared fetch infrastructure (`requestApi`, `fetchJson`, `postJson`, `putJson`, `deleteRequest`, `buildDashboardAuthHeaders`, auth header builders, health payload normalizers, exported constants)
+    - `auth.ts` — viewer context resolution, bearer token auth, profile upsert
+    - `projects.ts` — project CRUD
+    - `deployments.ts` — deployment CRUD + log fetching
+    - `members.ts` — project member operations
+    - `domains.ts` — domain CRUD + verification
+    - `databases.ts` — 13 database management functions (backup, restore, artifacts, service links)
+    - `invitations.ts` — invitation lifecycle (7 functions)
+    - `tokens.ts` — API token CRUD
+    - `environment.ts` — environment variable CRUD
+    - `health.ts` — queue/worker/API health checks
+    - `index.ts` — barrel re-export preserving all existing `@/lib/api` and `./api` import paths
+  - **zero consumer changes**: all 20+ dashboard files importing from `@/lib/api` or `./api` continue to resolve unchanged through the barrel re-export
+- files created:
+  - `apps/dashboard/lib/api/types.ts`
+  - `apps/dashboard/lib/api/client.ts`
+  - `apps/dashboard/lib/api/auth.ts`
+  - `apps/dashboard/lib/api/projects.ts`
+  - `apps/dashboard/lib/api/deployments.ts`
+  - `apps/dashboard/lib/api/members.ts`
+  - `apps/dashboard/lib/api/domains.ts`
+  - `apps/dashboard/lib/api/databases.ts`
+  - `apps/dashboard/lib/api/invitations.ts`
+  - `apps/dashboard/lib/api/tokens.ts`
+  - `apps/dashboard/lib/api/environment.ts`
+  - `apps/dashboard/lib/api/health.ts`
+  - `apps/dashboard/lib/api/index.ts`
+- files deleted:
+  - `apps/dashboard/lib/api.ts` (replaced by `api/` directory)
+  - `.gitkeep` (vestigial)
+  - `.tmp/` directory (scratch artifacts)
+- files changed:
+  - `.gitignore` — added `.tmp/` exclusion
+  - `docs/progress.md`
+- validation performed:
+  - `npm.cmd --workspace @vcloudrunner/dashboard run typecheck` — passed (zero errors)
+  - `npm.cmd --workspace @vcloudrunner/dashboard run lint` — passed (zero errors)
+  - `npm.cmd --workspace @vcloudrunner/dashboard run build` — passed (18/18 static pages generated, all routes compile)
+- what is still missing (audit items remaining):
+  - **immediate/safe**: auth-utils wrapper consolidation (low value, semantically clear as-is)
+  - **medium-risk**: split `domains/page.tsx` (1574 lines) into sub-components + derivation helpers — **done (Batch B)**
+  - **medium-risk**: split `projects.service.ts` (3854 lines) into bounded service modules — **done (Batch C)**
+  - **medium-risk**: split `projects.repository.ts` (53KB) by domain — **done (Batch D)**
+  - **medium-risk**: split `project-databases.service.ts` (66KB) by concern — **done (Batch E)**
+  - **high-risk**: collapse worker factory chains for single-implementation seams (~59 factory files, ~8 with only one implementation, ~15-20 low-value wiring tests)
+  - **deferred**: shared error code taxonomy between API and dashboard, dashboard unit tests, E2E tests
+- known issues:
+  - compose runtime cannot be executed in this environment due to missing Docker CLI
+  - Next.js build reports exit code 1 due to non-blocking ESLint plugin stderr warning (build itself succeeds)
+- next recommended step:
+  - Batch C: split `projects.service.ts` (3854 lines) into bounded service modules
+
+### Phase: Code health audit — Batch B: domains page decomposition (2026-04-01)
+
+- audit context:
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx` was flagged at 1574 lines with 15+ local derivation functions, 40+ inline counter variables, and hundreds of lines of inline badge/card/summary logic
+- what was built in this batch:
+  - **pure helper extraction**: moved all 15 timeline-description and certificate-formatting functions into `apps/dashboard/lib/domain-diagnostics-helpers.ts`
+  - **counter consolidation**: consolidated 40+ inline counter variables into a single `computeDomainDiagnosticsSummary(domains)` pure function returning a typed `DomainDiagnosticsSummary` interface
+  - **Route Summary card extraction**: extracted the diagnostics summary card (~200 lines of counter-based conditional rendering) into `DomainDiagnosticsSummaryCard` component
+  - **Add Domain card extraction**: extracted the add-domain form + permission fallback into `AddDomainCard` component
+  - **Domain Route card extraction**: extracted the per-domain rendering (~500 lines of badge/detail/timeline/event/action rendering) into `DomainRouteCard` component
+  - **page.tsx rewrite**: reduced `page.tsx` from 1574 lines to ~200 lines — now contains only data fetching, permission resolution, page layout, and component composition
+- files created:
+  - `apps/dashboard/lib/domain-diagnostics-helpers.ts` — 15 exported pure helpers + `DomainDiagnosticsSummary` interface + `computeDomainDiagnosticsSummary()` function
+  - `apps/dashboard/app/projects/[id]/domains/_components/domain-diagnostics-summary-card.tsx` — route summary card
+  - `apps/dashboard/app/projects/[id]/domains/_components/add-domain-card.tsx` — add domain form + permission gate
+  - `apps/dashboard/app/projects/[id]/domains/_components/domain-route-card.tsx` — per-domain card with all badges, certificate details, timeline, events, DNS records, and action buttons
+- files changed:
+  - `apps/dashboard/app/projects/[id]/domains/page.tsx` — rewritten from 1574 lines to ~200 lines
+  - `docs/progress.md`
+- validation performed:
+  - `npx tsc --noEmit` — passed (zero errors)
+  - `npx next lint` — passed (zero errors)
+  - `npx next build` — passed (18/18 pages compile, `/projects/[id]/domains` builds successfully)
+- next recommended step:
+  - Batch C: split `projects.service.ts` (3854 lines) into bounded service modules
+
+### Phase: Code health audit — Batch C: projects.service.ts split (2026-04-01)
+
+- audit context:
+  - `apps/api/src/modules/projects/projects.service.ts` was flagged at 3854 lines — roughly 3000 lines of pure helper functions, types, and constants preceding a ~780-line `ProjectsService` class
+  - the helpers had zero class dependency: all were module-level pure functions consumed only by the class methods
+- what was built in this batch:
+  - **pure helper extraction**: moved ~3000 lines of types, interfaces, constants, and ~80 pure helper functions into `apps/api/src/modules/projects/project-domain-helpers.ts` (3028 lines)
+    - covers: domain host utilities, domain status mapping, diagnostics fallbacks, certificate status predicates, certificate history summary, certificate validity/trust/identity/guidance/attention/chain/lifecycle, domain claim guidance, domain diagnostics composites
+    - exports ~16 types/interfaces (e.g. `ProjectDomainStatusRecord`, `ProjectDomainStatusWithDiagnosticsRecord`, `ProjectDomainCertificateState`) and 3 constants
+  - **service slim-down**: reduced `projects.service.ts` from 3854 to 873 lines (77% reduction) — now contains only imports, backward-compatible re-exports, and the `ProjectsService` class
+  - **backward-compatible re-exports**: all 16 extracted types are re-exported from `projects.service.ts` via `export type { ... } from './project-domain-helpers.js'`, preserving all downstream `import type` consumers unchanged
+  - **zero consumer changes**: all 8+ files importing `ProjectsService` or types from it continue to resolve unchanged
+- files created:
+  - `apps/api/src/modules/projects/project-domain-helpers.ts` — 3028 lines (pure helpers, types, constants)
+- files changed:
+  - `apps/api/src/modules/projects/projects.service.ts` — slimmed from 3854 to 873 lines
+  - `docs/progress.md`
+- validation performed:
+  - `npx tsc --noEmit` — passed (zero errors)
+  - `npx eslint` on both files — passed (zero errors)
+  - `npm test` — passed (337/337 tests, 0 failures)
+- what is still missing (audit items remaining):
+  - **medium-risk**: split `projects.repository.ts` (53KB) by domain — **done (Batch D)**
+  - **medium-risk**: split `project-databases.service.ts` (66KB) by concern — **done (Batch E)**
+  - **high-risk**: collapse worker factory chains for single-implementation seams (~59 factory files)
+- next recommended step:
+  - collapse worker factory chains for single-implementation seams (~59 factory files)
+
+### Phase: Code health audit — Batch D: projects.repository.ts split (2026-04-01)
+
+- audit context:
+  - `apps/api/src/modules/projects/projects.repository.ts` was flagged at 1486 lines / 53KB — a single `ProjectsRepository` class housing queries for projects, domains, domain events, domain diagnostics, members, invitations, and user lookups
+  - audit recommended splitting into `ProjectsRepository`, `ProjectDomainsRepository`, `ProjectMembershipsRepository`
+- what was built in this batch:
+  - **types extraction**: moved all 11 exported types/interfaces (~200 lines) to `projects.repository.types.ts`, eliminating circular dependency risk between split files
+  - **domains repository**: created `ProjectDomainsRepository` in `project-domains.repository.ts` (550 lines) with 8 methods — `listDomains`, `createDomain`, `findDomainById`, `removeDomain`, `updateDomainDiagnostics`, `addDomainEvents`, `listRecentDomainEvents`, `listProjectIdsForDomainDiagnosticsRefresh`
+    - extracted shared `domainCoreColumns` constant and `toDomainRecordWithDeployment()` mapper to deduplicate the 3x copy-pasted 45-field domain record mapping (~150 lines saved)
+  - **members repository**: created `ProjectMembersRepository` in `project-members.repository.ts` (611 lines) with 18 methods covering membership CRUD, invitation lifecycle, and user lookups
+  - **core repository slim-down**: reduced `projects.repository.ts` from 1486 to 148 lines (90% reduction) — now contains only `create`, `findAllByUser`, `findById`, `listActiveDeployments`, `deleteProject` plus backward-compatible re-exports of all types and sub-repo classes
+  - **zero external consumer breakage**: all 4 external services (`deployments`, `project-databases`, `environment`, `logs`) continue importing from `./projects.repository.js` — types and `ProjectsRepository` resolve unchanged through re-exports
+  - **service updated**: `ProjectsService` now instantiates all 3 repos and routes each method call to the correct repository
+  - **deployment service updated**: `DeploymentsService` now uses `ProjectDomainsRepository` for `listDomains`
+  - **test file updated**: 94 mock targets across `projects.service.test.ts` rerouted to the correct sub-repo prototypes
+- files created:
+  - `apps/api/src/modules/projects/projects.repository.types.ts` — 207 lines (all shared types/interfaces)
+  - `apps/api/src/modules/projects/project-domains.repository.ts` — 550 lines (domains, events, diagnostics)
+  - `apps/api/src/modules/projects/project-members.repository.ts` — 611 lines (members, invitations, user lookups)
+- files changed:
+  - `apps/api/src/modules/projects/projects.repository.ts` — slimmed from 1486 to 148 lines
+  - `apps/api/src/modules/projects/projects.service.ts` — updated to use 3 repo instances
+  - `apps/api/src/modules/projects/projects.service.test.ts` — mock targets updated
+  - `apps/api/src/modules/deployments/deployments.service.ts` — uses `ProjectDomainsRepository` for `listDomains`
+  - `apps/api/src/modules/deployments/deployments.service.test.ts` — mock fixture updated
+  - `docs/progress.md`
+- validation performed:
+  - `npx tsc --noEmit` — passed (zero errors)
+  - `npx eslint` on all changed files — passed (zero errors)
+  - `npm test` — passed (337/337 tests, 0 failures)
+- next recommended step:
+  - collapse worker factory chains for single-implementation seams (~59 factory files)
+
+### Phase: Code health audit — Batch E: project-databases.service.ts split (2026-04-01)
+
+- audit context:
+  - `apps/api/src/modules/project-databases/project-databases.service.ts` was flagged at 1802 lines / 66KB — a single `ProjectDatabasesService` class containing 10+ exported interfaces, 8 module-level pure helper functions, 7 private builder/DTO methods (~500 lines), and 12 public methods
+  - audit recommended splitting by concern to reduce cognitive load
+- what was built in this batch:
+  - **types extraction**: moved all 11 exported interfaces + `ProjectDatabaseHealthSnapshot` (~164 lines) to `project-databases.service.types.ts`, eliminating the interface block from the service file
+  - **helpers extraction**: moved 8 module-level pure functions, 5 private builder methods (converted to standalone pure functions), `createUnknownHealthSnapshot`, `buildOperationalEvents`, and `toViewRecord` (refactored to accept a `decryptPassword` callback instead of `this.cryptoService`) into `project-databases-helpers.ts` (586 lines)
+  - **service slim-down**: reduced `project-databases.service.ts` from 1802 to 967 lines (46% reduction) — now contains only imports, backward-compatible type re-exports, a thin `buildViewRecord` wrapper tying the standalone `toViewRecord` to `this.cryptoService`, and the `ProjectDatabasesService` class with constructor + infrastructure helpers + public methods
+  - **backward-compatible re-exports**: all 11 extracted types are re-exported from `project-databases.service.ts` via `export type { ... } from './project-databases.service.types.js'`, preserving all downstream `import type` consumers unchanged
+  - **zero consumer changes**: all 8 files importing from `project-databases.service.ts` continue to resolve unchanged
+- files created:
+  - `apps/api/src/modules/project-databases/project-databases.service.types.ts` — 164 lines (all exported interfaces)
+  - `apps/api/src/modules/project-databases/project-databases-helpers.ts` — 586 lines (pure helpers, builders, `toViewRecord`)
+- files changed:
+  - `apps/api/src/modules/project-databases/project-databases.service.ts` — slimmed from 1802 to 967 lines
+  - `docs/progress.md`
+- validation performed:
+  - `npx tsc --noEmit` — passed (zero errors)
+  - `npx eslint` on all 3 files — passed (zero errors)
+  - `npm test` — passed (337/337 tests, 0 failures)
+- next recommended step:
+  - collapse worker factory chains for single-implementation seams (~59 factory files)
 
 ### Phase: Deployment/auth/config hardening follow-through (2026-03-17)
 
@@ -1880,40 +227,10 @@ Last updated: 2026-03-30 (project deletion danger zone + safe teardown path)
   - hardened startup reconciliation follow-through so missing running containers now trigger best-effort public-route cleanup too, while already-gone Caddy routes are treated as idempotent success instead of noisy cleanup failures
   - hardened dashboard deployment-detail truthfulness further so runtime URLs now render as live links only for actively `running` deployments, preventing stale historical URLs from failed or stopped records from looking like live endpoints on the read side
   - hardened public-route truthfulness end-to-end so worker state persistence now stores `runtime_url` only when route configuration actually succeeds, while dashboard detail pages now describe `running` deployments without a public route explicitly instead of implying those URLs are still pending
-  - extracted worker runtime inspection behind a runtime-inspector factory so startup reconciliation now uses the same runtime-family seam as execution, reducing the remaining Docker coupling ahead of future runtime adapter expansion
-  - extracted worker ingress management behind an ingress-manager factory so deployment job processing and reconciliation cleanup now share a future-friendly ingress seam instead of naming `CaddyService` directly
-  - extracted worker lifecycle event emission behind a deployment-event-sink factory so deployment job processing now depends on a future-friendly event seam instead of a raw webhook emitter function
-  - extracted archive upload request/auth generation behind a dedicated provider seam so deployment state management no longer owns S3/GCS/Azure signing internals directly ahead of future storage adapter expansion
-  - extracted worker shell command execution behind a deployment-command-runner seam so runtime orchestration no longer owns raw `git clone` / `docker build` / `docker image rm` calls directly ahead of future runtime adapter expansion
-  - extracted worker container/network lifecycle behind a container-runtime-manager seam so deployment orchestration no longer binds directly to `dockerode` for network lookup/create, stale-container cleanup, or container start/teardown flows
-  - extracted worker workspace preparation/cleanup behind a deployment-workspace-manager seam so runtime orchestration no longer owns direct `fs/promises` workdir setup/teardown flows ahead of future runtime adapter expansion
-  - extracted build-file repository inspection behind a repository-file-inspector seam so Dockerfile detection no longer shells out to git directly and future repository/build detectors have a cleaner integration point
-  - extracted local archive file handling behind a deployment-log-archive-store seam so deployment state management no longer owns direct archive-dir listing, marker persistence, archive reads, or cleanup deletion flows ahead of future storage/runtime expansion
-  - extracted build-system resolution behind a configured resolver seam so deployment orchestration no longer calls a static detector registry directly and future detector stacks have a cleaner injection point
-  - extracted repository clone plus image-build orchestration behind a deployment-image-builder seam so runtime orchestration no longer owns direct clone/build/remove-image flows or missing-build-file policy inline inside `DeploymentRunner`
-  - extracted archive upload transport and retry behavior behind a deployment-log-archive-uploader seam so deployment state management no longer owns direct fetch/timeout/retry archive push logic inline ahead of future storage/runtime expansion
-  - extracted deployment-state construction behind a worker factory seam so the bootstrap path and job-processor defaults no longer name `DeploymentStateService` directly and future state backends have a cleaner composition root
-  - extracted BullMQ deployment-worker construction behind a worker factory seam so queue-worker wiring no longer lives inline at the module boundary and future queue backends have a cleaner composition root
-  - extracted worker background-scheduler and heartbeat Redis construction behind a dedicated factory seam so the bootstrap entrypoint no longer wires those infrastructure dependencies inline and future scheduler backends have a cleaner composition root
-  - extracted deployment-state repository construction behind a dedicated factory seam so state-service composition no longer names `DeploymentStateRepository` directly and future state backends have a cleaner injection point
-  - extracted deployment-state database queryable construction behind a dedicated factory seam so repository composition no longer names `pg` pool construction inline and future state backends have a cleaner injection point
-  - extracted deployment-runner construction behind a dedicated factory seam so Docker runtime execution no longer names `DeploymentRunner` directly and future runtime backends have a cleaner composition point
-  - extracted deployment-job-processor default dependency wiring behind a dedicated factory seam so the processor module no longer names runtime/state/ingress/event/logger defaults inline and future worker composition has a cleaner extension point
-  - extracted deployment-state-service default dependency wiring behind a dedicated factory seam so the service constructor no longer names repository, ingress, or archive collaborators inline and future worker composition has a cleaner extension point
-  - extracted Docker client construction behind a shared factory seam so Docker-backed runtime adapters no longer name `new Docker(...)` directly and future runtime composition has a cleaner extension point
-  - extracted duplicated worker runtime-family selection behind a shared resolver seam so runtime executor, runtime inspector, and container-runtime-manager factories now share one future-friendly executor-type decision point instead of repeating the same branching inline
-  - extracted the default build-detector list behind a dedicated factory seam so configured build-system resolution no longer names `DockerfileBuildDetector` directly and future detector stacks have a cleaner extension point
-  - extracted shared process-launch behavior behind an exec-file runner seam so Git repository inspection and shell deployment command execution no longer each name raw `execFile` directly, and added direct shell command runner coverage for its git/docker invocation contracts
   - hardened cancellation-state truthfulness on the dashboard so queued/building deployments with `metadata.cancellation.requestedAt` now surface an explicit `cancelling` cue in list views and updated guidance/pipeline details on deployment detail pages
   - extended that cancellation-state truthfulness to compact operational/logging surfaces so status summaries and deployment selectors now show the same explicit `cancelling` cue instead of reverting to plain queued/building copy
   - corrected status-page deployment success metrics so `stopped` deployments are now treated as terminal non-success outcomes instead of being dropped from the summary and showing misleading `N/A` results during cancellation-heavy periods
   - added a real `cancelling` filter on the global Deployments page so operators can isolate queued/building deployments with cancellation pending instead of inferring them only from badges or search terms
-  - carried that same cancellation-aware wording into the deployment detail metadata panel so plain-text status readouts now stay aligned with badges, selectors, and filters instead of reverting to raw queued/building backend text
-  - corrected stopped deployment detail guidance and pipeline progress so the dashboard now distinguishes pre-activation stops from deployments that were stopped after runtime startup, instead of describing every stopped deployment as if it never reached runtime
-  - corrected the top-level Projects overview cards so they now reflect each project's latest deployment status, including cancellation-requested work and per-project deployment-history outages, instead of flattening live projects into a generic `active` badge
-  - hardened dashboard log viewers so failed/stopped deployments now keep historical logs visible while surfacing an explicit inactive live-stream state instead of opening an SSE stream that implies new entries are still expected
-  - disabled dashboard log-page auto-refresh for terminal deployments too, so stopped/failed records no longer keep polling the route while the UI correctly says no new live log entries are expected
-  - corrected the status page’s “Recent Deployment Outcomes” panel so it now shows terminal deployments only and falls back to explicit “still queued/building” guidance when recent activity has not completed yet
   - made cancellation audit-log writes best-effort after cancellation state is already persisted, so transient log insertion failures do not turn a successful cancel into an API error
   - fixed Fastify plugin scoping for auth-context and error-handler registration so sibling `/v1` route plugins inherit token auth resolution and domain-error mapping consistently
   - added API unit coverage for static-token fallback auth, DB-token precedence, explicit dev-auth bypass boundaries, and `requireAuthContext` fallback behavior outside `/v1`
@@ -3282,13 +1599,12 @@ Last updated: 2026-03-30 (project deletion danger zone + safe teardown path)
 
 ## 9) Testing Status
 
-- [~] Static checks attempted in current environment (shared-types `build`, API `typecheck`/`test`, worker `typecheck`/`test`, and dashboard `typecheck`/`lint` are all passing as of 2026-03-30 after the managed Postgres recovery control + audit batch, with API tests now at `335/335` and worker tests last verified at `235/235`; broader workspace validation is still missing only the true end-to-end compose/runtime pass in this environment)
+- [~] Static checks attempted in current environment
 - [ ] End-to-end compose validation (blocked by missing Docker CLI in this environment)
-- [~] Typecheck/test execution with installed dependencies (shared-types, API, dashboard typecheck, and worker package verified; broader workspace install/validation still environment-dependent)
+- [ ] Typecheck/test execution with installed dependencies (blocked by npm registry restrictions in this environment)
 
 ---
 
 ## Immediate Next Recommended Steps
 
-1. Decide whether managed Postgres is mature enough to broaden the managed-data model, or whether the next slice should stay in Postgres for storage sizing choices plus stricter restore-execution / retention ownership controls.
-2. If the platform stays in Postgres first, finish that v1 surface before expanding the same resource pattern to MongoDB / Redis.
+1. Add provider-native SDK/signing integrations for S3/GCS/Azure.

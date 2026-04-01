@@ -8,5 +8,6 @@ dist
 .env.local
 .env.*.local
 
-# Temp scripts
+# Temp scripts and scratch directories
 .tmp-*
+.tmp/

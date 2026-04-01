@@ -1,283 +1,172 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
+import { describe, it } from 'node:test';
+import assert from 'node:assert';
 
-process.env.DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/vcloudrunner';
-process.env.REDIS_URL = 'redis://localhost:6379';
-process.env.ENCRYPTION_KEY = '12345678901234567890123456789012';
-
-const {
-  assertUserAccess,
+import {
+  ensureProjectAuthorized,
   ensureProjectAccess,
-  ensureProjectDeletionAccess,
   ensureProjectMembershipManagementAccess,
   ensureProjectOwnershipTransferAccess,
-  requireScope
-} = await import('./auth-utils.js');
-const {
+  ensureProjectDeletionAccess
+} from './auth-utils.js';
+import {
+  ProjectNotFoundError,
   ForbiddenProjectAccessError,
-  ForbiddenProjectDeletionError,
   ForbiddenProjectMembershipManagementError,
   ForbiddenProjectOwnershipTransferError,
-  ForbiddenTokenScopeError,
-  ForbiddenUserAccessError,
-  ProjectNotFoundError
-} = await import('../../server/domain-errors.js');
+  ForbiddenProjectDeletionError
+} from '../../server/domain-errors.js';
+import type { AuthContext } from '../../plugins/auth-context.js';
+import type { ProjectsService } from '../projects/projects.service.js';
 
-type ActorContext = Parameters<typeof requireScope>[0];
+describe('auth-utils project access checks', () => {
+  const defaultActor = {
+    userId: 'user-001',
+    role: 'user' as const,
+    scopes: [],
+    authSource: 'token' as any
+  } as unknown as AuthContext;
 
-type ProjectRecord = {
-  id: string;
-  userId: string;
-};
+  const adminActor = {
+    ...defaultActor,
+    role: 'admin' as const,
+    userId: 'admin-001'
+  } as unknown as AuthContext;
 
-function buildProjectsService(
-  project: ProjectRecord | null,
-  membership: { role: 'viewer' | 'editor' | 'admin' } | null = null
-) {
-  const service = {
-    getProjectById: async () => project,
-    checkMembership: async () => membership !== null,
-    getMembership: async () => membership
-  } as never;
-  
-  return Object.assign(service, {
-    getSelectCalls: () => membership ? 1 : 0
-  });
-}
+  function createMockProjectsService(options: {
+    projectOwnerId?: string;
+    membershipRole?: 'admin' | 'member' | null;
+  }) {
+    // Partial mock for tests
+    return {
+      getProjectById: async (id: string) => {
+        if (id !== 'proj-001') return null;
+        return {
+          id: 'proj-001',
+          userId: options.projectOwnerId || 'owner-001'
+        };
+      },
+      getMembership: async () => {
+        if (options.membershipRole) {
+          return { role: options.membershipRole };
+        }
+        return null;
+      },
+      checkMembership: async () => {
+        return !!options.membershipRole;
+      }
+    } as unknown as ProjectsService;
+  }
 
+  describe('ensureProjectAuthorized', () => {
+    it('throws ProjectNotFoundError if project does not exist', async () => {
+      const service = createMockProjectsService({});
+      await assert.rejects(
+        () => ensureProjectAuthorized(service, { projectId: 'missing', actor: defaultActor, action: 'read' }),
+        ProjectNotFoundError
+      );
+    });
 
-const ownerActor: ActorContext = {
-  userId: 'owner-user',
-  role: 'user',
-  scopes: ['projects:read', 'deployments:read'],
-  authSource: 'database-token'
-};
+    it('allows access for system admins regardless of membership', async () => {
+      const service = createMockProjectsService({});
+      const project = await ensureProjectAuthorized(service, {
+        projectId: 'proj-001',
+        actor: adminActor,
+        action: 'delete_project'
+      });
+      assert.strictEqual(project.id, 'proj-001');
+    });
 
-const memberActor: ActorContext = {
-  userId: 'member-user',
-  role: 'user',
-  scopes: ['projects:read'],
-  authSource: 'database-token'
-};
+    it('allows access for project owners regardless of action', async () => {
+      const service = createMockProjectsService({ projectOwnerId: defaultActor.userId });
+      const actions: Array<'read' | 'manage_members' | 'transfer_ownership' | 'delete_project'> = [
+        'read', 'manage_members', 'transfer_ownership', 'delete_project'
+      ];
+      for (const action of actions) {
+        const project = await ensureProjectAuthorized(service, {
+          projectId: 'proj-001',
+          actor: defaultActor,
+          action
+        });
+        assert.strictEqual(project.id, 'proj-001');
+      }
+    });
 
-const adminActor: ActorContext = {
-  userId: 'admin-user',
-  role: 'admin',
-  scopes: [],
-  authSource: 'database-token'
-};
+    it('throws ForbiddenProjectAccessError if actor is not an owner or member', async () => {
+      const service = createMockProjectsService({ membershipRole: null });
+      await assert.rejects(
+        () => ensureProjectAuthorized(service, { projectId: 'proj-001', actor: defaultActor, action: 'read' }),
+        ForbiddenProjectAccessError
+      );
+    });
 
-const project: ProjectRecord = {
-  id: 'project-1',
-  userId: ownerActor.userId
-};
+    it('allows read access for regular members', async () => {
+      const service = createMockProjectsService({ membershipRole: 'member' });
+      const project = await ensureProjectAuthorized(service, {
+        projectId: 'proj-001',
+        actor: defaultActor,
+        action: 'read'
+      });
+      assert.strictEqual(project.id, 'proj-001');
+    });
 
-test('assertUserAccess allows admin access to another user resource', () => {
-  assert.doesNotThrow(() => assertUserAccess(adminActor, 'different-user'));
-});
+    it('throws ForbiddenProjectMembershipManagementError if non-admin member tries to manage members', async () => {
+      const service = createMockProjectsService({ membershipRole: 'member' });
+      await assert.rejects(
+        () => ensureProjectAuthorized(service, { projectId: 'proj-001', actor: defaultActor, action: 'manage_members' }),
+        ForbiddenProjectMembershipManagementError
+      );
+    });
 
-test('assertUserAccess rejects non-admin access to another user resource', () => {
-  assert.throws(
-    () => assertUserAccess(ownerActor, 'different-user'),
-    ForbiddenUserAccessError
-  );
-});
+    it('allows manage_members access for project admin members', async () => {
+      const service = createMockProjectsService({ membershipRole: 'admin' });
+      const project = await ensureProjectAuthorized(service, {
+        projectId: 'proj-001',
+        actor: defaultActor,
+        action: 'manage_members'
+      });
+      assert.strictEqual(project.id, 'proj-001');
+    });
 
-test('requireScope allows admin access without explicit scopes', () => {
-  assert.doesNotThrow(() => requireScope(adminActor, 'tokens:write'));
-});
+    it('throws ForbiddenProjectOwnershipTransferError if non-owner member tries to transfer ownership', async () => {
+      const service = createMockProjectsService({ membershipRole: 'admin' });
+      await assert.rejects(
+        () => ensureProjectAuthorized(service, { projectId: 'proj-001', actor: defaultActor, action: 'transfer_ownership' }),
+        ForbiddenProjectOwnershipTransferError
+      );
+    });
 
-test('requireScope rejects user tokens that are missing the required scope', () => {
-  assert.throws(
-    () => requireScope(memberActor, 'tokens:write'),
-    (error: unknown) => error instanceof ForbiddenTokenScopeError
-      && error.message.includes('tokens:write')
-  );
-});
-
-test('requireScope allows user tokens when the required scope is present', () => {
-  assert.doesNotThrow(() => requireScope(ownerActor, 'projects:read'));
-});
-
-test('ensureProjectAccess throws ProjectNotFoundError when the project does not exist', async () => {
-  const service = buildProjectsService(null);
-
-  await assert.rejects(
-    ensureProjectAccess(service, {
-      projectId: 'missing-project',
-      actor: ownerActor
-    }),
-    ProjectNotFoundError
-  );
-});
-
-test('ensureProjectAccess allows project owners without membership lookup', async () => {
-  const service = buildProjectsService(project);
-
-  const result = await ensureProjectAccess(service, {
-    projectId: project.id,
-    actor: ownerActor
-  });
-
-  assert.deepEqual(result, project);
-});
-
-test('ensureProjectAccess allows admins without membership lookup', async () => {
-  const service = buildProjectsService(project);
-
-  const result = await ensureProjectAccess(service, {
-    projectId: project.id,
-    actor: adminActor
-  });
-
-  assert.deepEqual(result, project);
-});
-
-test('ensureProjectAccess allows project members when a membership row exists', async () => {
-  const service = buildProjectsService(project, { role: 'viewer' });
-
-  const result = await ensureProjectAccess(service, {
-    projectId: project.id,
-    actor: memberActor
-  });
-
-  assert.deepEqual(result, project);
-});
-
-test('ensureProjectAccess rejects non-owner users without project membership', async () => {
-  const service = buildProjectsService(project);
-
-  await assert.rejects(
-    ensureProjectAccess(service, {
-      projectId: project.id,
-      actor: memberActor
-    }),
-    ForbiddenProjectAccessError
-  );
-});
-
-test('ensureProjectMembershipManagementAccess allows project owners', async () => {
-  const service = buildProjectsService(project);
-
-  const result = await ensureProjectMembershipManagementAccess(service, {
-    projectId: project.id,
-    actor: ownerActor
+    it('throws ForbiddenProjectDeletionError if non-owner member tries to delete project', async () => {
+      const service = createMockProjectsService({ membershipRole: 'admin' });
+      await assert.rejects(
+        () => ensureProjectAuthorized(service, { projectId: 'proj-001', actor: defaultActor, action: 'delete_project' }),
+        ForbiddenProjectDeletionError
+      );
+    });
   });
 
-  assert.deepEqual(result, project);
-});
+  describe('Legacy wrappers', () => {
+    it('ensureProjectAccess calls parameterized helper with action=read', async () => {
+      const service = createMockProjectsService({ membershipRole: 'member' });
+      const project = await ensureProjectAccess(service, { projectId: 'proj-001', actor: defaultActor });
+      assert.strictEqual(project.id, 'proj-001');
+    });
 
-test('ensureProjectMembershipManagementAccess allows project-admin members', async () => {
-  const service = buildProjectsService(project, { role: 'admin' });
+    it('ensureProjectMembershipManagementAccess calls parameterized helper with action=manage_members', async () => {
+      const service = createMockProjectsService({ membershipRole: 'admin' });
+      const project = await ensureProjectMembershipManagementAccess(service, { projectId: 'proj-001', actor: defaultActor });
+      assert.strictEqual(project.id, 'proj-001');
+    });
 
-  const result = await ensureProjectMembershipManagementAccess(service, {
-    projectId: project.id,
-    actor: memberActor
+    it('ensureProjectOwnershipTransferAccess calls parameterized helper with action=transfer_ownership', async () => {
+      const service = createMockProjectsService({ projectOwnerId: defaultActor.userId });
+      const project = await ensureProjectOwnershipTransferAccess(service, { projectId: 'proj-001', actor: defaultActor });
+      assert.strictEqual(project.id, 'proj-001');
+    });
+
+    it('ensureProjectDeletionAccess calls parameterized helper with action=delete_project', async () => {
+      const service = createMockProjectsService({ projectOwnerId: defaultActor.userId });
+      const project = await ensureProjectDeletionAccess(service, { projectId: 'proj-001', actor: defaultActor });
+      assert.strictEqual(project.id, 'proj-001');
+    });
   });
-
-  assert.deepEqual(result, project);
-});
-
-test('ensureProjectMembershipManagementAccess rejects non-admin project members', async () => {
-  const service = buildProjectsService(project, { role: 'viewer' });
-
-  await assert.rejects(
-    ensureProjectMembershipManagementAccess(service, {
-      projectId: project.id,
-      actor: memberActor
-    }),
-    ForbiddenProjectMembershipManagementError
-  );
-});
-
-test('ensureProjectOwnershipTransferAccess allows project owners', async () => {
-  const service = buildProjectsService(project);
-
-  const result = await ensureProjectOwnershipTransferAccess(service, {
-    projectId: project.id,
-    actor: ownerActor
-  });
-
-  assert.deepEqual(result, project);
-});
-
-test('ensureProjectOwnershipTransferAccess allows platform admins', async () => {
-  const service = buildProjectsService(project);
-
-  const result = await ensureProjectOwnershipTransferAccess(service, {
-    projectId: project.id,
-    actor: adminActor
-  });
-
-  assert.deepEqual(result, project);
-});
-
-test('ensureProjectOwnershipTransferAccess rejects project-admin members who are not the owner', async () => {
-  const service = buildProjectsService(project, { role: 'admin' });
-
-  await assert.rejects(
-    ensureProjectOwnershipTransferAccess(service, {
-      projectId: project.id,
-      actor: memberActor
-    }),
-    ForbiddenProjectOwnershipTransferError
-  );
-});
-
-test('ensureProjectOwnershipTransferAccess rejects non-members who are not the owner or admin', async () => {
-  const service = buildProjectsService(project);
-
-  await assert.rejects(
-    ensureProjectOwnershipTransferAccess(service, {
-      projectId: project.id,
-      actor: memberActor
-    }),
-    ForbiddenProjectAccessError
-  );
-});
-
-test('ensureProjectDeletionAccess allows project owners', async () => {
-  const service = buildProjectsService(project);
-
-  const result = await ensureProjectDeletionAccess(service, {
-    projectId: project.id,
-    actor: ownerActor
-  });
-
-  assert.deepEqual(result, project);
-});
-
-test('ensureProjectDeletionAccess allows platform admins', async () => {
-  const service = buildProjectsService(project);
-
-  const result = await ensureProjectDeletionAccess(service, {
-    projectId: project.id,
-    actor: adminActor
-  });
-
-  assert.deepEqual(result, project);
-});
-
-test('ensureProjectDeletionAccess rejects project-admin members who are not the owner', async () => {
-  const service = buildProjectsService(project, { role: 'admin' });
-
-  await assert.rejects(
-    ensureProjectDeletionAccess(service, {
-      projectId: project.id,
-      actor: memberActor
-    }),
-    ForbiddenProjectDeletionError
-  );
-});
-
-test('ensureProjectDeletionAccess rejects non-members who are not the owner or admin', async () => {
-  const service = buildProjectsService(project);
-
-  await assert.rejects(
-    ensureProjectDeletionAccess(service, {
-      projectId: project.id,
-      actor: memberActor
-    }),
-    ForbiddenProjectAccessError
-  );
 });

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getPrimaryProjectService } from '@vcloudrunner/shared-types';
+import { getPrimaryProjectService, formatCertificateFingerprintPreview } from '@vcloudrunner/shared-types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -252,7 +252,7 @@ function formatCertificateChainEntrySummary(
   const serialDetail = entry.serialNumber
     ? `serial ${entry.serialNumber}`
     : null;
-  const fingerprintDetail = formatCertificateFingerprint(entry.fingerprintSha256);
+  const fingerprintDetail = formatCertificateFingerprintPreview(entry.fingerprintSha256);
   const fingerprintLabel = fingerprintDetail
     ? `fingerprint ${fingerprintDetail}`
     : null;
@@ -323,18 +323,6 @@ function formatCertificateChainEntryValidity(entry: {
   return validityStatus === 'unavailable'
     ? 'validity window unavailable'
     : null;
-}
-
-function formatCertificateFingerprint(fingerprintSha256: string | null | undefined): string | null {
-  if (!fingerprintSha256) {
-    return null;
-  }
-
-  if (fingerprintSha256.length <= 20) {
-    return fingerprintSha256;
-  }
-
-  return `${fingerprintSha256.slice(0, 16)}...${fingerprintSha256.slice(-12)}`;
 }
 
 function describeCertificateIdentityTimeline(domain: ApiProjectDomain): string | null {
@@ -1425,11 +1413,11 @@ export default async function ProjectDomainsPage({ params, searchParams }: Proje
                             Full presented chain last healthy {formatRelativeTime(domain.certificateChainLastHealthyAt)}
                           </p>
                         ) : null}
-                        {formatCertificateFingerprint(domain.certificateFingerprintSha256) ? (
+                        {formatCertificateFingerprintPreview(domain.certificateFingerprintSha256) ? (
                           <p className="text-xs text-muted-foreground">
                             Certificate fingerprint:{' '}
                             <span className="font-mono text-foreground">
-                              {formatCertificateFingerprint(domain.certificateFingerprintSha256)}
+                              {formatCertificateFingerprintPreview(domain.certificateFingerprintSha256)}
                             </span>
                           </p>
                         ) : null}

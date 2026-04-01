@@ -184,3 +184,15 @@ export interface DeploymentJobPayload {
   env: Record<string, string>;
   runtime: DeploymentRuntimeConfig;
 }
+
+export function formatCertificateFingerprintPreview(
+  fingerprintSha256: string | null | undefined
+): string | null {
+  if (!fingerprintSha256) {
+    return null;
+  }
+  if (fingerprintSha256.length <= 20) {
+    return fingerprintSha256;
+  }
+  return `${fingerprintSha256.slice(0, 16)}...${fingerprintSha256.slice(-12)}`;
+}

@@ -20,7 +20,7 @@ import {
 import { CryptoService } from '../../services/crypto.service.js';
 import { EnvironmentRepository } from '../environment/environment.repository.js';
 import type { ProjectDatabasesService } from '../project-databases/project-databases.service.js';
-import { ProjectsRepository } from '../projects/projects.repository.js';
+import { ProjectsRepository, ProjectDomainsRepository } from '../projects/projects.repository.js';
 import { DeploymentsRepository, type CreateDeploymentInput } from './deployments.repository.js';
 import { createProjectServiceDiscoveryEnv } from './service-discovery-env.js';
 
@@ -88,6 +88,7 @@ function buildPublicRouteHosts(input: {
 interface DeploymentsServiceDependencies {
   deploymentsRepository?: DeploymentsRepository;
   projectsRepository?: ProjectsRepository;
+  projectDomainsRepository?: ProjectDomainsRepository;
   environmentRepository?: EnvironmentRepository;
   cryptoService?: CryptoService;
   projectDatabasesService?: Pick<ProjectDatabasesService, 'listInjectedEnvironmentForProjectService'>;
@@ -96,6 +97,7 @@ interface DeploymentsServiceDependencies {
 export class DeploymentsService {
   private readonly deploymentsRepository: DeploymentsRepository;
   private readonly projectsRepository: ProjectsRepository;
+  private readonly projectDomainsRepository: ProjectDomainsRepository;
   private readonly environmentRepository: EnvironmentRepository;
   private readonly cryptoService: CryptoService;
   private readonly projectDatabasesService: Pick<ProjectDatabasesService, 'listInjectedEnvironmentForProjectService'>;
@@ -107,6 +109,7 @@ export class DeploymentsService {
   ) {
     this.deploymentsRepository = dependencies.deploymentsRepository ?? new DeploymentsRepository(db);
     this.projectsRepository = dependencies.projectsRepository ?? new ProjectsRepository(db);
+    this.projectDomainsRepository = dependencies.projectDomainsRepository ?? new ProjectDomainsRepository(db);
     this.environmentRepository = dependencies.environmentRepository ?? new EnvironmentRepository(db);
     this.cryptoService = dependencies.cryptoService ?? new CryptoService();
     this.projectDatabasesService = dependencies.projectDatabasesService ?? {
@@ -180,7 +183,7 @@ export class DeploymentsService {
       const decryptedEnv = Object.fromEntries(
         envVars.map((item) => [item.key, this.cryptoService.decrypt(item.encryptedValue)])
       );
-      const claimedHosts = await this.projectsRepository.listDomains(project.id);
+      const claimedHosts = await this.projectDomainsRepository.listDomains(project.id);
       const managedDatabaseEnv = await this.projectDatabasesService.listInjectedEnvironmentForProjectService({
         projectId: project.id,
         serviceName: selectedService.name

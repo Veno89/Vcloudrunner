@@ -11,7 +11,7 @@ import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
 import { loadDashboardData } from '@/lib/loaders';
-import { deployments as mockDeployments } from '@/lib/mock-data';
+
 import { hasRequestedCancellation, truncateUuid } from '@/lib/helpers';
 import Link from 'next/link';
 
@@ -28,14 +28,10 @@ interface DeploymentsPageProps {
 
 export default async function DeploymentsPage({ searchParams }: DeploymentsPageProps) {
   const data = await loadDashboardData();
-  const deployments =
-    data.usingLiveData || data.authRequirement ? data.deployments : mockDeployments;
+  const deployments = data.deployments;
   const normalizedDeployments = deployments.map((deployment) => ({
     ...deployment,
-    projectId: 'projectId' in deployment ? deployment.projectId : String(deployment.project),
-    status: deployment.status as DeploymentStatus,
-    cancellationRequested:
-      'cancellationRequested' in deployment ? Boolean(deployment.cancellationRequested) : false
+    cancellationRequested: Boolean(deployment.cancellationRequested)
   }));
 
   const selectedStatus: 'all' | DeploymentStatus | 'cancelling' =

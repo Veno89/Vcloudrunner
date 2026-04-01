@@ -39,105 +39,76 @@ export function requireScope(actor: ActorContext, scope: TokenScope) {
   }
 }
 
-export async function ensureProjectAccess(
+export type ProjectAction = 'read' | 'manage_members' | 'transfer_ownership' | 'delete_project';
+
+export async function ensureProjectAuthorized(
   projectsService: ProjectsService,
-  input: { projectId: string; actor: ActorContext }
+  input: { projectId: string; actor: ActorContext; action: ProjectAction }
 ) {
   const project = await projectsService.getProjectById(input.projectId);
   if (!project) {
     throw new ProjectNotFoundError();
   }
 
-  if (input.actor.role !== 'admin' && project.userId !== input.actor.userId) {
-    // Check project membership
-    const hasAccess = await projectsService.checkMembership(
-      input.projectId,
-      input.actor.userId
-    );
+  if (input.actor.role === 'admin' || project.userId === input.actor.userId) {
+    return project;
+  }
 
-    if (!hasAccess) {
-      throw new ForbiddenProjectAccessError();
+  const membership = await projectsService.getMembership(
+    input.projectId,
+    input.actor.userId
+  );
+
+  if (!membership) {
+    throw new ForbiddenProjectAccessError();
+  }
+
+  if (input.action === 'read') {
+    return project;
+  }
+
+  if (input.action === 'manage_members') {
+    if (membership.role !== 'admin') {
+      throw new ForbiddenProjectMembershipManagementError();
     }
+    return project;
+  }
+
+  if (input.action === 'transfer_ownership') {
+    throw new ForbiddenProjectOwnershipTransferError();
+  }
+
+  if (input.action === 'delete_project') {
+    throw new ForbiddenProjectDeletionError();
   }
 
   return project;
+}
+
+export async function ensureProjectAccess(
+  projectsService: ProjectsService,
+  input: { projectId: string; actor: ActorContext }
+) {
+  return ensureProjectAuthorized(projectsService, { ...input, action: 'read' });
 }
 
 export async function ensureProjectMembershipManagementAccess(
   projectsService: ProjectsService,
   input: { projectId: string; actor: ActorContext }
 ) {
-  const project = await projectsService.getProjectById(input.projectId);
-  if (!project) {
-    throw new ProjectNotFoundError();
-  }
-
-  if (input.actor.role === 'admin' || project.userId === input.actor.userId) {
-    return project;
-  }
-
-  const membership = await projectsService.getMembership(
-    input.projectId,
-    input.actor.userId
-  );
-
-  if (!membership) {
-    throw new ForbiddenProjectAccessError();
-  }
-
-  if (membership.role !== 'admin') {
-    throw new ForbiddenProjectMembershipManagementError();
-  }
-
-  return project;
+  return ensureProjectAuthorized(projectsService, { ...input, action: 'manage_members' });
 }
 
 export async function ensureProjectOwnershipTransferAccess(
   projectsService: ProjectsService,
   input: { projectId: string; actor: ActorContext }
 ) {
-  const project = await projectsService.getProjectById(input.projectId);
-  if (!project) {
-    throw new ProjectNotFoundError();
-  }
-
-  if (input.actor.role === 'admin' || project.userId === input.actor.userId) {
-    return project;
-  }
-
-  const membership = await projectsService.getMembership(
-    input.projectId,
-    input.actor.userId
-  );
-
-  if (!membership) {
-    throw new ForbiddenProjectAccessError();
-  }
-
-  throw new ForbiddenProjectOwnershipTransferError();
+  return ensureProjectAuthorized(projectsService, { ...input, action: 'transfer_ownership' });
 }
 
 export async function ensureProjectDeletionAccess(
   projectsService: ProjectsService,
   input: { projectId: string; actor: ActorContext }
 ) {
-  const project = await projectsService.getProjectById(input.projectId);
-  if (!project) {
-    throw new ProjectNotFoundError();
-  }
-
-  if (input.actor.role === 'admin' || project.userId === input.actor.userId) {
-    return project;
-  }
-
-  const membership = await projectsService.getMembership(
-    input.projectId,
-    input.actor.userId
-  );
-
-  if (!membership) {
-    throw new ForbiddenProjectAccessError();
-  }
-
-  throw new ForbiddenProjectDeletionError();
+  return ensureProjectAuthorized(projectsService, { ...input, action: 'delete_project' });
 }

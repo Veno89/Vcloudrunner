@@ -79,7 +79,8 @@ function buildService(overrides?: {
       findById: async () => Object.prototype.hasOwnProperty.call(overrides ?? {}, 'projectResult')
         ? (overrides?.projectResult ?? null)
         : project
-      ,
+    } as never,
+    projectDomainsRepository: {
       listDomains: async () => overrides?.domainsResult ?? []
     } as never,
     deploymentsRepository: {

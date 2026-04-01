@@ -9,7 +9,7 @@ import { FormSubmitButton } from '@/components/form-submit-button';
 import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
 import { loadDashboardData } from '@/lib/loaders';
-import { projects as mockProjects } from '@/lib/mock-data';
+
 import Link from 'next/link';
 import { createProjectAction, triggerDeploymentAction } from './actions';
 
@@ -23,7 +23,7 @@ interface ProjectsPageProps {
 
 export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
   const data = await loadDashboardData();
-  const projects = data.usingLiveData || data.authRequirement ? data.projects : mockProjects;
+  const projects = data.projects;
 
   return (
     <PageLayout>

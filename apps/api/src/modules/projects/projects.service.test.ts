@@ -10,7 +10,7 @@ process.env.REDIS_URL = 'redis://localhost:6379';
 process.env.ENCRYPTION_KEY = '12345678901234567890123456789012';
 
 const { env } = await import('../../config/env.js');
-const { ProjectsRepository } = await import('./projects.repository.js');
+const { ProjectsRepository, ProjectDomainsRepository, ProjectMembersRepository } = await import('./projects.repository.js');
 const { ProjectsService } = await import('./projects.service.js');
 const {
   buildProjectInvitationClaimUrl
@@ -142,7 +142,7 @@ test('listProjectDomains classifies active, degraded, and stale route records', 
     id: 'project-1',
     userId: baseInput.userId
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'listRecentDomainEvents', async () => ([
+  t.mock.method(ProjectDomainsRepository.prototype, 'listRecentDomainEvents', async () => ([
     {
       id: 'event-1',
       projectId: 'project-1',
@@ -154,7 +154,7 @@ test('listProjectDomains classifies active, degraded, and stale route records', 
       createdAt: new Date('2026-03-27T10:10:00.000Z')
     }
   ]));
-  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([
+  t.mock.method(ProjectDomainsRepository.prototype, 'listDomains', async () => ([
     {
       id: 'domain-active',
       projectId: 'project-1',
@@ -246,8 +246,8 @@ test('listProjectDomains classifies undeployed custom domains as pending', async
     slug: 'example-project',
     services: createDefaultProjectServices()
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'listRecentDomainEvents', async () => []);
-  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([
+  t.mock.method(ProjectDomainsRepository.prototype, 'listRecentDomainEvents', async () => []);
+  t.mock.method(ProjectDomainsRepository.prototype, 'listDomains', async () => ([
     {
       id: 'domain-pending',
       projectId: 'project-1',
@@ -313,8 +313,8 @@ test('listProjectDomains marks stored diagnostics as stale once they are older t
       slug: 'example-project',
       services: createDefaultProjectServices()
     } as any));
-    t.mock.method(ProjectsRepository.prototype, 'listRecentDomainEvents', async () => []);
-    t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([
+    t.mock.method(ProjectDomainsRepository.prototype, 'listRecentDomainEvents', async () => []);
+    t.mock.method(ProjectDomainsRepository.prototype, 'listDomains', async () => ([
       {
         id: 'domain-stale-checks',
         projectId: 'project-1',
@@ -409,7 +409,7 @@ test('listProjectDomains merges DNS and TLS diagnostics only when explicitly req
     slug: 'example-project',
     services: createDefaultProjectServices()
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'listRecentDomainEvents', async () =>
+  t.mock.method(ProjectDomainsRepository.prototype, 'listRecentDomainEvents', async () =>
     persistedDomainEvents.map((event, index) => ({
       id: `event-${index + 1}`,
       projectId: 'project-1',
@@ -421,7 +421,7 @@ test('listProjectDomains merges DNS and TLS diagnostics only when explicitly req
       createdAt: new Date('2026-03-28T12:00:00.000Z')
     }))
   );
-  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([
+  t.mock.method(ProjectDomainsRepository.prototype, 'listDomains', async () => ([
     {
       id: 'domain-active',
       projectId: 'project-1',
@@ -437,7 +437,7 @@ test('listProjectDomains merges DNS and TLS diagnostics only when explicitly req
       serviceExposure: 'public'
     }
   ] as any));
-  t.mock.method(ProjectsRepository.prototype, 'updateDomainDiagnostics', async (input: {
+  t.mock.method(ProjectDomainsRepository.prototype, 'updateDomainDiagnostics', async (input: {
     projectId: string;
     domainId: string;
     ownershipStatus: string;
@@ -507,7 +507,7 @@ test('listProjectDomains merges DNS and TLS diagnostics only when explicitly req
     });
     return { id: input.domainId } as any;
   });
-  t.mock.method(ProjectsRepository.prototype, 'addDomainEvents', async (input: Array<{
+  t.mock.method(ProjectDomainsRepository.prototype, 'addDomainEvents', async (input: Array<{
     domainId: string;
     kind:
       | 'ownership'
@@ -684,8 +684,8 @@ test('listProjectDomains escalates certificate guidance when an intermediate cer
     slug: 'example-project',
     services: createDefaultProjectServices()
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'listRecentDomainEvents', async () => []);
-  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([{
+  t.mock.method(ProjectDomainsRepository.prototype, 'listRecentDomainEvents', async () => []);
+  t.mock.method(ProjectDomainsRepository.prototype, 'listDomains', async () => ([{
     id: 'domain-active',
     projectId: 'project-1',
     deploymentId: 'dep-active',
@@ -714,7 +714,7 @@ test('listProjectDomains escalates certificate guidance when an intermediate cer
     serviceKind: 'web',
     serviceExposure: 'public'
   }] as any));
-  t.mock.method(ProjectsRepository.prototype, 'updateDomainDiagnostics', async (input: {
+  t.mock.method(ProjectDomainsRepository.prototype, 'updateDomainDiagnostics', async (input: {
     certificatePathValidityChangedAt: Date | null;
     certificatePathValidityObservedCount: number;
     certificatePathValidityLastHealthyAt: Date | null;
@@ -726,7 +726,7 @@ test('listProjectDomains escalates certificate guidance when an intermediate cer
     });
     return { id: 'domain-active' } as any;
   });
-  t.mock.method(ProjectsRepository.prototype, 'addDomainEvents', async () => []);
+  t.mock.method(ProjectDomainsRepository.prototype, 'addDomainEvents', async () => []);
 
   const service = new ProjectsService(
     {} as never,
@@ -826,7 +826,7 @@ test('listProjectDomains records certificate trust and issuer-path incident hist
     slug: 'example-project',
     services: createDefaultProjectServices()
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([{
+  t.mock.method(ProjectDomainsRepository.prototype, 'listDomains', async () => ([{
     id: 'domain-history',
     projectId: 'project-1',
     deploymentId: 'dep-active',
@@ -903,8 +903,8 @@ test('listProjectDomains records certificate trust and issuer-path incident hist
     serviceKind: 'web',
     serviceExposure: 'public'
   }] as any));
-  t.mock.method(ProjectsRepository.prototype, 'updateDomainDiagnostics', async () => ({ id: 'domain-history' } as any));
-  t.mock.method(ProjectsRepository.prototype, 'addDomainEvents', async (input: Array<{
+  t.mock.method(ProjectDomainsRepository.prototype, 'updateDomainDiagnostics', async () => ({ id: 'domain-history' } as any));
+  t.mock.method(ProjectDomainsRepository.prototype, 'addDomainEvents', async (input: Array<{
     domainId: string;
     kind:
       | 'ownership'
@@ -922,7 +922,7 @@ test('listProjectDomains records certificate trust and issuer-path incident hist
     persistedDomainEvents.push(...input);
     return input.map((event, index) => ({ id: `event-${index + 1}`, domainId: event.domainId })) as any;
   });
-  t.mock.method(ProjectsRepository.prototype, 'listRecentDomainEvents', async (input?: {
+  t.mock.method(ProjectDomainsRepository.prototype, 'listRecentDomainEvents', async (input?: {
     kinds?: string[];
   }) => {
     const kinds = input?.kinds;
@@ -1073,7 +1073,7 @@ test('listProjectDomains records certificate rotation history when the served fi
     slug: 'example-project',
     services: createDefaultProjectServices()
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([
+  t.mock.method(ProjectDomainsRepository.prototype, 'listDomains', async () => ([
     {
       id: 'domain-rotate',
       projectId: 'project-1',
@@ -1117,7 +1117,7 @@ test('listProjectDomains records certificate rotation history when the served fi
       serviceExposure: 'public'
     }
   ] as any));
-  t.mock.method(ProjectsRepository.prototype, 'updateDomainDiagnostics', async (input: {
+  t.mock.method(ProjectDomainsRepository.prototype, 'updateDomainDiagnostics', async (input: {
     certificateFirstObservedAt: Date | null;
     certificateChangedAt: Date | null;
     certificateLastRotatedAt: Date | null;
@@ -1134,7 +1134,7 @@ test('listProjectDomains records certificate rotation history when the served fi
     });
     return { id: 'domain-rotate' } as any;
   });
-  t.mock.method(ProjectsRepository.prototype, 'addDomainEvents', async (input: Array<{
+  t.mock.method(ProjectDomainsRepository.prototype, 'addDomainEvents', async (input: Array<{
     domainId: string;
     kind:
       | 'ownership'
@@ -1152,7 +1152,7 @@ test('listProjectDomains records certificate rotation history when the served fi
     persistedDomainEvents.push(...input);
     return input.map((event, index) => ({ id: `event-${index + 1}`, domainId: event.domainId })) as any;
   });
-  t.mock.method(ProjectsRepository.prototype, 'listRecentDomainEvents', async () =>
+  t.mock.method(ProjectDomainsRepository.prototype, 'listRecentDomainEvents', async () =>
     persistedDomainEvents.map((event, index) => ({
       id: `event-${index + 1}`,
       projectId: 'project-1',
@@ -1265,8 +1265,8 @@ test('listProjectDomains preserves prior verification timestamps when refreshed 
     slug: 'example-project',
     services: createDefaultProjectServices()
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'listRecentDomainEvents', async () => []);
-  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([
+  t.mock.method(ProjectDomainsRepository.prototype, 'listRecentDomainEvents', async () => []);
+  t.mock.method(ProjectDomainsRepository.prototype, 'listDomains', async () => ([
     {
       id: 'domain-active',
       projectId: 'project-1',
@@ -1293,7 +1293,7 @@ test('listProjectDomains preserves prior verification timestamps when refreshed 
       serviceExposure: 'public'
     }
   ] as any));
-  t.mock.method(ProjectsRepository.prototype, 'updateDomainDiagnostics', async (input: {
+  t.mock.method(ProjectDomainsRepository.prototype, 'updateDomainDiagnostics', async (input: {
     certificateValidFrom: Date | null;
     certificateValidTo: Date | null;
     ownershipStatusChangedAt: Date | null;
@@ -1311,7 +1311,7 @@ test('listProjectDomains preserves prior verification timestamps when refreshed 
     });
     return { id: 'domain-active' } as any;
   });
-  t.mock.method(ProjectsRepository.prototype, 'addDomainEvents', async () => []);
+  t.mock.method(ProjectDomainsRepository.prototype, 'addDomainEvents', async () => []);
 
   const service = new ProjectsService(
     {} as never,
@@ -1377,8 +1377,8 @@ test('listProjectDomains distinguishes initial certificate issuance problems fro
     slug: 'example-project',
     services: createDefaultProjectServices()
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'listRecentDomainEvents', async () => []);
-  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([
+  t.mock.method(ProjectDomainsRepository.prototype, 'listRecentDomainEvents', async () => []);
+  t.mock.method(ProjectDomainsRepository.prototype, 'listDomains', async () => ([
     {
       id: 'domain-issuance',
       projectId: 'project-1',
@@ -1475,7 +1475,7 @@ test('listProjectDomains promotes repeated certificate issues into persistent at
     slug: 'example-project',
     services: createDefaultProjectServices()
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([
+  t.mock.method(ProjectDomainsRepository.prototype, 'listDomains', async () => ([
     {
       id: 'domain-renewal-persistent',
       projectId: 'project-1',
@@ -1512,7 +1512,7 @@ test('listProjectDomains promotes repeated certificate issues into persistent at
       serviceExposure: 'public'
     }
   ] as any));
-  t.mock.method(ProjectsRepository.prototype, 'updateDomainDiagnostics', async (input: {
+  t.mock.method(ProjectDomainsRepository.prototype, 'updateDomainDiagnostics', async (input: {
     certificateGuidanceChangedAt: Date | null;
     certificateGuidanceObservedCount: number;
   }) => {
@@ -1522,7 +1522,7 @@ test('listProjectDomains promotes repeated certificate issues into persistent at
     });
     return { id: 'domain-renewal-persistent' } as any;
   });
-  t.mock.method(ProjectsRepository.prototype, 'addDomainEvents', async (input: Array<{
+  t.mock.method(ProjectDomainsRepository.prototype, 'addDomainEvents', async (input: Array<{
     domainId: string;
     kind:
       | 'ownership'
@@ -1539,7 +1539,7 @@ test('listProjectDomains promotes repeated certificate issues into persistent at
     persistedDomainEvents.push(...input);
     return input.map((event, index) => ({ id: `event-${index + 1}`, domainId: event.domainId })) as any;
   });
-  t.mock.method(ProjectsRepository.prototype, 'listRecentDomainEvents', async () =>
+  t.mock.method(ProjectDomainsRepository.prototype, 'listRecentDomainEvents', async () =>
     persistedDomainEvents.map((event, index) => ({
       id: `event-${index + 1}`,
       projectId: 'project-1',
@@ -1634,8 +1634,8 @@ test('listProjectDomains derives certificate trust and guidance from stored host
     slug: 'example-project',
     services: createDefaultProjectServices()
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'listRecentDomainEvents', async () => []);
-  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([
+  t.mock.method(ProjectDomainsRepository.prototype, 'listRecentDomainEvents', async () => []);
+  t.mock.method(ProjectDomainsRepository.prototype, 'listDomains', async () => ([
     {
       id: 'domain-hostname-mismatch',
       projectId: 'project-1',
@@ -1683,7 +1683,7 @@ test('createProjectDomain stores a pending custom domain claim for the public se
     slug: 'example-project',
     services: createDefaultProjectServices()
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'createDomain', async (input: Record<string, unknown>) => {
+  t.mock.method(ProjectDomainsRepository.prototype, 'createDomain', async (input: Record<string, unknown>) => {
     capturedInput = input;
     return {
       id: 'domain-1',
@@ -1743,7 +1743,7 @@ test('createProjectDomain maps duplicate host conflicts to ProjectDomainAlreadyE
     slug: 'example-project',
     services: createDefaultProjectServices()
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'createDomain', async () => {
+  t.mock.method(ProjectDomainsRepository.prototype, 'createDomain', async () => {
     throw {
       code: '23505',
       constraint: 'domains_host_unique'
@@ -1777,8 +1777,8 @@ test('verifyProjectDomainClaim refreshes the targeted custom domain only', async
     slug: 'example-project',
     services: createDefaultProjectServices()
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'listRecentDomainEvents', async () => []);
-  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([
+  t.mock.method(ProjectDomainsRepository.prototype, 'listRecentDomainEvents', async () => []);
+  t.mock.method(ProjectDomainsRepository.prototype, 'listDomains', async () => ([
     {
       id: 'domain-verify',
       projectId: 'project-1',
@@ -1810,8 +1810,8 @@ test('verifyProjectDomainClaim refreshes the targeted custom domain only', async
       serviceExposure: 'public'
     }
   ] as any));
-  t.mock.method(ProjectsRepository.prototype, 'updateDomainDiagnostics', async () => ({ id: 'domain-verify' } as any));
-  t.mock.method(ProjectsRepository.prototype, 'addDomainEvents', async () => []);
+  t.mock.method(ProjectDomainsRepository.prototype, 'updateDomainDiagnostics', async () => ({ id: 'domain-verify' } as any));
+  t.mock.method(ProjectDomainsRepository.prototype, 'addDomainEvents', async () => []);
 
   const service = new ProjectsService(
     {} as never,
@@ -1876,7 +1876,7 @@ test('removeProjectDomain rejects attempts to remove the platform default host',
     slug: 'example-project',
     services: createDefaultProjectServices()
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findDomainById', async () => ({
+  t.mock.method(ProjectDomainsRepository.prototype, 'findDomainById', async () => ({
     id: 'domain-default',
     projectId: 'project-1',
     deploymentId: 'dep-1',
@@ -1909,7 +1909,7 @@ test('removeProjectDomain throws when the domain claim does not exist', async (t
     slug: 'example-project',
     services: createDefaultProjectServices()
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findDomainById', async () => null);
+  t.mock.method(ProjectDomainsRepository.prototype, 'findDomainById', async () => null);
 
   const service = new ProjectsService({} as never);
 
@@ -1929,7 +1929,7 @@ test('removeProjectDomain rejects removing a custom domain that is attached to a
     slug: 'example-project',
     services: createDefaultProjectServices()
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findDomainById', async () => ({
+  t.mock.method(ProjectDomainsRepository.prototype, 'findDomainById', async () => ({
     id: 'domain-custom-active',
     projectId: 'project-1',
     deploymentId: 'dep-1',
@@ -1965,7 +1965,7 @@ test('removeProjectDomain deactivates the live route before deleting an attached
     slug: 'example-project',
     services: createDefaultProjectServices()
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findDomainById', async () => ({
+  t.mock.method(ProjectDomainsRepository.prototype, 'findDomainById', async () => ({
     id: 'domain-custom-active',
     projectId: 'project-1',
     deploymentId: 'dep-1',
@@ -1979,7 +1979,7 @@ test('removeProjectDomain deactivates the live route before deleting an attached
     serviceKind: 'web',
     serviceExposure: 'public'
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'removeDomain', async () => {
+  t.mock.method(ProjectDomainsRepository.prototype, 'removeDomain', async () => {
     removeCallCount += 1;
     return { id: 'domain-custom-active' } as any;
   });
@@ -2013,7 +2013,7 @@ test('removeProjectDomain surfaces live route deactivation failures without dele
     slug: 'example-project',
     services: createDefaultProjectServices()
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findDomainById', async () => ({
+  t.mock.method(ProjectDomainsRepository.prototype, 'findDomainById', async () => ({
     id: 'domain-custom-active',
     projectId: 'project-1',
     deploymentId: 'dep-1',
@@ -2027,7 +2027,7 @@ test('removeProjectDomain surfaces live route deactivation failures without dele
     serviceKind: 'web',
     serviceExposure: 'public'
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'removeDomain', async () => {
+  t.mock.method(ProjectDomainsRepository.prototype, 'removeDomain', async () => {
     removeCallCount += 1;
     return { id: 'domain-custom-active' } as any;
   });
@@ -2063,7 +2063,7 @@ test('removeProjectDomain deletes a custom domain claim', async (t) => {
     slug: 'example-project',
     services: createDefaultProjectServices()
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findDomainById', async () => ({
+  t.mock.method(ProjectDomainsRepository.prototype, 'findDomainById', async () => ({
     id: 'domain-custom',
     projectId: 'project-1',
     deploymentId: null,
@@ -2077,7 +2077,7 @@ test('removeProjectDomain deletes a custom domain claim', async (t) => {
     serviceKind: null,
     serviceExposure: null
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'removeDomain', async () => {
+  t.mock.method(ProjectDomainsRepository.prototype, 'removeDomain', async () => {
     removeCallCount += 1;
     return { id: 'domain-custom' } as any;
   });
@@ -2092,13 +2092,13 @@ test('removeProjectDomain deletes a custom domain claim', async (t) => {
 });
 
 test('inviteProjectMember stores a pending invitation when the target email has no persisted user yet', async (t) => {
-  t.mock.method(ProjectsRepository.prototype, 'findPersistedUserByEmail', async () => null);
+  t.mock.method(ProjectMembersRepository.prototype, 'findPersistedUserByEmail', async () => null);
   t.mock.method(ProjectsRepository.prototype, 'findById', async () => ({
     id: 'project-1',
     userId: baseInput.userId
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findActiveInvitationByEmail', async () => null);
-  t.mock.method(ProjectsRepository.prototype, 'addInvitation', async (input: Record<string, unknown>) => ({
+  t.mock.method(ProjectMembersRepository.prototype, 'findActiveInvitationByEmail', async () => null);
+  t.mock.method(ProjectMembersRepository.prototype, 'addInvitation', async (input: Record<string, unknown>) => ({
     id: 'invite-1',
     projectId: input.projectId,
     email: input.email,
@@ -2112,7 +2112,7 @@ test('inviteProjectMember stores a pending invitation when the target email has 
     createdAt: new Date('2026-03-26T00:00:00.000Z'),
     updatedAt: new Date('2026-03-26T00:00:00.000Z')
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findInvitationClaimByToken', async (claimToken: string) => ({
+  t.mock.method(ProjectMembersRepository.prototype, 'findInvitationClaimByToken', async (claimToken: string) => ({
     id: 'invite-1',
     projectId: 'project-1',
     projectName: 'Example Project',
@@ -2177,7 +2177,7 @@ test('inviteProjectMember stores a pending invitation when the target email has 
 });
 
 test('inviteProjectMember throws when the target user already owns the project', async (t) => {
-  t.mock.method(ProjectsRepository.prototype, 'findPersistedUserByEmail', async () => ({
+  t.mock.method(ProjectMembersRepository.prototype, 'findPersistedUserByEmail', async () => ({
     id: baseInput.userId,
     name: 'Owner User',
     email: 'owner@example.com'
@@ -2201,7 +2201,7 @@ test('inviteProjectMember throws when the target user already owns the project',
 });
 
 test('inviteProjectMember creates a project membership for an existing persisted user', async (t) => {
-  t.mock.method(ProjectsRepository.prototype, 'findPersistedUserByEmail', async () => ({
+  t.mock.method(ProjectMembersRepository.prototype, 'findPersistedUserByEmail', async () => ({
     id: '00000000-0000-0000-0000-000000000099',
     name: 'Invited User',
     email: 'invitee@example.com'
@@ -2210,9 +2210,9 @@ test('inviteProjectMember creates a project membership for an existing persisted
     id: 'project-1',
     userId: baseInput.userId
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findMembership', async () => null);
-  t.mock.method(ProjectsRepository.prototype, 'findActiveInvitationByEmail', async () => null);
-  t.mock.method(ProjectsRepository.prototype, 'addMember', async (input: Record<string, unknown>) => ({
+  t.mock.method(ProjectMembersRepository.prototype, 'findMembership', async () => null);
+  t.mock.method(ProjectMembersRepository.prototype, 'findActiveInvitationByEmail', async () => null);
+  t.mock.method(ProjectMembersRepository.prototype, 'addMember', async (input: Record<string, unknown>) => ({
     id: 'member-1',
     projectId: input.projectId,
     userId: input.userId,
@@ -2251,12 +2251,12 @@ test('inviteProjectMember creates a project membership for an existing persisted
 });
 
 test('inviteProjectMember rejects duplicate pending invitations for the same project email', async (t) => {
-  t.mock.method(ProjectsRepository.prototype, 'findPersistedUserByEmail', async () => null);
+  t.mock.method(ProjectMembersRepository.prototype, 'findPersistedUserByEmail', async () => null);
   t.mock.method(ProjectsRepository.prototype, 'findById', async () => ({
     id: 'project-1',
     userId: baseInput.userId
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findActiveInvitationByEmail', async () => ({
+  t.mock.method(ProjectMembersRepository.prototype, 'findActiveInvitationByEmail', async () => ({
     id: 'invite-1'
   } as any));
 
@@ -2278,7 +2278,7 @@ test('updateProjectInvitation throws when the pending invitation does not exist'
     id: 'project-1',
     userId: baseInput.userId
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findInvitationDetails', async () => null);
+  t.mock.method(ProjectMembersRepository.prototype, 'findInvitationDetails', async () => null);
 
   const service = new ProjectsService({} as never);
 
@@ -2302,7 +2302,7 @@ test('updateProjectInvitation refreshes and returns the pending invitation', asy
     id: 'project-1',
     userId: baseInput.userId
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findInvitationDetails', async () => ({
+  t.mock.method(ProjectMembersRepository.prototype, 'findInvitationDetails', async () => ({
     id: invitationId,
     projectId: 'project-1',
     email: 'pending@example.com',
@@ -2322,7 +2322,7 @@ test('updateProjectInvitation refreshes and returns the pending invitation', asy
     },
     acceptedByUser: null
   }));
-  t.mock.method(ProjectsRepository.prototype, 'updateInvitation', async (input: Record<string, unknown>) => {
+  t.mock.method(ProjectMembersRepository.prototype, 'updateInvitation', async (input: Record<string, unknown>) => {
     currentRole = input.role as 'viewer' | 'editor' | 'admin';
     currentUpdatedAt = new Date('2026-03-26T02:00:00.000Z');
 
@@ -2348,7 +2348,7 @@ test('removeProjectInvitation throws when the pending invitation does not exist'
     id: 'project-1',
     userId: baseInput.userId
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findInvitationDetails', async () => null);
+  t.mock.method(ProjectMembersRepository.prototype, 'findInvitationDetails', async () => null);
 
   const service = new ProjectsService({} as never);
 
@@ -2368,7 +2368,7 @@ test('removeProjectInvitation deletes an existing pending invitation', async (t)
     id: 'project-1',
     userId: baseInput.userId
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findInvitationDetails', async () => ({
+  t.mock.method(ProjectMembersRepository.prototype, 'findInvitationDetails', async () => ({
     id: '00000000-0000-0000-0000-000000000099',
     projectId: 'project-1',
     email: 'pending@example.com',
@@ -2388,7 +2388,7 @@ test('removeProjectInvitation deletes an existing pending invitation', async (t)
     },
     acceptedByUser: null
   }));
-  t.mock.method(ProjectsRepository.prototype, 'cancelInvitation', async () => {
+  t.mock.method(ProjectMembersRepository.prototype, 'cancelInvitation', async () => {
     removeCallCount += 1;
     return { id: 'invite-1' } as any;
   });
@@ -2407,7 +2407,7 @@ test('redeliverProjectInvitation returns delivery details for a pending invitati
     id: 'project-1',
     userId: baseInput.userId
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findInvitationDetails', async () => ({
+  t.mock.method(ProjectMembersRepository.prototype, 'findInvitationDetails', async () => ({
     id: 'invite-1',
     projectId: 'project-1',
     email: 'pending@example.com',
@@ -2427,7 +2427,7 @@ test('redeliverProjectInvitation returns delivery details for a pending invitati
     },
     acceptedByUser: null
   }));
-  t.mock.method(ProjectsRepository.prototype, 'findInvitationClaimByToken', async () => ({
+  t.mock.method(ProjectMembersRepository.prototype, 'findInvitationClaimByToken', async () => ({
     id: 'invite-1',
     projectId: 'project-1',
     projectName: 'Example Project',
@@ -2466,7 +2466,7 @@ test('redeliverProjectInvitation rejects invitations that are no longer pending'
     id: 'project-1',
     userId: baseInput.userId
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findInvitationDetails', async () => ({
+  t.mock.method(ProjectMembersRepository.prototype, 'findInvitationDetails', async () => ({
     id: 'invite-1',
     projectId: 'project-1',
     email: 'pending@example.com',
@@ -2495,7 +2495,7 @@ test('redeliverProjectInvitation rejects invitations that are no longer pending'
 });
 
 test('getProjectInvitationClaim throws when the claim token is unknown', async (t) => {
-  t.mock.method(ProjectsRepository.prototype, 'findInvitationClaimByToken', async () => null);
+  t.mock.method(ProjectMembersRepository.prototype, 'findInvitationClaimByToken', async () => null);
 
   const service = new ProjectsService({} as never);
 
@@ -2506,7 +2506,7 @@ test('getProjectInvitationClaim throws when the claim token is unknown', async (
 });
 
 test('acceptProjectInvitationClaim rejects actors without a persisted user profile', async (t) => {
-  t.mock.method(ProjectsRepository.prototype, 'findInvitationClaimByToken', async () => ({
+  t.mock.method(ProjectMembersRepository.prototype, 'findInvitationClaimByToken', async () => ({
     id: 'invite-1',
     projectId: 'project-1',
     projectName: 'Example Project',
@@ -2524,7 +2524,7 @@ test('acceptProjectInvitationClaim rejects actors without a persisted user profi
     invitedByUser: null,
     acceptedByUser: null
   }));
-  t.mock.method(ProjectsRepository.prototype, 'findPersistedUserById', async () => null);
+  t.mock.method(ProjectMembersRepository.prototype, 'findPersistedUserById', async () => null);
 
   const service = new ProjectsService({} as never);
 
@@ -2538,7 +2538,7 @@ test('acceptProjectInvitationClaim rejects actors without a persisted user profi
 });
 
 test('acceptProjectInvitationClaim rejects actors whose stored email does not match the invite', async (t) => {
-  t.mock.method(ProjectsRepository.prototype, 'findInvitationClaimByToken', async () => ({
+  t.mock.method(ProjectMembersRepository.prototype, 'findInvitationClaimByToken', async () => ({
     id: 'invite-1',
     projectId: 'project-1',
     projectName: 'Example Project',
@@ -2556,7 +2556,7 @@ test('acceptProjectInvitationClaim rejects actors whose stored email does not ma
     invitedByUser: null,
     acceptedByUser: null
   }));
-  t.mock.method(ProjectsRepository.prototype, 'findPersistedUserById', async () => ({
+  t.mock.method(ProjectMembersRepository.prototype, 'findPersistedUserById', async () => ({
     id: '00000000-0000-0000-0000-000000000099',
     name: 'Mismatch User',
     email: 'different@example.com'
@@ -2580,7 +2580,7 @@ test('acceptProjectInvitationClaim accepts a pending invitation for the matching
   let currentAcceptedBy: string | null = null;
   let currentAcceptedAt: Date | null = null;
 
-  t.mock.method(ProjectsRepository.prototype, 'findInvitationClaimByToken', async () => ({
+  t.mock.method(ProjectMembersRepository.prototype, 'findInvitationClaimByToken', async () => ({
     id: 'invite-1',
     projectId: 'project-1',
     projectName: 'Example Project',
@@ -2608,17 +2608,17 @@ test('acceptProjectInvitationClaim accepts a pending invitation for the matching
         }
       : null
   }));
-  t.mock.method(ProjectsRepository.prototype, 'findPersistedUserById', async () => ({
+  t.mock.method(ProjectMembersRepository.prototype, 'findPersistedUserById', async () => ({
     id: '00000000-0000-0000-0000-000000000099',
     name: 'Pending User',
     email: 'pending@example.com'
   }));
-  t.mock.method(ProjectsRepository.prototype, 'findMembership', async () => null);
-  t.mock.method(ProjectsRepository.prototype, 'addMember', async () => {
+  t.mock.method(ProjectMembersRepository.prototype, 'findMembership', async () => null);
+  t.mock.method(ProjectMembersRepository.prototype, 'addMember', async () => {
     membershipInsertCount += 1;
     return {} as any;
   });
-  t.mock.method(ProjectsRepository.prototype, 'acceptInvitation', async (_invitationId: string, acceptedByUserId: string) => {
+  t.mock.method(ProjectMembersRepository.prototype, 'acceptInvitation', async (_invitationId: string, acceptedByUserId: string) => {
     acceptanceCount += 1;
     currentStatus = 'accepted';
     currentAcceptedBy = acceptedByUserId;
@@ -2639,7 +2639,7 @@ test('acceptProjectInvitationClaim accepts a pending invitation for the matching
 });
 
 test('acceptProjectInvitationClaim rejects invitations that are no longer pending', async (t) => {
-  t.mock.method(ProjectsRepository.prototype, 'findInvitationClaimByToken', async () => ({
+  t.mock.method(ProjectMembersRepository.prototype, 'findInvitationClaimByToken', async () => ({
     id: 'invite-1',
     projectId: 'project-1',
     projectName: 'Example Project',
@@ -2693,7 +2693,7 @@ test('updateProjectMemberRole throws when the membership does not exist', async 
     id: 'project-1',
     userId: baseInput.userId
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findMemberDetails', async () => null);
+  t.mock.method(ProjectMembersRepository.prototype, 'findMemberDetails', async () => null);
 
   const service = new ProjectsService({} as never);
 
@@ -2715,7 +2715,7 @@ test('updateProjectMemberRole updates and returns the refreshed membership', asy
     id: 'project-1',
     userId: baseInput.userId
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findMemberDetails', async () => ({
+  t.mock.method(ProjectMembersRepository.prototype, 'findMemberDetails', async () => ({
     id: 'member-1',
     projectId: 'project-1',
     userId: targetUserId,
@@ -2730,7 +2730,7 @@ test('updateProjectMemberRole updates and returns the refreshed membership', asy
       email: 'member@example.com'
     }
   }));
-  t.mock.method(ProjectsRepository.prototype, 'updateMemberRole', async (input: Record<string, unknown>) => {
+  t.mock.method(ProjectMembersRepository.prototype, 'updateMemberRole', async (input: Record<string, unknown>) => {
     currentRole = input.role as 'viewer' | 'editor' | 'admin';
     return {
       id: 'member-1',
@@ -2774,7 +2774,7 @@ test('removeProjectMember throws when the membership does not exist', async (t) 
     id: 'project-1',
     userId: baseInput.userId
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findMemberDetails', async () => null);
+  t.mock.method(ProjectMembersRepository.prototype, 'findMemberDetails', async () => null);
 
   const service = new ProjectsService({} as never);
 
@@ -2794,7 +2794,7 @@ test('removeProjectMember deletes an existing non-owner membership', async (t) =
     id: 'project-1',
     userId: baseInput.userId
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findMemberDetails', async () => ({
+  t.mock.method(ProjectMembersRepository.prototype, 'findMemberDetails', async () => ({
     id: 'member-1',
     projectId: 'project-1',
     userId: '00000000-0000-0000-0000-000000000099',
@@ -2809,7 +2809,7 @@ test('removeProjectMember deletes an existing non-owner membership', async (t) =
       email: 'member@example.com'
     }
   }));
-  t.mock.method(ProjectsRepository.prototype, 'removeMember', async () => {
+  t.mock.method(ProjectMembersRepository.prototype, 'removeMember', async () => {
     removeCallCount += 1;
     return { id: 'member-1' } as any;
   });
@@ -2828,7 +2828,7 @@ test('transferProjectOwnership throws when the target membership does not exist'
     id: 'project-1',
     userId: baseInput.userId
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findMemberDetails', async () => null);
+  t.mock.method(ProjectMembersRepository.prototype, 'findMemberDetails', async () => null);
 
   const service = new ProjectsService({} as never);
 
@@ -2850,7 +2850,7 @@ test('transferProjectOwnership updates the owner and returns the refreshed owner
     id: 'project-1',
     userId: projectOwnerUserId
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'findMemberDetails', async (_projectId: string, userId: string) => (
+  t.mock.method(ProjectMembersRepository.prototype, 'findMemberDetails', async (_projectId: string, userId: string) => (
     userId === nextOwnerUserId
       ? {
           id: 'member-2',
@@ -2869,12 +2869,12 @@ test('transferProjectOwnership updates the owner and returns the refreshed owner
         }
       : null
   ));
-  t.mock.method(ProjectsRepository.prototype, 'transferOwnership', async (input: Record<string, unknown>) => {
+  t.mock.method(ProjectMembersRepository.prototype, 'transferOwnership', async (input: Record<string, unknown>) => {
     transferCallCount += 1;
     projectOwnerUserId = input.nextOwnerUserId as string;
     return { id: input.projectId } as any;
   });
-  t.mock.method(ProjectsRepository.prototype, 'listMembers', async () => ([
+  t.mock.method(ProjectMembersRepository.prototype, 'listMembers', async () => ([
     {
       id: 'member-1',
       projectId: 'project-1',
@@ -2924,7 +2924,7 @@ test('transferProjectOwnership is idempotent when the target already owns the pr
     id: 'project-1',
     userId: baseInput.userId
   } as any));
-  t.mock.method(ProjectsRepository.prototype, 'listMembers', async () => ([
+  t.mock.method(ProjectMembersRepository.prototype, 'listMembers', async () => ([
     {
       id: 'member-1',
       projectId: 'project-1',
@@ -2942,7 +2942,7 @@ test('transferProjectOwnership is idempotent when the target already owns the pr
     }
   ] as any));
   let transferCallCount = 0;
-  t.mock.method(ProjectsRepository.prototype, 'transferOwnership', async () => {
+  t.mock.method(ProjectMembersRepository.prototype, 'transferOwnership', async () => {
     transferCallCount += 1;
     assert.fail('ownership should not be rewritten when it already belongs to the target user');
   });
@@ -3006,7 +3006,7 @@ test('removeProject deactivates live routes, removes managed databases, and dele
     userId: baseInput.userId
   } as any));
   t.mock.method(ProjectsRepository.prototype, 'listActiveDeployments', async () => []);
-  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([
+  t.mock.method(ProjectDomainsRepository.prototype, 'listDomains', async () => ([
     {
       id: 'domain-1',
       projectId: 'project-1',
@@ -3152,7 +3152,7 @@ test('removeProject surfaces live route deactivation failures before deleting re
     userId: baseInput.userId
   } as any));
   t.mock.method(ProjectsRepository.prototype, 'listActiveDeployments', async () => []);
-  t.mock.method(ProjectsRepository.prototype, 'listDomains', async () => ([
+  t.mock.method(ProjectDomainsRepository.prototype, 'listDomains', async () => ([
     {
       id: 'domain-1',
       projectId: 'project-1',

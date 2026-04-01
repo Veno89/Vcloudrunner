@@ -60,18 +60,11 @@ export function extractApiStatusCode(error: unknown): number | null {
 }
 
 export function createProjectErrorReason(statusCode: number | null): string {
-  if (statusCode === 409) {
-    return 'slug_taken';
-  }
-  if (statusCode === 400) {
-    return 'invalid_input';
-  }
-  if (statusCode === 401) {
-    return 'auth_required';
-  }
-  if (statusCode === 403) {
-    return 'access_denied';
-  }
+  const kind = deriveApiErrorKind(statusCode);
+  if (kind === 'conflict') return 'slug_taken';
+  if (kind === 'invalid_input') return 'invalid_input';
+  if (kind === 'auth_required') return 'auth_required';
+  if (kind === 'access_denied') return 'access_denied';
   return 'api_unavailable';
 }
 
@@ -127,6 +120,17 @@ export function getDashboardAuthRequirement(input: {
   }
 
   return null;
+}
+
+export type ApiErrorKind = 'auth_required' | 'access_denied' | 'not_found' | 'conflict' | 'invalid_input' | 'unavailable';
+
+export function deriveApiErrorKind(statusCode: number | null): ApiErrorKind {
+  if (statusCode === 400) return 'invalid_input';
+  if (statusCode === 401) return 'auth_required';
+  if (statusCode === 403) return 'access_denied';
+  if (statusCode === 404) return 'not_found';
+  if (statusCode === 409) return 'conflict';
+  return 'unavailable';
 }
 
 export function describeDashboardLiveDataFailure(input: {
@@ -225,20 +229,21 @@ export function createEnvironmentVariableActionErrorMessage(
   error: unknown
 ): string {
   const statusCode = extractApiStatusCode(error);
+  const kind = deriveApiErrorKind(statusCode);
 
-  if (statusCode === 400) {
+  if (kind === 'invalid_input') {
     return 'Invalid environment variable input. Check the key/value format and retry.';
   }
 
-  if (statusCode === 401) {
+  if (kind === 'auth_required') {
     return 'Environment management is unauthorized. Sign in again with an active dashboard session, use API_AUTH_TOKEN only as a temporary fallback, or use the explicit local dev-auth bypass.';
   }
 
-  if (statusCode === 403) {
+  if (kind === 'access_denied') {
     return 'Environment management is authenticated but lacks the required scopes or project access.';
   }
 
-  if (statusCode === 404) {
+  if (kind === 'not_found') {
     return action === 'delete'
       ? 'The requested project or environment variable no longer exists.'
       : 'The requested project no longer exists.';
@@ -324,19 +329,21 @@ export function normalizeProjectDisplayName(value: unknown): string {
 }
 
 export function createDeploymentErrorMessage(statusCode: number | null, projectName: string): string {
-  if (statusCode === 401) {
+  const kind = deriveApiErrorKind(statusCode);
+
+  if (kind === 'auth_required') {
     return `Cannot deploy "${projectName}": the current dashboard session/token was rejected or local dev auth is disabled.`;
   }
 
-  if (statusCode === 403) {
+  if (kind === 'access_denied') {
     return `Cannot deploy "${projectName}": the dashboard token lacks deployment access for this project.`;
   }
 
-  if (statusCode === 404) {
+  if (kind === 'not_found') {
     return `Cannot deploy "${projectName}": the project no longer exists or is no longer accessible.`;
   }
 
-  if (statusCode === 409) {
+  if (kind === 'conflict') {
     return `Cannot deploy "${projectName}": another deployment is already active.`;
   }
 

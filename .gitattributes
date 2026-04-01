@@ -1,0 +1,15 @@
+# Normalize line endings to LF on checkout for all text files.
+# This prevents mixed CRLF/LF issues across Windows/macOS/Linux contributors.
+* text=auto eol=lf
+
+# Explicitly mark binary file types to prevent accidental normalization.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
