@@ -22,7 +22,7 @@ export function ProjectSubnav({ projectId }: ProjectSubnavProps) {
   ];
 
   return (
-    <TabsList className="w-full justify-start">
+    <TabsList className="w-full justify-start" data-onboarding="project-subnav">
       {items.map((item) => {
         const active =
           item.href === `/projects/${projectId}`

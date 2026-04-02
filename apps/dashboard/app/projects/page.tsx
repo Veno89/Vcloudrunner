@@ -8,6 +8,7 @@ import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
+import { ProjectsOnboardingClient } from '@/components/onboarding/projects-onboarding-client';
 import { loadDashboardData } from '@/lib/loaders';
 
 import Link from 'next/link';
@@ -67,6 +68,10 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
         <DemoModeBanner title="Partial outage" detail={data.liveDataErrorMessage}>
           Live project data is available, but some deployment history is temporarily unavailable.
         </DemoModeBanner>
+      )}
+
+      {data.usingLiveData && (
+        <ProjectsOnboardingClient hasProjects={projects.length > 0} />
       )}
 
       {data.usingLiveData && (

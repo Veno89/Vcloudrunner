@@ -6,6 +6,7 @@ import { DashboardUnavailableState } from '@/components/dashboard-unavailable-st
 import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
 import { SettingsSubnav } from '@/components/settings-subnav';
+import { OnboardingSettingsClient } from '@/components/onboarding/onboarding-settings-client';
 import {
   resolveViewerContext
 } from '@/lib/api';
@@ -117,6 +118,18 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Tours & Guidance</CardTitle>
+          <CardDescription>
+            Replay guided tours or reset all onboarding prompts and tooltips.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <OnboardingSettingsClient />
+        </CardContent>
+      </Card>
     </PageLayout>
   );
 }

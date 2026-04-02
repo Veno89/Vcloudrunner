@@ -5,20 +5,21 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Box, Layers, Settings, FolderGit2, ScrollText, Key, Activity, Menu, User, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { HelpButton } from '@/components/onboarding/keyboard-shortcuts';
 import { cn } from '@/lib/utils';
 
 const navItems = [
-  { href: '/projects', label: 'Projects', icon: FolderGit2 },
-  { href: '/deployments', label: 'Deployments', icon: Layers },
-  { href: '/environment', label: 'Environment', icon: Settings },
-  { href: '/logs', label: 'Logs', icon: ScrollText },
-  { href: '/status', label: 'Status', icon: Activity },
+  { href: '/projects', label: 'Projects', icon: FolderGit2, onboardingId: 'projects-link' },
+  { href: '/deployments', label: 'Deployments', icon: Layers, onboardingId: 'deployments-link' },
+  { href: '/environment', label: 'Environment', icon: Settings, onboardingId: 'env-link' },
+  { href: '/logs', label: 'Logs', icon: ScrollText, onboardingId: 'logs-link' },
+  { href: '/status', label: 'Status', icon: Activity, onboardingId: 'status-link' },
 ];
 
 const settingsItems = [
-  { href: '/settings', label: 'Overview', icon: Settings },
-  { href: '/settings/account', label: 'Account', icon: User },
-  { href: '/settings/tokens', label: 'API Tokens', icon: Key },
+  { href: '/settings', label: 'Overview', icon: Settings, onboardingId: 'settings-link' },
+  { href: '/settings/account', label: 'Account', icon: User, onboardingId: 'account-link' },
+  { href: '/settings/tokens', label: 'API Tokens', icon: Key, onboardingId: 'tokens-link' },
 ];
 
 interface NavSectionProps {
@@ -30,13 +31,14 @@ function NavSections({ pathname, onNavigate }: NavSectionProps) {
   return (
     <nav className="flex-1 space-y-4 px-2 py-3">
       <div className="space-y-1">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {navItems.map(({ href, label, icon: Icon, onboardingId }) => {
           const active = pathname === href || pathname.startsWith(href + '/');
           return (
             <Link
               key={href}
               href={href}
               onClick={onNavigate}
+              data-onboarding={onboardingId}
               className={cn(
                 'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
                 active
@@ -55,13 +57,14 @@ function NavSections({ pathname, onNavigate }: NavSectionProps) {
         <p className="px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
           Settings
         </p>
-        {settingsItems.map(({ href, label, icon: Icon }) => {
+        {settingsItems.map(({ href, label, icon: Icon, onboardingId }) => {
           const active = pathname === href || pathname.startsWith(href + '/');
           return (
             <Link
               key={href}
               href={href}
               onClick={onNavigate}
+              data-onboarding={onboardingId}
               className={cn(
                 'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
                 active
@@ -74,6 +77,10 @@ function NavSections({ pathname, onNavigate }: NavSectionProps) {
             </Link>
           );
         })}
+      </div>
+
+      <div className="border-t px-2 py-2">
+        <HelpButton />
       </div>
     </nav>
   );

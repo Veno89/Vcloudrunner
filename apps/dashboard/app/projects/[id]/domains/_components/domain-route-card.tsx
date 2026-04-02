@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DeploymentStatusBadges } from '@/components/deployment-status-badges';
 import { FormSubmitButton } from '@/components/form-submit-button';
+import { DomainVerifyTip } from '@/components/onboarding/domain-tips';
 import type { ApiProjectDomain } from '@/lib/api';
 import {
   removeProjectDomainAction,
@@ -560,18 +561,21 @@ export function DomainRouteCard({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canManageDomains && isCustomHost ? (
-            <form action={verifyProjectDomainClaimAction}>
-              <input type="hidden" name="projectId" value={projectId} readOnly />
-              <input type="hidden" name="domainId" value={domain.id} readOnly />
-              <input type="hidden" name="domainHost" value={domain.host} readOnly />
-              <input type="hidden" name="returnPath" value={`/projects/${projectId}/domains`} readOnly />
-              <FormSubmitButton
-                idleText={domain.verificationStatus === 'verified' ? 'Recheck Claim' : 'Verify Claim'}
-                pendingText="Verifying..."
-                size="sm"
-                variant="outline"
-              />
-            </form>
+            <>
+              <form action={verifyProjectDomainClaimAction}>
+                <input type="hidden" name="projectId" value={projectId} readOnly />
+                <input type="hidden" name="domainId" value={domain.id} readOnly />
+                <input type="hidden" name="domainHost" value={domain.host} readOnly />
+                <input type="hidden" name="returnPath" value={`/projects/${projectId}/domains`} readOnly />
+                <FormSubmitButton
+                  idleText={domain.verificationStatus === 'verified' ? 'Recheck Claim' : 'Verify Claim'}
+                  pendingText="Verifying..."
+                  size="sm"
+                  variant="outline"
+                />
+              </form>
+              <DomainVerifyTip />
+            </>
           ) : null}
           {domain.runtimeUrl ? (
             <Button asChild size="sm" variant="outline">

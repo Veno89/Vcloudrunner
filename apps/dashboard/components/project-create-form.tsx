@@ -4,6 +4,8 @@ import { useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FormSubmitButton } from '@/components/form-submit-button';
+import { HelpTip } from '@/components/help-tip';
+import { TIPS } from '@/lib/onboarding/steps';
 import { slugifyProjectName } from '@/lib/helpers';
 
 function isValidGitUrl(value: string): boolean {
@@ -53,36 +55,51 @@ export function ProjectCreateForm({ action }: ProjectCreateFormProps) {
 
   return (
     <form action={action} className="grid gap-2 rounded-lg border bg-card p-3 md:grid-cols-[1fr_1fr_160px_auto]">
-      <Label htmlFor="project-name" className="sr-only">Project name</Label>
-      <Input
-        id="project-name"
-        type="text"
-        name="name"
-        placeholder="Project name"
-        minLength={3}
-        required
-        value={name}
-        onChange={(event) => setName(event.target.value)}
-      />
-      <Label htmlFor="project-repository" className="sr-only">Repository URL</Label>
-      <Input
-        id="project-repository"
-        type="url"
-        name="gitRepositoryUrl"
-        placeholder="https://github.com/org/repo"
-        required
-        value={gitRepositoryUrl}
-        onChange={(event) => setGitRepositoryUrl(event.target.value)}
-      />
-      <Label htmlFor="project-branch" className="sr-only">Default branch</Label>
-      <Input
-        id="project-branch"
-        type="text"
-        name="defaultBranch"
-        placeholder="main"
-        value={defaultBranch}
-        onChange={(event) => setDefaultBranch(event.target.value)}
-      />
+      <div className="space-y-1">
+        <div className="flex items-center gap-1">
+          <Label htmlFor="project-name" className="text-xs">Project name</Label>
+          <HelpTip label={TIPS.PROJECT_NAME.label} side="right" />
+        </div>
+        <Input
+          id="project-name"
+          type="text"
+          name="name"
+          placeholder="Project name"
+          minLength={3}
+          required
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+        />
+      </div>
+      <div className="space-y-1">
+        <div className="flex items-center gap-1">
+          <Label htmlFor="project-repository" className="text-xs">Repository URL</Label>
+          <HelpTip label={TIPS.PROJECT_REPO.label} side="right" />
+        </div>
+        <Input
+          id="project-repository"
+          type="url"
+          name="gitRepositoryUrl"
+          placeholder="https://github.com/org/repo"
+          required
+          value={gitRepositoryUrl}
+          onChange={(event) => setGitRepositoryUrl(event.target.value)}
+        />
+      </div>
+      <div className="space-y-1">
+        <div className="flex items-center gap-1">
+          <Label htmlFor="project-branch" className="text-xs">Default branch</Label>
+          <HelpTip label={TIPS.PROJECT_BRANCH.label} side="right" />
+        </div>
+        <Input
+          id="project-branch"
+          type="text"
+          name="defaultBranch"
+          placeholder="main"
+          value={defaultBranch}
+          onChange={(event) => setDefaultBranch(event.target.value)}
+        />
+      </div>
       <FormSubmitButton idleText="Create Project" pendingText="Creating..." disabled={formInvalid} />
       <div className="space-y-1 text-xs text-muted-foreground md:col-span-4">
         <p>

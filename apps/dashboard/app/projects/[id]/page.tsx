@@ -17,6 +17,7 @@ import { ProjectSubnav } from '@/components/project-subnav';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import { ActionToast } from '@/components/action-toast';
 import { PageLayout } from '@/components/page-layout';
+import { ProjectTourClient } from '@/components/onboarding/project-tour-client';
 import {
   apiAuthToken,
   fetchProjectDatabases,
@@ -261,6 +262,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
           </Button>
         </div>
         <ProjectSubnav projectId={project.id} />
+        <ProjectTourClient />
 
         {partialOutageDetail ? (
           <DemoModeBanner title="Partial outage" detail={partialOutageDetail}>
@@ -360,7 +362,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
             <CardTitle className="text-sm">Project Actions</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
-            <form action={deployProjectAction}>
+            <form action={deployProjectAction} data-onboarding="deploy-action">
               <input type="hidden" name="projectId" value={project.id} readOnly />
               <input type="hidden" name="projectName" value={project.name} readOnly />
               <input type="hidden" name="serviceName" value={primaryService.name} readOnly />

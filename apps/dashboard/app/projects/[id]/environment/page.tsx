@@ -26,6 +26,7 @@ import {
   importEnvironmentVariablesAction,
 } from './actions';
 import { EnvImportDialog } from '@/components/env-import-dialog';
+import { EnvExportTip, EnvImportTip, EnvMaskedTip } from '@/components/onboarding/env-tips';
 
 interface ProjectEnvironmentPageProps {
   params: {
@@ -101,20 +102,24 @@ export default async function ProjectEnvironmentPage({ params, searchParams }: P
           </DemoModeBanner>
         ) : null}
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {environmentVariables.length > 0 && (
-            <a
-              href={`/api/env-export?projectId=${project.id}`}
-              download=".env"
-              className="inline-flex items-center rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-            >
-              Export .env
-            </a>
+            <>
+              <a
+                href={`/api/env-export?projectId=${project.id}`}
+                download=".env"
+                className="inline-flex items-center rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+              >
+                Export .env
+              </a>
+              <EnvExportTip />
+            </>
           )}
           <EnvImportDialog
             projectId={project.id}
             importAction={importEnvironmentVariablesAction}
           />
+          <EnvImportTip />
         </div>
 
         <ActionToast
@@ -181,7 +186,10 @@ export default async function ProjectEnvironmentPage({ params, searchParams }: P
               >
                 <div>
                   <p className="font-mono text-sm text-primary">{item.key}</p>
-                  <MaskedSecretValue value={item.value} />
+                  <div className="flex items-center gap-1">
+                    <MaskedSecretValue value={item.value} />
+                    <EnvMaskedTip />
+                  </div>
                 </div>
                 <form action={removeProjectEnvironmentVariableAction}>
                   <input type="hidden" name="projectId" value={project.id} readOnly />

@@ -6,6 +6,9 @@ import { DashboardSessionControls } from '@/components/dashboard-session-control
 import { Sidebar } from '@/components/sidebar';
 import { PlatformStatus } from '@/components/platform-status';
 import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { OnboardingProvider } from '@/lib/onboarding/onboarding-context';
+import { KeyboardShortcuts } from '@/components/onboarding/keyboard-shortcuts';
 
 export const metadata: Metadata = {
   title: 'Vcloudrunner Dashboard',
@@ -16,6 +19,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className="dark">
       <body className="flex h-screen overflow-hidden">
+        <OnboardingProvider>
+        <TooltipProvider delayDuration={300}>
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"
@@ -37,6 +42,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <main id="main-content" className="flex-1 p-6">{children}</main>
         </div>
         <Toaster />
+        <KeyboardShortcuts />
+        </TooltipProvider>
+        </OnboardingProvider>
       </body>
     </html>
   );

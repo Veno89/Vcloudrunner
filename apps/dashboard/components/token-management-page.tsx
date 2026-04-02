@@ -22,6 +22,7 @@ import {
 import { getDashboardRequestAuth } from '@/lib/dashboard-session';
 import { describeDashboardLiveDataFailure } from '@/lib/helpers';
 import { createApiTokenAction, revokeApiTokenAction, rotateApiTokenAction } from '@/app/tokens/actions';
+import { TokenScopesTip, TokenRotateTip, TokenExpirationTip } from '@/components/onboarding/token-tips';
 
 const scopeGroups: Array<{ label: string; description: string; scopes: string[] }> = [
   {
@@ -183,16 +184,20 @@ export async function TokenManagementPage({ searchParams }: TokenManagementPageP
                         <option value="admin">admin</option>
                       </Select>
                       <Label htmlFor="token-expires-at" className="sr-only">Expiration date</Label>
-                      <Input
-                        id="token-expires-at"
-                        type="datetime-local"
-                        name="expiresAt"
-                      />
+                      <div className="flex items-center gap-1">
+                        <Input
+                          id="token-expires-at"
+                          type="datetime-local"
+                          name="expiresAt"
+                        />
+                        <TokenExpirationTip />
+                      </div>
                       <FormSubmitButton idleText="Create Token" pendingText="Creating..." />
                     </div>
                     <fieldset>
-                      <legend className="mb-2 text-xs font-medium text-muted-foreground">
+                      <legend className="mb-2 flex items-center gap-1 text-xs font-medium text-muted-foreground">
                         Scopes (leave unchecked for default)
+                        <TokenScopesTip />
                       </legend>
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {scopeGroups.map((group) => (
@@ -290,6 +295,7 @@ export async function TokenManagementPage({ searchParams }: TokenManagementPageP
                               pendingLabel="Rotating..."
                             />
                           </form>
+                          <TokenRotateTip />
                           <form action={revokeApiTokenAction}>
                             <input type="hidden" name="tokenId" value={token.id} readOnly />
                             <ConfirmSubmitButton

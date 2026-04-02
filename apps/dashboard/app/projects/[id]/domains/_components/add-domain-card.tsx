@@ -3,6 +3,7 @@ import { FormSubmitButton } from '@/components/form-submit-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createProjectDomainAction } from '@/app/projects/actions';
+import { DomainAddTip } from '@/components/onboarding/domain-tips';
 
 interface AddDomainCardProps {
   projectId: string;
@@ -21,7 +22,7 @@ export function AddDomainCard({
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Add Custom Domain</CardTitle>
+          <CardTitle className="text-sm flex items-center gap-1">Add Custom Domain <DomainAddTip /></CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <form action={createProjectDomainAction} className="grid gap-2 md:grid-cols-[1fr_auto]">

@@ -8,6 +8,7 @@ import { DeploymentAutoRefresh } from '@/components/deployment-auto-refresh';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import { LastRefreshedIndicator } from '@/components/last-refreshed-indicator';
 import { ActionToast } from '@/components/action-toast';
+import { DeploymentStatusTip, RedeployTip, RollbackTip } from '@/components/onboarding/deployment-tips';
 import { LiveDataUnavailableState } from '@/components/live-data-unavailable-state';
 import { PageLayout } from '@/components/page-layout';
 import { loadDashboardData } from '@/lib/loaders';
@@ -166,6 +167,7 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
           status={deployment.status}
           cancellationRequested={cancellationRequested}
         />
+        <DeploymentStatusTip />
         {deploymentService ? (
           <>
             <Badge variant="secondary">{deploymentService.name}</Badge>
@@ -231,7 +233,7 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
               <p className="mt-1 text-foreground">{failureSummary}</p>
             </div>
           )}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <form action={redeployAction}>
               <input type="hidden" name="projectId" value={project.id} readOnly />
               <input type="hidden" name="deploymentId" value={deployment.id} readOnly />
@@ -243,18 +245,22 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
                 size="sm"
               />
             </form>
+            <RedeployTip />
             {(deployment.status === 'failed' || deployment.status === 'stopped') ? (
-              <form action={rollbackAction}>
-                <input type="hidden" name="projectId" value={project.id} readOnly />
-                <input type="hidden" name="deploymentId" value={deployment.id} readOnly />
-                <input type="hidden" name="returnPath" value={`/deployments/${deployment.id}`} readOnly />
-                <FormSubmitButton
-                  idleText="Rollback to this"
-                  pendingText="Rolling back..."
-                  variant="outline"
-                  size="sm"
-                />
-              </form>
+              <>
+                <form action={rollbackAction}>
+                  <input type="hidden" name="projectId" value={project.id} readOnly />
+                  <input type="hidden" name="deploymentId" value={deployment.id} readOnly />
+                  <input type="hidden" name="returnPath" value={`/deployments/${deployment.id}`} readOnly />
+                  <FormSubmitButton
+                    idleText="Rollback to this"
+                    pendingText="Rolling back..."
+                    variant="outline"
+                    size="sm"
+                  />
+                </form>
+                <RollbackTip />
+              </>
             ) : null}
             <Link
               href={`/projects/${project.id}/logs?logsDeploymentId=${deployment.id}`}

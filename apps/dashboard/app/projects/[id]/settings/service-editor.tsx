@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select } from '@/components/ui/select';
 import { FormSubmitButton } from '@/components/form-submit-button';
+import { HelpTip } from '@/components/help-tip';
+import { TIPS } from '@/lib/onboarding/steps';
 import { updateProjectServicesAction } from './actions';
 
 interface ServiceEditorProps {
@@ -136,7 +138,10 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Kind</Label>
+                  <div className="flex items-center gap-1">
+                    <Label className="text-xs">Kind</Label>
+                    <HelpTip label={TIPS.SERVICE_KIND.label} side="top" />
+                  </div>
                   <Select
                     value={service.kind}
                     onChange={(e) => updateService(service.id, { kind: e.target.value as 'web' | 'worker' })}
@@ -146,7 +151,10 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Exposure</Label>
+                  <div className="flex items-center gap-1">
+                    <Label className="text-xs">Exposure</Label>
+                    <HelpTip label={TIPS.SERVICE_EXPOSURE.label} side="top" />
+                  </div>
                   <Select
                     value={service.exposure}
                     onChange={(e) => updateService(service.id, { exposure: e.target.value as 'public' | 'internal' })}
@@ -156,7 +164,10 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Container Port</Label>
+                  <div className="flex items-center gap-1">
+                    <Label className="text-xs">Container Port</Label>
+                    <HelpTip label={TIPS.CONTAINER_PORT.label} side="top" />
+                  </div>
                   <Input
                     type="number"
                     value={service.runtime?.containerPort ?? ''}
@@ -168,7 +179,10 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Memory (MB)</Label>
+                  <div className="flex items-center gap-1">
+                    <Label className="text-xs">Memory (MB)</Label>
+                    <HelpTip label={TIPS.MEMORY_MB.label} side="top" />
+                  </div>
                   <Input
                     type="number"
                     value={service.runtime?.memoryMb ?? ''}
@@ -180,7 +194,10 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Restart Policy</Label>
+                  <div className="flex items-center gap-1">
+                    <Label className="text-xs">Restart Policy</Label>
+                    <HelpTip label={TIPS.RESTART_POLICY.label} side="top" />
+                  </div>
                   <Select
                     value={service.runtime?.restartPolicy ?? 'unless-stopped'}
                     onChange={(e) => {
@@ -195,7 +212,10 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                   </Select>
                 </div>
                 <div className="col-span-2 space-y-2 border-t pt-2">
-                  <Label className="text-xs font-medium">Health Check (optional)</Label>
+                  <div className="flex items-center gap-1">
+                    <Label className="text-xs font-medium">Health Check (optional)</Label>
+                    <HelpTip label={TIPS.HEALTH_CHECK_COMMAND.label} side="top" />
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="col-span-2 space-y-1">
                       <Label className="text-xs">Command</Label>
@@ -229,7 +249,10 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                     {service.runtime?.healthCheck?.command && (
                       <>
                         <div className="space-y-1">
-                          <Label className="text-xs">Interval (seconds)</Label>
+                          <div className="flex items-center gap-1">
+                            <Label className="text-xs">Interval (seconds)</Label>
+                            <HelpTip label={TIPS.HEALTH_CHECK_INTERVAL.label} side="top" />
+                          </div>
                           <Input
                             type="number"
                             value={service.runtime.healthCheck.intervalSeconds}
@@ -242,7 +265,10 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs">Timeout (seconds)</Label>
+                          <div className="flex items-center gap-1">
+                            <Label className="text-xs">Timeout (seconds)</Label>
+                            <HelpTip label={TIPS.HEALTH_CHECK_TIMEOUT.label} side="top" />
+                          </div>
                           <Input
                             type="number"
                             value={service.runtime.healthCheck.timeoutSeconds}
@@ -255,7 +281,10 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs">Retries</Label>
+                          <div className="flex items-center gap-1">
+                            <Label className="text-xs">Retries</Label>
+                            <HelpTip label={TIPS.HEALTH_CHECK_RETRIES.label} side="top" />
+                          </div>
                           <Input
                             type="number"
                             value={service.runtime.healthCheck.retries}
@@ -268,7 +297,10 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs">Start Period (seconds)</Label>
+                          <div className="flex items-center gap-1">
+                            <Label className="text-xs">Start Period (seconds)</Label>
+                            <HelpTip label={TIPS.HEALTH_CHECK_START_PERIOD.label} side="top" />
+                          </div>
                           <Input
                             type="number"
                             value={service.runtime.healthCheck.startPeriodSeconds}
