@@ -6,6 +6,9 @@ Single-node self-hosted application-platform monorepo. Think "a small Railway/Ve
 
 - the original four-phase MVP plan is effectively complete
 - the project is now roadmap-driven, with domains/TLS significantly matured and managed Postgres v1 underway
+- full user auth (register / login / password change) is wired end-to-end
+- deployment lifecycle now includes redeploy, rollback, health checks, and restart policies
+- environment variable bulk import/export (`.env` file format) is supported
 - the current product target is best-in-class single-node self-hosted, not multi-node / HA yet
 - multi-node work is intentionally deferred until the single-node platform has been validated with real users, real projects, and real data
 
@@ -15,14 +18,17 @@ Vcloudrunner takes a Git repository, builds it in Docker, runs it on the same ma
 
 What you can do with it today:
 
+- register an account, sign in, and manage your profile from the dashboard
 - create projects that point at Git repos
-- define one project with multiple services, one primary public service, and internal-only services with stable service-to-service addressing
-- store per-project environment variables
+- define one project with multiple services (up to 12), one primary public service, and internal-only services with stable service-to-service addressing
+- configure per-service health checks (command, interval, timeout, retries, start period) and restart policies (no / on-failure / always / unless-stopped)
+- store per-project environment variables, with bulk `.env` import/export
 - provision managed Postgres resources with generated credentials, linked-service env injection, persisted runtime health, reconcile/rotation controls, external backup runbooks, backup/restore operation journaling, backup artifact inventory, artifact lifecycle controls, restore request approval tracking, audit export, due-state visibility, and project-scoped delete controls
-- trigger deployments and watch logs
+- trigger deployments, deploy all services at once, redeploy, or rollback to a previous deployment
+- watch deployment logs with live SSE streaming, export to NDJSON
 - manage custom domains with TXT claim checks, DNS/TLS diagnostics, certificate guidance, presented-chain visibility, last-healthy issuer-path snapshots, intermediate-certificate validity surfacing, chain recovery history, certificate rotation telemetry, persistent certificate issue surfacing, and event-backed certificate trust / issuer-path recovery history
-- see queue / worker / API health from the dashboard
-- manage API tokens for dashboard and API access
+- see queue / worker / API health from the dashboard status page
+- manage API tokens with configurable scopes for dashboard and API access
 - use session-backed dashboard sign-in, stored user profiles, project membership, invitations, and ownership transfer
 - delete projects from a guarded dashboard danger zone once all active deployments have been stopped or cancelled
 - invite project members with claim links, ownership transfer, and optional outbound invite-delivery webhook automation
@@ -30,7 +36,6 @@ What you can do with it today:
 Important current limitations:
 
 - this is still a self-hosted platform in active roadmap development, not a polished hosted SaaS
-- there is not yet a full end-user signup/password auth flow; current auth is centered on API tokens, session-backed dashboard access, invitations, and controlled local-dev bootstrap paths
 - if no live session/token or local dev bootstrap is configured, the dashboard still loads, but user-scoped pages intentionally show explicit auth-required or live-data-unavailable guidance
 - local deployed-app URLs under `*.apps.platform.example.com` need matching DNS or tunnel setup; the dashboard and API hostnames are the easiest things to test first
 
@@ -75,15 +80,16 @@ Important current limitations:
 
 ## How To Use It Once It Is Running
 
-If you have configured a live user/token or the local-only dev bootstrap, this is the normal flow:
-
 1. Open the dashboard.
-2. Check the status page first so you know the API, queue, and worker are healthy.
-3. Create a project with a Git repository URL and branch.
-4. Add environment variables if your app needs them.
-5. Trigger a deployment and watch the logs.
-6. Open the runtime URL after the deployment is running and local DNS / tunnel routing exists for that app hostname.
-7. Use the token settings page, or the `/v1/users/:userId/api-tokens` endpoints, to move from bootstrap/local shortcuts to DB-backed tokens.
+2. Register an account or sign in.
+3. Check the status page first so you know the API, queue, and worker are healthy.
+4. Create a project with a Git repository URL and branch.
+5. Configure services in project settings — set health checks, restart policies, and resource limits per service.
+6. Add environment variables (or bulk-import from a `.env` file).
+7. Trigger a deployment and watch the logs.
+8. Use redeploy or rollback from the deployment detail page as needed.
+9. Open the runtime URL after the deployment is running and local DNS / tunnel routing exists for that app hostname.
+10. Use the token settings page, or the `/v1/users/:userId/api-tokens` endpoints, to manage API tokens with scoped permissions.
 
 ## Local Development (Run The Apps On Your Machine)
 
@@ -168,19 +174,21 @@ Multi-node orchestration and HA coordination are intentionally out of scope for 
 ## Implemented so far
 
 ### Control + Execution Plane
-- Fastify API for projects, deployments, env vars, logs, tokens, health, and metrics
+- Fastify API with 57 endpoints covering projects, deployments, env vars, logs, tokens, health, metrics, auth, members, invitations, domains, and managed databases
 - BullMQ/Redis deployment queue
-- Worker service for `clone -> build -> run`
+- Worker service for `clone -> build -> run` with health checks, restart policies, and stuck-deployment recovery
 - Caddy route upsert integration from worker
-- Dashboard for status, projects, deployments, logs, environment variables, and token management
+- Dashboard (Next.js App Router) for status, projects, deployments, logs, environment variables, token management, user auth, and project settings
 - Deployment logs viewer with live SSE stream, export, reconnect handling, and terminal-state-aware fallbacks
-- Project composition with named services, one public entrypoint, internal-only services, and stable service-discovery env injection
+- Project composition with named services (up to 12), one public entrypoint, internal-only services, and stable service-discovery env injection
+- Deployment lifecycle: deploy single service, deploy all services, cancel, redeploy, rollback
+- User auth: register, login, profile update, password change, session-backed dashboard sign-in
 
 ### Data + Runtime
-- Drizzle PostgreSQL schema for platform entities
-- Docker-based deployment runtime
-- managed Postgres control-plane resource model with generated credentials, linked-service env injection, persisted runtime health, credential rotation, recovery scaffolding, manual backup/restore operation journaling, backup artifact inventory, artifact lifecycle controls, restore request approval scaffolding, and audit export
-- Environment variable encryption at rest (API)
+- Drizzle PostgreSQL schema for platform entities (28 migration files)
+- Docker-based deployment runtime with per-service health checks and restart policies
+- Managed Postgres control-plane resource model with generated credentials, linked-service env injection, persisted runtime health, credential rotation, recovery scaffolding, manual backup/restore operation journaling, backup artifact inventory, artifact lifecycle controls, restore request approval scaffolding, and audit export
+- Environment variable encryption at rest (API), bulk `.env` import/export
 - Custom-domain lifecycle with TXT claim verification, DNS/TLS diagnostics, certificate guidance, chain visibility, and recovery history
 - Session-backed dashboard auth, persisted user/account bootstrap, project membership, invitations, and ownership transfer
 
@@ -190,36 +198,137 @@ Multi-node orchestration and HA coordination are intentionally out of scope for 
 
 ## Deployment Runtime Defaults
 
-Deployments now support runtime tuning (optional per deploy request):
+Deployments support runtime tuning (optional per deploy request):
 
 - `containerPort` (default from `DEPLOYMENT_DEFAULT_CONTAINER_PORT`)
 - `memoryMb` (default from `DEPLOYMENT_DEFAULT_MEMORY_MB`)
 - `cpuMillicores` (default from `DEPLOYMENT_DEFAULT_CPU_MILLICORES`)
+- `healthCheck` — optional per-service health check config:
+  - `command` — health check command to execute
+  - `intervalSeconds` — time between checks
+  - `timeoutSeconds` — max time per check
+  - `retries` — consecutive failures before unhealthy
+  - `startPeriodSeconds` — grace period before checks start
+- `restartPolicy` — container restart policy: `no`, `on-failure`, `always`, or `unless-stopped`
 
-These are injected into worker jobs and applied as Docker resource/runtime settings.
+These are injected into worker jobs and applied as Docker resource/runtime settings. Health checks and restart policies are configurable per-service from the dashboard settings page.
 
 ## Progress Tracking
 
 - See `docs/progress.md` for engineering progress, implementation slices, and the current single-node product guardrail.
 - See `docs/roadmap.md` for the product roadmap and planned feature direction beyond the original MVP checklist.
 
+## Monorepo Structure
+
+```
+apps/
+  api/          Fastify API server (Drizzle ORM, Zod validation, BullMQ producer)
+  dashboard/    Next.js App Router dashboard (Server Components, Server Actions, shadcn/ui)
+  worker/       BullMQ consumer (Docker runtime, health checks, log archival)
+packages/
+  shared-types/ Shared TypeScript types and enums across apps
+infra/
+  caddy/        Caddyfile for reverse proxy configuration
+  cloudflared/  Cloudflare tunnel config for public ingress
+  docker/       Docker-related documentation
+docs/           Architecture, progress, roadmap, and audit docs
+```
+
+### Root Scripts
+
+| Script | Command |
+|---|---|
+| `npm run build` | Build all workspaces |
+| `npm run lint` | Lint all workspaces |
+| `npm run typecheck` | Typecheck all workspaces |
+| `npm run dev:api` | Run API in dev mode |
+| `npm run dev:worker` | Run worker in dev mode |
+| `npm run dev:dashboard` | Run dashboard in dev mode (port 3001) |
+
+### Docker Compose Services
+
+| Service | Image | Ports |
+|---|---|---|
+| `dashboard` | Built from `apps/dashboard/Dockerfile` | 3001 |
+| `api` | Built from `apps/api/Dockerfile` | 4000 |
+| `worker` | Built from `apps/worker/Dockerfile` | — (mounts docker.sock) |
+| `postgres` | `postgres:16-alpine` | 55432→5432 |
+| `redis` | `redis:7-alpine` | 6379 |
+| `caddy` | `caddy:2.8` | 80, 443, 2019 |
+| `cloudflared` | `cloudflare/cloudflared:latest` | — (profile: `tunnel`) |
+
 ## API Endpoints
 
+### Health & Metrics
 - `GET /health`
 - `GET /health/queue`
 - `GET /health/worker`
 - `GET /metrics/queue`
 - `GET /metrics/worker`
+
+### Auth
+- `POST /v1/auth/register`
+- `POST /v1/auth/login`
+- `GET /v1/auth/me`
+- `PUT /v1/auth/me/profile`
+- `POST /v1/auth/me/change-password`
+
+### Projects
 - `POST /v1/projects`
 - `GET /v1/users/:userId/projects`
+- `GET /v1/projects/:projectId`
+- `PATCH /v1/projects/:projectId`
+- `DELETE /v1/projects/:projectId`
+
+### Project Members & Ownership
+- `GET /v1/projects/:projectId/members`
+- `POST /v1/projects/:projectId/members`
+- `PUT /v1/projects/:projectId/members/:memberId`
+- `DELETE /v1/projects/:projectId/members/:memberId`
+- `POST /v1/projects/:projectId/ownership`
+
+### Project Invitations
+- `GET /v1/projects/:projectId/invitations`
+- `PUT /v1/projects/:projectId/invitations/:invitationId`
+- `DELETE /v1/projects/:projectId/invitations/:invitationId`
+- `POST /v1/projects/:projectId/invitations/:invitationId/redeliver`
+- `GET /v1/invitations/claim/:claimToken`
+- `POST /v1/invitations/claim/:claimToken`
+
+### Custom Domains
+- `GET /v1/projects/:projectId/domains`
+- `POST /v1/projects/:projectId/domains`
+- `DELETE /v1/projects/:projectId/domains/:domainId`
+- `POST /v1/projects/:projectId/domains/:domainId/verify`
+
+### Deployments
+- `POST /v1/projects/:projectId/deployments` — deploy a single service
+- `POST /v1/projects/:projectId/deployments/all` — deploy all project services
+- `GET /v1/projects/:projectId/deployments`
+- `POST /v1/projects/:projectId/deployments/:deploymentId/cancel` — cancel queued/building deployments
+- `POST /v1/projects/:projectId/deployments/:deploymentId/redeploy` — redeploy with same config
+- `POST /v1/projects/:projectId/deployments/:deploymentId/rollback` — roll back to a previous deployment
+
+### Environment Variables
+- `GET /v1/projects/:projectId/environment-variables`
+- `PUT /v1/projects/:projectId/environment-variables`
+- `DELETE /v1/projects/:projectId/environment-variables/:key`
+- `GET /v1/projects/:projectId/environment-variables/export` — export as `.env` format
+- `POST /v1/projects/:projectId/environment-variables/import` — bulk import from `.env` format
+
+### Deployment Logs
+- `GET /v1/projects/:projectId/deployments/:deploymentId/logs`
+- `GET /v1/projects/:projectId/deployments/:deploymentId/logs/stream`
+- `GET /v1/projects/:projectId/deployments/:deploymentId/logs/export`
+
+### API Tokens
 - `GET /v1/users/:userId/api-tokens`
 - `POST /v1/users/:userId/api-tokens`
 - `POST /v1/users/:userId/api-tokens/:tokenId/rotate`
 - `DELETE /v1/users/:userId/api-tokens/:tokenId`
-- `GET /v1/projects/:projectId`
-- `DELETE /v1/projects/:projectId`
+
+### Managed Databases
 - `GET /v1/projects/:projectId/databases`
-- `GET /v1/projects/:projectId/databases/:databaseId/audit/export`
 - `POST /v1/projects/:projectId/databases`
 - `POST /v1/projects/:projectId/databases/:databaseId/reconcile`
 - `POST /v1/projects/:projectId/databases/:databaseId/rotate-credentials`
@@ -232,19 +341,13 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 - `PUT /v1/projects/:projectId/databases/:databaseId/restore-requests/:restoreRequestId`
 - `PUT /v1/projects/:projectId/databases/:databaseId/service-links`
 - `DELETE /v1/projects/:projectId/databases/:databaseId`
-- `POST /v1/projects/:projectId/deployments`
-- `GET /v1/projects/:projectId/deployments`
-- `POST /v1/projects/:projectId/deployments/:deploymentId/cancel` (queued/building deployments; completes immediately only when the queued job can still be removed)
-- `GET /v1/projects/:projectId/environment-variables`
-- `PUT /v1/projects/:projectId/environment-variables`
-- `DELETE /v1/projects/:projectId/environment-variables/:key`
-- `GET /v1/projects/:projectId/deployments/:deploymentId/logs`
-- `GET /v1/projects/:projectId/deployments/:deploymentId/logs/stream`
-- `GET /v1/projects/:projectId/deployments/:deploymentId/logs/export`
+- `GET /v1/projects/:projectId/databases/:databaseId/audit/export`
 
 
 ## Current Auth Model
 
+- Full user auth is supported: register (`POST /v1/auth/register`), login (`POST /v1/auth/login`), profile update (`PUT /v1/auth/me/profile`), and password change (`POST /v1/auth/me/change-password`).
+- Dashboard supports session-backed sign-in/sign-out with dedicated sign-in and registration pages.
 - All `/v1` project-scoped endpoints require `Authorization: Bearer <token>`.
 - API resolves auth context from DB-backed `api_tokens` (SHA-256 token hash + revocation/expiry checks) first, with `API_TOKENS_JSON` available only as a bootstrap/dev fallback.
 - Any non-empty `API_TOKENS_JSON` emits a startup warning; production startup rejects `API_TOKENS_JSON` and `ENABLE_DEV_AUTH=true`.
@@ -298,9 +401,11 @@ These are injected into worker jobs and applied as Docker resource/runtime setti
 
 ## CI
 
-- GitHub Actions workflow added at `.github/workflows/ci.yml`.
-- Pipeline runs install, workspace lint, workspace typecheck, and workspace build.
-- Baseline workspace lint/typecheck/build passes locally; see `docs/progress.md` for remaining non-CI blockers.
+- GitHub Actions workflow at `.github/workflows/ci.yml`.
+- Uses `actions/checkout@v6` and `actions/setup-node@v6` (Node.js 22).
+- Pipeline runs install, builds shared-types first, then workspace lint, workspace typecheck, and workspace build.
+- Triggered on push to all branches and pull requests.
+- Baseline workspace lint/typecheck/build passes; see `docs/progress.md` for remaining non-CI blockers.
 
 
 ## Deployment Log Retention
