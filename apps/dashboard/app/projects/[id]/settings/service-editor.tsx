@@ -204,7 +204,9 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                         onChange={(e) => {
                           const cmd = e.target.value;
                           if (cmd.length === 0) {
-                            const { healthCheck: _, ...rest } = service.runtime ?? {};
+                            const runtime = service.runtime ?? {};
+                            const { healthCheck, ...rest } = runtime;
+                            void healthCheck;
                             updateService(service.id, { runtime: Object.keys(rest).length > 0 ? rest : undefined });
                           } else {
                             updateService(service.id, {

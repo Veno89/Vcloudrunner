@@ -19,7 +19,6 @@ import {
   logLevelTextClassName,
   truncateUuid
 } from '@/lib/helpers';
-import { deployProjectAction } from '../actions';
 import { redeployAction, rollbackAction } from '../actions';
 import Link from 'next/link';
 
