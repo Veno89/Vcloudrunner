@@ -30,6 +30,13 @@ export interface CreateProjectInput {
   services?: ProjectServiceDefinition[];
 }
 
+export interface UpdateProjectInput {
+  name?: string;
+  gitRepositoryUrl?: string;
+  defaultBranch?: string;
+  services?: ProjectServiceDefinition[];
+}
+
 export interface ProjectMemberRecord {
   id: string;
   projectId: string;

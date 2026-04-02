@@ -169,6 +169,22 @@ export async function putJson<T>(path: string, payload: Record<string, unknown>)
   return response.json() as Promise<T>;
 }
 
+export async function patchJson<T>(path: string, payload: Record<string, unknown>): Promise<T> {
+  const response = await requestApi(path, {
+    method: 'PATCH',
+    headers: buildDashboardAuthHeaders({
+      'content-type': 'application/json'
+    }),
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(`API_REQUEST_FAILED ${response.status}`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
 export async function deleteRequest(path: string): Promise<void> {
   const response = await requestApi(path, {
     method: 'DELETE',

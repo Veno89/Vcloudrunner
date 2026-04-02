@@ -13,13 +13,15 @@ import {
 
 import type {
   CreateProjectInput,
-  ProjectActiveDeploymentRecord
+  ProjectActiveDeploymentRecord,
+  UpdateProjectInput
 } from './projects.repository.types.js';
 
 // Re-export all types for backward compatibility
 export type {
   ProjectDomainEventKind,
   CreateProjectInput,
+  UpdateProjectInput,
   ProjectMemberRecord,
   ProjectInvitationRecord,
   ProjectInvitationClaimRecord,
@@ -85,6 +87,22 @@ export class ProjectsRepository {
     return this.db.query.projects.findFirst({
       where: eq(projects.id, id)
     });
+  }
+
+  async updateProject(id: string, input: UpdateProjectInput) {
+    const values: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.name !== undefined) values.name = input.name;
+    if (input.gitRepositoryUrl !== undefined) values.gitRepositoryUrl = input.gitRepositoryUrl;
+    if (input.defaultBranch !== undefined) values.defaultBranch = input.defaultBranch;
+    if (input.services !== undefined) values.services = input.services;
+
+    const [updated] = await this.db
+      .update(projects)
+      .set(values)
+      .where(eq(projects.id, id))
+      .returning();
+
+    return updated ?? null;
   }
 
   async listActiveDeployments(projectId: string): Promise<ProjectActiveDeploymentRecord[]> {

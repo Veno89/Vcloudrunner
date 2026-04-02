@@ -19,6 +19,7 @@ import {
   ProjectMemberNotFoundError,
   ProjectOwnerMembershipImmutableError,
   ProjectNotFoundError,
+  ProjectServiceRemovalBlockedError,
   ProjectSlugTakenError,
   UserProfileRequiredError
 } from '../../server/domain-errors.js';
@@ -36,6 +37,7 @@ import {
 } from '../../services/project-domain-route.service.js';
 import {
   type CreateProjectInput,
+  type UpdateProjectInput,
   type CreateProjectDomainInput,
   ProjectsRepository,
   ProjectDomainsRepository,
@@ -130,6 +132,29 @@ export class ProjectsService {
 
       throw error;
     }
+  }
+
+  async updateProject(projectId: string, input: UpdateProjectInput) {
+    if (input.services) {
+      const activeDeployments = await this.repository.listActiveDeployments(projectId);
+      const newServiceNames = new Set(input.services.map((s) => s.name));
+      const blockedRemovals = activeDeployments
+        .filter((d) => !newServiceNames.has(d.serviceName))
+        .map((d) => d.serviceName);
+
+      if (blockedRemovals.length > 0) {
+        throw new ProjectServiceRemovalBlockedError([...new Set(blockedRemovals)]);
+      }
+
+      input = { ...input, services: normalizeProjectServices(input.services) };
+    }
+
+    const updated = await this.repository.updateProject(projectId, input);
+    if (!updated) {
+      throw new ProjectNotFoundError();
+    }
+
+    return updated;
   }
 
   listProjectsByUser(userId: string) {

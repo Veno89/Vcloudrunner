@@ -44,7 +44,7 @@ import {
 } from '@/lib/project-service-status';
 import { summarizeProjectDomains } from '@/lib/project-domains';
 import { summarizeProjectDatabases } from '@/lib/project-databases';
-import { deployProjectAction } from '@/app/deployments/actions';
+import { deployProjectAction, deployAllServicesAction } from '@/app/deployments/actions';
 import {
   deleteProjectAction,
   inviteProjectMemberAction,
@@ -704,8 +704,20 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-sm">Services</CardTitle>
+            {project.services.length > 1 && (
+              <form action={deployAllServicesAction}>
+                <input type="hidden" name="projectId" value={project.id} />
+                <input type="hidden" name="returnPath" value={`/projects/${project.id}`} />
+                <FormSubmitButton
+                  idleText="Deploy All"
+                  pendingText="Deploying..."
+                  variant="outline"
+                  size="sm"
+                />
+              </form>
+            )}
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-xs text-muted-foreground">

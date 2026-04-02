@@ -27,6 +27,22 @@ export async function createDeployment(
   return response.data;
 }
 
+interface DeployAllResult {
+  serviceName: string;
+  status: 'created' | 'skipped';
+  deployment?: ApiDeployment;
+  reason?: string;
+}
+
+export async function deployAllServices(projectId: string): Promise<DeployAllResult[]> {
+  const response = await postJson<ApiDataResponse<DeployAllResult[]>>(
+    `/v1/projects/${projectId}/deployments/all`,
+    {}
+  );
+
+  return response.data;
+}
+
 export async function fetchDeploymentLogs(
   projectId: string,
   deploymentId: string,

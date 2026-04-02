@@ -18,6 +18,7 @@ export function ProjectSubnav({ projectId }: ProjectSubnavProps) {
     { href: `/projects/${projectId}/deployments`, label: 'Deployments' },
     { href: `/projects/${projectId}/environment`, label: 'Environment' },
     { href: `/projects/${projectId}/logs`, label: 'Logs' },
+    { href: `/projects/${projectId}/settings`, label: 'Settings' },
   ];
 
   return (

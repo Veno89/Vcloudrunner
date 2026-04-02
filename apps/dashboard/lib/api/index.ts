@@ -32,9 +32,9 @@ export {
   upsertViewerProfile
 } from './auth';
 
-export { fetchProjectsForCurrentUser, createProject, deleteProject } from './projects';
+export { fetchProjectsForCurrentUser, createProject, updateProject, deleteProject } from './projects';
 
-export { fetchDeploymentsForProject, createDeployment, fetchDeploymentLogs } from './deployments';
+export { fetchDeploymentsForProject, createDeployment, deployAllServices, fetchDeploymentLogs } from './deployments';
 
 export {
   fetchProjectMembers,

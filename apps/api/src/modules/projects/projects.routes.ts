@@ -81,6 +81,16 @@ const createProjectSchema = z.object({
   services: projectServicesSchema.optional()
 });
 
+const updateProjectSchema = z.object({
+  name: z.string().min(3).max(64).optional(),
+  gitRepositoryUrl: z.string().url().optional(),
+  defaultBranch: z.string().min(1).max(255).optional(),
+  services: projectServicesSchema.optional()
+}).refine(
+  (data) => Object.keys(data).length > 0,
+  'At least one field must be provided'
+);
+
 const userProjectsParamsSchema = z.object({
   userId: z.string().uuid()
 });
@@ -193,6 +203,19 @@ export const createProjectsRoutes = (
     const project = await ensureProjectAccess(projectsService, { projectId, actor });
 
     return { data: project };
+  });
+
+  app.patch('/projects/:projectId', async (request) => {
+    const actor = requireActor(request);
+    const { projectId } = projectByIdParamsSchema.parse(request.params);
+    const payload = updateProjectSchema.parse(request.body);
+
+    requireScope(actor, 'projects:write');
+    await ensureProjectMembershipManagementAccess(projectsService, { projectId, actor });
+
+    const updated = await projectsService.updateProject(projectId, payload);
+
+    return { data: updated };
   });
 
   app.delete('/projects/:projectId', async (request, reply) => {

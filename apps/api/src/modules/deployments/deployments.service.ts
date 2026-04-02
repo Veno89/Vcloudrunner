@@ -244,6 +244,47 @@ export class DeploymentsService {
     return this.deploymentsRepository.findByProject(projectId);
   }
 
+  async deployAllServices(input: {
+    projectId: string;
+    correlationId: string;
+    commitSha?: string;
+    branch?: string;
+  }) {
+    const project = await this.projectsRepository.findById(input.projectId);
+    if (!project) {
+      throw new ProjectNotFoundError();
+    }
+
+    const services = normalizeProjectServices(project.services);
+    const results: Array<{
+      serviceName: string;
+      status: 'created' | 'skipped';
+      deployment?: Record<string, unknown>;
+      reason?: string;
+    }> = [];
+
+    for (const service of services) {
+      try {
+        const deployment = await this.createDeployment({
+          projectId: input.projectId,
+          correlationId: input.correlationId,
+          serviceName: service.name,
+          commitSha: input.commitSha,
+          branch: input.branch
+        });
+        results.push({ serviceName: service.name, status: 'created', deployment });
+      } catch (error) {
+        if (error instanceof DeploymentAlreadyActiveError) {
+          results.push({ serviceName: service.name, status: 'skipped', reason: 'already_active' });
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    return results;
+  }
+
   async cancelDeployment(input: {
     projectId: string;
     deploymentId: string;

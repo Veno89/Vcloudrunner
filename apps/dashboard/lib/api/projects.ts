@@ -1,6 +1,6 @@
 import type { ProjectServiceDefinition } from '@vcloudrunner/shared-types';
 
-import { fetchJson, postJson, deleteRequest } from './client';
+import { fetchJson, postJson, patchJson, deleteRequest } from './client';
 import { fetchViewerContext } from './auth';
 import type { ApiDataResponse, ApiProject } from './types';
 
@@ -9,6 +9,13 @@ interface CreateProjectInput {
   name: string;
   slug: string;
   gitRepositoryUrl: string;
+  defaultBranch?: string;
+  services?: ProjectServiceDefinition[];
+}
+
+interface UpdateProjectInput {
+  name?: string;
+  gitRepositoryUrl?: string;
   defaultBranch?: string;
   services?: ProjectServiceDefinition[];
 }
@@ -28,6 +35,15 @@ export async function fetchProjectsForCurrentUser(): Promise<ApiProject[]> {
 
 export async function createProject(input: CreateProjectInput): Promise<ApiProject> {
   const response = await postJson<ApiDataResponse<ApiProject>>('/v1/projects', { ...input });
+
+  return response.data;
+}
+
+export async function updateProject(projectId: string, input: UpdateProjectInput): Promise<ApiProject> {
+  const response = await patchJson<ApiDataResponse<ApiProject>>(
+    `/v1/projects/${projectId}`,
+    { ...input }
+  );
 
   return response.data;
 }

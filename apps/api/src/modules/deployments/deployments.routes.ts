@@ -28,6 +28,11 @@ const deploymentParamsSchema = z.object({
   deploymentId: z.string().uuid()
 });
 
+const deployAllBodySchema = z.object({
+  commitSha: z.string().min(7).max(64).optional(),
+  branch: z.string().min(1).max(255).optional()
+});
+
 export const createDeploymentsRoutes = (
   deploymentsService: DeploymentsService,
   projectsService: ProjectsService
@@ -47,6 +52,22 @@ export const createDeploymentsRoutes = (
     });
 
     return reply.code(201).send({ data: deployment });
+  });
+
+  app.post('/projects/:projectId/deployments/all', async (request, reply) => {
+    const actor = requireActor(request);
+    const { projectId } = projectIdParamsSchema.parse(request.params);
+    const payload = deployAllBodySchema.parse(request.body ?? {});
+
+    requireScope(actor, 'deployments:write');
+    await ensureProjectAccess(projectsService, { projectId, actor });
+    const results = await deploymentsService.deployAllServices({
+      projectId,
+      correlationId: request.id,
+      ...payload
+    });
+
+    return reply.code(201).send({ data: results });
   });
 
   app.get('/projects/:projectId/deployments', async (request) => {

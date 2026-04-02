@@ -1,6 +1,6 @@
 ﻿# Vcloudrunner MVP Progress Tracker
 
-Last updated: 2026-04-01 (Code health audit — Batch F: worker factory chain collapse)
+Last updated: 2026-04-01 (Project Composition Model — multi-service management and deploy-all)
 
 ## Legend
 
@@ -200,6 +200,58 @@ Last updated: 2026-04-01 (Code health audit — Batch F: worker factory chain co
   - `npm test` — passed (337/337 tests, 0 failures)
 - next recommended step:
   - collapse worker factory chains for single-implementation seams (~59 factory files)
+
+### Phase: Project Composition Model — multi-service management and deploy-all (2026-04-01)
+
+- context:
+  - roadmap item #2 (Project Composition Model) was identified as the next logical step after the code health audit
+  - deep discovery via 3 subagents found the core composition model was already surprisingly mature at the data/backend layer: services JSONB on projects, per-service active deployment constraints, service discovery env vars, Docker DNS aliases, dashboard per-service status aggregation
+  - gaps: no project update API, no settings page for post-creation service management, no deploy-all orchestration
+- what was built:
+  - **Slice 1 — Project Update API**:
+    - added `ProjectServiceRemovalBlockedError` domain error (code `PROJECT_SERVICE_REMOVAL_BLOCKED`, status 409) to prevent removing services that have active deployments
+    - added `UpdateProjectInput` type to repository types (optional `name`, `gitRepositoryUrl`, `defaultBranch`, `services`)
+    - added `updateProject()` method to `projects.repository.ts` using `db.update().set().where().returning()`
+    - added `updateProject()` method to `projects.service.ts` with active-deployment guard: before removing services, checks for active deployments and throws `ProjectServiceRemovalBlockedError` if any exist; normalizes services via `normalizeProjectServices()`
+    - added `updateProjectSchema` (Zod: optional fields, refine requires ≥1 field present) and `PATCH /projects/:projectId` route requiring `projects:write` scope + admin membership
+  - **Slice 2 — Dashboard Settings Page**:
+    - added `patchJson<T>(path, payload)` helper to dashboard API client (mirrors existing `putJson` pattern)
+    - added `updateProject()` function to `projects.ts` API module
+    - added Settings tab to `ProjectSubnav` navigation
+    - created `service-editor.tsx` — interactive client component for editing the services array: add/remove services, edit name/kind/exposure/sourceRoot/runtime fields, expand/collapse panels, client-side validation (unique names, exactly 1 public service, public must be web kind), submits via form action with JSON-serialized hidden input
+    - created `actions.ts` — `updateProjectGeneralAction` (name/repo/branch) and `updateProjectServicesAction` (parses services JSON) server actions
+    - created `page.tsx` — server component settings page with General card (form with name, git URL, default branch) and Services card (renders `<ServiceEditor>`)
+  - **Slice 3 — Create with Services**: skipped — the create form intentionally stays minimal with correct UX messaging ("grows into multi-service later"), settings page handles post-creation service configuration
+  - **Slice 4 — Deploy All Services**:
+    - added `deployAllServices()` method to `DeploymentsService`: iterates `normalizeProjectServices(project.services)`, calls `createDeployment()` per service, catches `DeploymentAlreadyActiveError` as `skipped`, returns array of `{ serviceName, status, deployment?, reason? }`
+    - added `deployAllBodySchema` (Zod: optional `commitSha`, `branch`) and `POST /projects/:projectId/deployments/all` route requiring `deployments:write` scope
+    - added `deployAllServices()` dashboard API function and `DeployAllResult` interface
+    - added `deployAllServicesAction` server action and "Deploy All" button on project detail page (visible only when project has >1 service)
+- files created:
+  - `apps/dashboard/app/projects/[id]/settings/page.tsx`
+  - `apps/dashboard/app/projects/[id]/settings/actions.ts`
+  - `apps/dashboard/app/projects/[id]/settings/service-editor.tsx`
+- files changed:
+  - `apps/api/src/server/domain-errors.ts` — added `ProjectServiceRemovalBlockedError`
+  - `apps/api/src/modules/projects/projects.repository.types.ts` — added `UpdateProjectInput`
+  - `apps/api/src/modules/projects/projects.repository.ts` — added `updateProject()` method
+  - `apps/api/src/modules/projects/projects.service.ts` — added `updateProject()` with active-deployment guard
+  - `apps/api/src/modules/projects/projects.routes.ts` — added `PATCH /projects/:projectId` route
+  - `apps/api/src/modules/deployments/deployments.service.ts` — added `deployAllServices()`
+  - `apps/api/src/modules/deployments/deployments.routes.ts` — added `POST /projects/:projectId/deployments/all`
+  - `apps/dashboard/lib/api/client.ts` — added `patchJson()`
+  - `apps/dashboard/lib/api/projects.ts` — added `updateProject()`
+  - `apps/dashboard/lib/api/deployments.ts` — added `deployAllServices()`
+  - `apps/dashboard/lib/api/index.ts` — added exports
+  - `apps/dashboard/components/project-subnav.tsx` — added Settings tab
+  - `apps/dashboard/app/deployments/actions.ts` — added `deployAllServicesAction`
+  - `apps/dashboard/app/projects/[id]/page.tsx` — added Deploy All button
+  - `docs/progress.md` — this entry
+- validation performed:
+  - API typecheck (`tsc --noEmit`) — passed (zero errors)
+  - Dashboard typecheck (`tsc --noEmit`) — passed (zero errors)
+  - Dashboard lint (`next lint`) — passed (zero errors)
+  - API tests — 334/337 pass (3 pre-existing project-database failures unrelated to this work)
 
 ### Phase: Code health audit — Batch F: worker factory chain collapse (2026-04-01)
 

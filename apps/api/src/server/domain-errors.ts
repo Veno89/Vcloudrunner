@@ -94,6 +94,16 @@ export class ProjectSlugTakenError extends DomainError {
   }
 }
 
+export class ProjectServiceRemovalBlockedError extends DomainError {
+  constructor(serviceNames: string[]) {
+    super(
+      'PROJECT_SERVICE_REMOVAL_BLOCKED',
+      `Cannot remove services with active deployments: ${serviceNames.join(', ')}`,
+      409
+    );
+  }
+}
+
 export class ProjectDomainAlreadyExistsError extends DomainError {
   constructor() {
     super('PROJECT_DOMAIN_ALREADY_EXISTS', 'Project domain is already in use', 409);
