@@ -1,6 +1,6 @@
 ﻿# Vcloudrunner MVP Progress Tracker
 
-Last updated: 2026-04-01 (Project Composition Model — multi-service management and deploy-all)
+Last updated: 2026-04-02 (Auth/Team Basics — email+password login, registration, middleware)
 
 ## Legend
 
@@ -200,6 +200,63 @@ Last updated: 2026-04-01 (Project Composition Model — multi-service management
   - `npm test` — passed (337/337 tests, 0 failures)
 - next recommended step:
   - collapse worker factory chains for single-implementation seams (~59 factory files)
+
+### Phase: Auth/Team Basics — email+password login, registration, middleware (2026-04-02)
+
+- context:
+  - roadmap item #4 (Auth and Team Basics) targeted: proper login UX, user/session management, clearer token and permissions UI
+  - existing auth was token-only: users paste raw API tokens, stored in httpOnly cookie
+  - user table had no password support, no registration flow, no route protection middleware
+- what was built:
+  - **Slice 1 — Password support migration**:
+    - added `password_hash TEXT` nullable column to users table (migration 0030)
+    - updated Drizzle schema with `passwordHash` field
+    - added bcrypt dependency for password hashing (12 salt rounds)
+    - created `password-utils.ts` with `hashPassword()` and `verifyPassword()`
+  - **Slice 2 — Auth login/register API endpoints**:
+    - added `InvalidCredentialsError` (401) and `EmailAlreadyRegisteredError` (409) domain errors
+    - added `POST /v1/auth/register` — creates user with hashed password, auto-creates 30-day session token, returns token + viewer
+    - added `POST /v1/auth/login` — verifies email+password, creates 30-day session token, returns token + viewer
+    - added `POST /v1/auth/me/change-password` — requires auth, verifies current password, updates hash
+    - session tokens are standard API tokens labeled "Dashboard session" with 30-day expiry
+  - **Slice 3 — Dashboard login/register UX**:
+    - redesigned sign-in page: email+password is now the primary form (left card), API token paste is secondary (right card)
+    - added "Register here" link to sign-in page and "Sign In Instead" link to register page
+    - created registration page at `/register` with name, email, password, confirm password
+    - added `loginWithCredentials()` and `registerWithCredentials()` dashboard API functions (public, no auth headers)
+    - added `signInWithCredentialsAction` server action with proper Next.js redirect error handling
+    - added `registerAction` server action with password confirmation, 409 conflict handling
+    - added `changePasswordAction` server action to account settings
+    - added Change Password card to account settings page (visible when user profile exists)
+  - **Slice 4 — Auth middleware and polish**:
+    - created `middleware.ts` for route protection: unauthenticated requests redirect to `/sign-in` with reason and redirectTo params
+    - public routes: `/sign-in`, `/register`, `/invitations/*`, `/api/*`
+    - middleware checks session cookie, env token, and demo user ID before blocking
+    - static assets excluded via matcher pattern
+- files created:
+  - `apps/api/drizzle/0030_user_password_hash.sql`
+  - `apps/api/src/modules/auth/password-utils.ts`
+  - `apps/dashboard/app/register/page.tsx`
+  - `apps/dashboard/app/register/actions.ts`
+  - `apps/dashboard/middleware.ts`
+- files changed:
+  - `apps/api/src/db/schema.ts` — added `passwordHash` to users table
+  - `apps/api/src/server/domain-errors.ts` — added `InvalidCredentialsError`, `EmailAlreadyRegisteredError`
+  - `apps/api/src/modules/auth/auth.service.ts` — added `register()`, `login()`, `changePassword()`, `createSessionToken()`
+  - `apps/api/src/modules/auth/auth.routes.ts` — added register, login, change-password routes
+  - `apps/api/src/modules/auth/auth.routes.test.ts` — added test stubs for new methods
+  - `apps/dashboard/lib/api/auth.ts` — added `loginWithCredentials()`, `registerWithCredentials()`, `changePassword()`
+  - `apps/dashboard/lib/api/index.ts` — added new exports
+  - `apps/dashboard/app/sign-in/page.tsx` — redesigned with email+password primary
+  - `apps/dashboard/app/sign-in/actions.ts` — added `signInWithCredentialsAction`
+  - `apps/dashboard/app/settings/account/page.tsx` — added Change Password card
+  - `apps/dashboard/app/settings/account/actions.ts` — added `changePasswordAction`
+  - `docs/progress.md` — this entry
+- validation performed:
+  - API typecheck — passed (zero errors)
+  - Dashboard typecheck — passed (zero errors)
+  - Dashboard lint — passed (zero errors)
+  - API tests — 334/337 pass (3 pre-existing project-database failures unrelated)
 
 ### Phase: Project Composition Model — multi-service management and deploy-all (2026-04-01)
 

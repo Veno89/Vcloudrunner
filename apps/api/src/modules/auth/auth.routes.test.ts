@@ -11,6 +11,8 @@ const { authContextPlugin } = await import('../../plugins/auth-context.js');
 const { errorHandlerPlugin } = await import('../../plugins/error-handler.js');
 const { createAuthRoutes } = await import('./auth.routes.js');
 
+import type { AuthSessionResult } from './auth.service.js';
+
 type AuthTestScope = 'projects:read' | 'deployments:read' | '*';
 
 function buildSelectResult(rows: unknown[]) {
@@ -72,6 +74,9 @@ async function withAuthRoutesApp(
         email: string;
       } | null;
     }>;
+    register?: (input: { name: string; email: string; password: string }) => Promise<AuthSessionResult>;
+    login?: (input: { email: string; password: string }) => Promise<AuthSessionResult>;
+    changePassword?: (actor: unknown, input: { currentPassword: string; newPassword: string }) => Promise<void>;
   },
   run: (app: FastifyInstance) => Promise<void>
 ) {
@@ -114,7 +119,10 @@ async function withAuthRoutesApp(
         name: input.name,
         email: input.email
       }
-    }))
+    })),
+    register: options.register ?? (async (): Promise<never> => { throw new Error('not implemented in test'); }),
+    login: options.login ?? (async (): Promise<never> => { throw new Error('not implemented in test'); }),
+    changePassword: options.changePassword ?? (async () => { throw new Error('not implemented in test'); })
   }), { prefix: '/v1' });
 
   await app.ready();

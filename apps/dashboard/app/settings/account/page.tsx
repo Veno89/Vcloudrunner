@@ -25,7 +25,7 @@ import {
   getViewerScopeLabels
 } from '@/lib/viewer-auth';
 import { signOutDashboardSessionAction } from '@/app/sign-in/actions';
-import { saveViewerProfileAction } from './actions';
+import { saveViewerProfileAction, changePasswordAction } from './actions';
 
 interface SettingsAccountPageProps {
   searchParams?: {
@@ -197,6 +197,58 @@ export default async function SettingsAccountPage({ searchParams }: SettingsAcco
           </CardContent>
         </Card>
       </div>
+
+      {viewer.user ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Change Password</CardTitle>
+            <CardDescription>
+              Update the password used for email/password sign-in.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form action={changePasswordAction} className="space-y-4 max-w-md">
+              <div className="space-y-2">
+                <Label htmlFor="current-password">Current Password</Label>
+                <Input
+                  id="current-password"
+                  name="currentPassword"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-password">New Password</Label>
+                <Input
+                  id="new-password"
+                  name="newPassword"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="At least 8 characters"
+                  required
+                  minLength={8}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-new-password">Confirm New Password</Label>
+                <Input
+                  id="confirm-new-password"
+                  name="confirmNewPassword"
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  minLength={8}
+                />
+              </div>
+              <FormSubmitButton
+                idleText="Change Password"
+                pendingText="Changing..."
+              />
+            </form>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

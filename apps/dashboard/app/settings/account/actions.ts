@@ -5,7 +5,8 @@ import { redirect } from 'next/navigation';
 import {
   type ApiViewerContext,
   upsertViewerProfile,
-  resolveViewerContext
+  resolveViewerContext,
+  changePassword
 } from '@/lib/api';
 import { createViewerContextFailureRedirect } from '@/lib/dashboard-action-auth';
 import {
@@ -140,5 +141,40 @@ export async function saveViewerProfileAction(formData: FormData) {
     }
 
     redirectToAccount('error', 'Failed to save account profile.', redirectTo);
+  }
+}
+
+export async function changePasswordAction(formData: FormData) {
+  const currentPassword = typeof formData.get('currentPassword') === 'string' ? String(formData.get('currentPassword')) : '';
+  const newPassword = typeof formData.get('newPassword') === 'string' ? String(formData.get('newPassword')) : '';
+  const confirmNewPassword = typeof formData.get('confirmNewPassword') === 'string' ? String(formData.get('confirmNewPassword')) : '';
+
+  if (!currentPassword || !newPassword) {
+    redirectToAccount('error', 'Current and new passwords are required.');
+    return;
+  }
+
+  if (newPassword.length < 8) {
+    redirectToAccount('error', 'New password must be at least 8 characters.');
+    return;
+  }
+
+  if (newPassword !== confirmNewPassword) {
+    redirectToAccount('error', 'New passwords do not match.');
+    return;
+  }
+
+  try {
+    await changePassword(currentPassword, newPassword);
+    redirectToAccount('success', 'Password changed successfully.');
+  } catch (error) {
+    const statusCode = extractApiStatusCode(error);
+
+    if (statusCode === 401) {
+      redirectToAccount('error', 'Current password is incorrect.');
+      return;
+    }
+
+    redirectToAccount('error', 'Failed to change password.');
   }
 }

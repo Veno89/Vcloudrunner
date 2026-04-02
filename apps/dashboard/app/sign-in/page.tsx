@@ -15,11 +15,11 @@ import {
 } from '@/lib/dashboard-auth-navigation';
 import { getDashboardRequestAuth } from '@/lib/dashboard-session';
 import {
-  getDashboardAuthTransport,
   getViewerAuthSourceDetails,
   getViewerScopeLabels
 } from '@/lib/viewer-auth';
 import {
+  signInWithCredentialsAction,
   signInWithApiTokenAction,
   signOutDashboardSessionAction
 } from './actions';
@@ -37,7 +37,6 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const requestAuth = getDashboardRequestAuth();
   const { viewer } = await resolveViewerContext();
   const redirectTo = normalizeDashboardRedirectTarget(searchParams?.redirectTo);
-  const authTransport = getDashboardAuthTransport(requestAuth);
   const scopeBadges = viewer ? getViewerScopeLabels(viewer) : [];
   const viewerAuthSource = viewer
     ? getViewerAuthSourceDetails(viewer.authSource)
@@ -58,7 +57,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
     <PageLayout className="max-w-3xl">
       <PageHeader
         title="Sign In"
-        description="Start a dashboard session with an API token, then complete account setup if this actor does not have a stored profile yet."
+        description="Sign in with your email and password, or use an API token for programmatic access."
       />
 
       <ActionToast
@@ -81,11 +80,60 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
       <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
         <Card>
           <CardHeader>
+            <CardTitle className="text-base">Email &amp; Password</CardTitle>
+            <CardDescription>
+              Sign in with the email and password you registered with.
+              Don&apos;t have an account? <Link href="/register" className="underline underline-offset-2">Register here</Link>.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form action={signInWithCredentialsAction} className="space-y-4">
+              <input type="hidden" name="redirectTo" value={redirectTo} readOnly />
+              <div className="space-y-2">
+                <Label htmlFor="sign-in-email">Email</Label>
+                <Input
+                  id="sign-in-email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sign-in-password">Password</Label>
+                <Input
+                  id="sign-in-password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="Your password"
+                  required
+                  minLength={8}
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <FormSubmitButton
+                  idleText="Sign In"
+                  pendingText="Signing in..."
+                />
+                <Button asChild variant="outline">
+                  <Link href={redirectTo !== '/settings/account' ? redirectTo : '/settings/account'}>
+                    {returnButtonLabel}
+                  </Link>
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle className="text-base">
-              {hasSessionCookie ? 'Replace Session Token' : 'Create Session'}
+              {hasSessionCookie ? 'Replace Session Token' : 'API Token'}
             </CardTitle>
             <CardDescription>
-              The token is stored in an httpOnly cookie and used for server-side dashboard API requests in this browser session. DB-backed tokens are preferred, but bootstrap tokens can still be used as a bridge into account setup.
+              Sign in with a raw API token. Useful for bootstrap setup or automation.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -102,56 +150,11 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
                   required
                 />
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <FormSubmitButton
-                  idleText={hasSessionCookie ? 'Replace Session' : 'Sign In'}
-                  pendingText="Signing in..."
-                />
-                <Button asChild variant="outline">
-                  <Link href={redirectTo !== '/settings/account' ? redirectTo : '/settings/account'}>
-                    {returnButtonLabel}
-                  </Link>
-                </Button>
-              </div>
+              <FormSubmitButton
+                idleText={hasSessionCookie ? 'Replace Session' : 'Use Token'}
+                pendingText="Signing in..."
+              />
             </form>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Current Request Path</CardTitle>
-            <CardDescription>
-              This is how the dashboard is authenticating requests right now.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={authTransport.variant}>{authTransport.label}</Badge>
-              {viewerAuthSource ? (
-                <Badge variant={viewerAuthSource.variant}>{viewerAuthSource.label}</Badge>
-              ) : null}
-            </div>
-            <p className="text-muted-foreground">{authTransport.description}</p>
-            {requestAuth.tokenSource === 'server-env-token' ? (
-              <p className="rounded-md border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
-                A shared server environment token is currently active. Signing in here will override that fallback for this browser with a per-user session cookie.
-              </p>
-            ) : null}
-            {requestAuth.transport === 'dev-user-header' ? (
-              <p className="rounded-md border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
-                Local dev auth is active. You can still sign in with a DB-backed token to test the real session path, or finish account setup first if this actor still only exists as dev/bootstrap identity.
-              </p>
-            ) : null}
-            {needsAccountSetup ? (
-              <p className="rounded-md border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
-                The current actor is authenticated but does not have a persisted user profile yet. Complete account setup before expecting DB-backed token and project-creation workflows to behave like a normal stored user.
-              </p>
-            ) : null}
-            {redirectTo !== '/settings/account' ? (
-              <p className="rounded-md border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
-                Return target after sign-in: <span className="font-mono text-foreground">{redirectTo}</span>
-              </p>
-            ) : null}
           </CardContent>
         </Card>
       </div>

@@ -19,6 +19,7 @@
     "@fastify/rate-limit": "^9.1.0",
     "@fastify/sensible": "^5.6.0",
     "@vcloudrunner/shared-types": "0.1.0",
+    "bcrypt": "^6.0.0",
     "bullmq": "^5.16.0",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.33.0",
@@ -29,15 +30,16 @@
     "zod": "^3.23.8"
   },
   "optionalDependencies": {
-    "@opentelemetry/sdk-node": "^0.57.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.57.0",
-    "@opentelemetry/exporter-metrics-otlp-http": "^0.57.0",
-    "@opentelemetry/sdk-metrics": "^1.30.0",
     "@opentelemetry/auto-instrumentations-node": "^0.56.0",
-    "@opentelemetry/semantic-conventions": "^1.28.0",
-    "@opentelemetry/resources": "^1.30.0"
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.57.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.57.0",
+    "@opentelemetry/resources": "^1.30.0",
+    "@opentelemetry/sdk-metrics": "^1.30.0",
+    "@opentelemetry/sdk-node": "^0.57.0",
+    "@opentelemetry/semantic-conventions": "^1.28.0"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/node": "^22.7.4",
     "drizzle-kit": "^0.24.2",
     "tsx": "^4.19.1",

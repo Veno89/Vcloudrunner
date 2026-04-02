@@ -1,9 +1,17 @@
 import { and, eq } from 'drizzle-orm';
+import { randomBytes } from 'node:crypto';
 
 import type { DbClient } from '../../db/client.js';
-import { projectInvitations, projectMembers, projects, users } from '../../db/schema.js';
+import { apiTokens, projectInvitations, projectMembers, projects, users } from '../../db/schema.js';
 import type { AuthContext } from '../../plugins/auth-context.js';
-import { UserEmailTakenError } from '../../server/domain-errors.js';
+import {
+  EmailAlreadyRegisteredError,
+  InvalidCredentialsError,
+  UserEmailTakenError
+} from '../../server/domain-errors.js';
+import { normalizeTokenScopes } from '../auth/auth-scopes.js';
+import { getTokenLast4, hashApiToken } from '../api-tokens/token-utils.js';
+import { hashPassword, verifyPassword } from './password-utils.js';
 
 export interface AuthViewer {
   userId: string;
@@ -28,10 +36,34 @@ export interface UpsertViewerProfileInput {
   email: string;
 }
 
+export interface RegisterInput {
+  name: string;
+  email: string;
+  password: string;
+}
+
+export interface LoginInput {
+  email: string;
+  password: string;
+}
+
+export interface ChangePasswordInput {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface AuthSessionResult {
+  token: string;
+  viewer: AuthViewer;
+}
+
 interface PostgresError {
   code?: string;
   constraint?: string;
 }
+
+const SESSION_TOKEN_EXPIRY_DAYS = 30;
+const SESSION_TOKEN_LABEL = 'Dashboard session';
 
 function getAuthMode(authSource: AuthContext['authSource']): AuthViewer['authMode'] {
   return authSource === 'database-token' || authSource === 'bootstrap-token'
@@ -188,5 +220,126 @@ export class AuthService {
 
       throw error;
     }
+  }
+
+  async register(input: RegisterInput): Promise<AuthSessionResult> {
+    const normalizedEmail = normalizeEmailAddress(input.email);
+    const passwordHash = await hashPassword(input.password);
+
+    try {
+      const [user] = await this.dbClient
+        .insert(users)
+        .values({
+          email: normalizedEmail,
+          name: input.name,
+          passwordHash
+        })
+        .returning();
+
+      const sessionToken = await this.createSessionToken(user.id);
+
+      const actor: AuthContext = {
+        userId: user.id,
+        role: 'user',
+        scopes: normalizeTokenScopes(undefined, 'user'),
+        authSource: 'database-token'
+      };
+
+      return {
+        token: sessionToken,
+        viewer: buildViewer(actor, toViewerUser(user))
+      };
+    } catch (error) {
+      const pgError = error as PostgresError;
+      if (pgError.code === '23505' && pgError.constraint === 'users_email_unique') {
+        throw new EmailAlreadyRegisteredError();
+      }
+      throw error;
+    }
+  }
+
+  async login(input: LoginInput): Promise<AuthSessionResult> {
+    const normalizedEmail = normalizeEmailAddress(input.email);
+
+    const result = await this.dbClient
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        passwordHash: users.passwordHash
+      })
+      .from(users)
+      .where(eq(users.email, normalizedEmail))
+      .limit(1);
+
+    const user = result[0];
+    if (!user || !user.passwordHash) {
+      throw new InvalidCredentialsError();
+    }
+
+    const valid = await verifyPassword(input.password, user.passwordHash);
+    if (!valid) {
+      throw new InvalidCredentialsError();
+    }
+
+    const sessionToken = await this.createSessionToken(user.id);
+
+    const actor: AuthContext = {
+      userId: user.id,
+      role: 'user',
+      scopes: normalizeTokenScopes(undefined, 'user'),
+      authSource: 'database-token'
+    };
+
+    return {
+      token: sessionToken,
+      viewer: buildViewer(actor, toViewerUser(user))
+    };
+  }
+
+  async changePassword(actor: AuthContext, input: ChangePasswordInput): Promise<void> {
+    const result = await this.dbClient
+      .select({ passwordHash: users.passwordHash })
+      .from(users)
+      .where(eq(users.id, actor.userId))
+      .limit(1);
+
+    const user = result[0];
+    if (!user || !user.passwordHash) {
+      throw new InvalidCredentialsError();
+    }
+
+    const valid = await verifyPassword(input.currentPassword, user.passwordHash);
+    if (!valid) {
+      throw new InvalidCredentialsError();
+    }
+
+    const newHash = await hashPassword(input.newPassword);
+
+    await this.dbClient
+      .update(users)
+      .set({ passwordHash: newHash, updatedAt: new Date() })
+      .where(eq(users.id, actor.userId));
+  }
+
+  private async createSessionToken(userId: string): Promise<string> {
+    const plaintextToken = randomBytes(32).toString('hex');
+    const tokenHash = hashApiToken(plaintextToken);
+    const tokenLast4 = getTokenLast4(plaintextToken);
+    const scopes = normalizeTokenScopes(undefined, 'user');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + SESSION_TOKEN_EXPIRY_DAYS);
+
+    await this.dbClient.insert(apiTokens).values({
+      userId,
+      tokenHash,
+      tokenLast4,
+      role: 'user',
+      scopes,
+      label: SESSION_TOKEN_LABEL,
+      expiresAt
+    });
+
+    return plaintextToken;
   }
 }

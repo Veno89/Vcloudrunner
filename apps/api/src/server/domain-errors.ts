@@ -342,6 +342,18 @@ export class ForbiddenProjectOwnershipTransferError extends DomainError {
   }
 }
 
+export class InvalidCredentialsError extends DomainError {
+  constructor() {
+    super('INVALID_CREDENTIALS', 'Invalid email or password', 401);
+  }
+}
+
+export class EmailAlreadyRegisteredError extends DomainError {
+  constructor() {
+    super('EMAIL_ALREADY_REGISTERED', 'An account with this email already exists', 409);
+  }
+}
+
 export class ForbiddenProjectDeletionError extends DomainError {
   constructor() {
     super(

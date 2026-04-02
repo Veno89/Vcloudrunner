@@ -29,7 +29,10 @@ export {
   fetchViewerContext,
   resolveViewerContext,
   fetchViewerContextForBearerToken,
-  upsertViewerProfile
+  upsertViewerProfile,
+  loginWithCredentials,
+  registerWithCredentials,
+  changePassword
 } from './auth';
 
 export { fetchProjectsForCurrentUser, createProject, updateProject, deleteProject } from './projects';

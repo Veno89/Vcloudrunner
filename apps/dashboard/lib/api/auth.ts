@@ -1,7 +1,7 @@
 import { cache } from 'react';
 import { getDashboardRequestAuth } from '../dashboard-session';
 
-import { buildAuthHeaders, requestApi, putJson } from './client';
+import { buildAuthHeaders, requestApi, postJson, putJson } from './client';
 import type { ApiDataResponse, ApiViewerContext } from './types';
 
 interface ViewerContextFetchResult {
@@ -101,4 +101,60 @@ export async function upsertViewerProfile(
   });
 
   return response.data;
+}
+
+export interface AuthSessionResult {
+  token: string;
+  viewer: ApiViewerContext;
+}
+
+export interface LoginInput {
+  email: string;
+  password: string;
+}
+
+export interface RegisterInput {
+  name: string;
+  email: string;
+  password: string;
+}
+
+export async function loginWithCredentials(input: LoginInput): Promise<AuthSessionResult> {
+  const response = await requestApi('/v1/auth/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input)
+  });
+
+  if (!response.ok) {
+    throw new Error(`API_REQUEST_FAILED ${response.status}`);
+  }
+
+  const payload = await response.json() as ApiDataResponse<AuthSessionResult>;
+  return payload.data;
+}
+
+export async function registerWithCredentials(input: RegisterInput): Promise<AuthSessionResult> {
+  const response = await requestApi('/v1/auth/register', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input)
+  });
+
+  if (!response.ok) {
+    throw new Error(`API_REQUEST_FAILED ${response.status}`);
+  }
+
+  const payload = await response.json() as ApiDataResponse<AuthSessionResult>;
+  return payload.data;
+}
+
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  await postJson('/v1/auth/me/change-password', {
+    currentPassword,
+    newPassword
+  });
 }
