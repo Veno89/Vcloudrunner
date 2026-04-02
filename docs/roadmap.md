@@ -63,64 +63,21 @@ The roadmap is organized around five themes:
 
 These are the roadmap items that make sense to push next while the current architecture work is still fresh.
 
-### 1. Finish Phase 4 Platform Decomposition
+### 1. Finish Phase 4 Platform Decomposition ✅
 
-Why it matters:
+Completed. Worker services are factory-driven with clean seams for runtime, ingress, archive, and state paths.
 
-- makes future features cheaper to build
-- reduces the risk of big features turning into rewrites
+### 2. Project Composition Model ✅
 
-Target outcomes:
+Completed (2026-04-01). Projects support multiple named services with per-service deployment, settings page for post-creation service management, and deploy-all orchestration.
 
-- finish removing remaining inline composition/default wiring from worker services
-- keep runtime, ingress, archive, and state paths factory-driven and testable
-- leave clean seams for future runtime backends and service types
+### 3. Domains, TLS, and Routing UX ✅
 
-### 2. Project Composition Model
+Completed (2026-03-14). Domain management page with verification, TLS status, certificate chain observability, domain events, and DNS record guidance.
 
-Why it matters:
+### 4. Auth and Team Basics ✅
 
-- this is the prerequisite for "frontend + backend + worker + database" product stories
-
-Target outcomes:
-
-- let one project describe multiple services instead of only one deployable runtime
-- support named services like `frontend`, `api`, and `worker`
-- define service-to-service env wiring and internal addressing
-- show composed project health in the dashboard
-
-Suggested first scope:
-
-- one project
-- multiple service definitions
-- shared env management
-- one public service plus internal-only services
-
-### 3. Domains, TLS, and Routing UX
-
-Why it matters:
-
-- deployments feel incomplete until routing is easy to understand and manage
-
-Target outcomes:
-
-- domain management page
-- route status in the dashboard
-- better runtime URL visibility
-- clearer public vs internal service exposure
-
-### 4. Auth and Team Basics
-
-Why it matters:
-
-- the platform is already past the point where bootstrap-only auth feels good enough
-
-Target outcomes:
-
-- proper login UX
-- user/session management
-- team membership and project invitations
-- clearer token and permissions UI
+Completed (2026-04-02). Email+password login/registration, session management, team membership with roles, project invitations with claim tokens, token management UI, and route protection middleware.
 
 ## Next
 
