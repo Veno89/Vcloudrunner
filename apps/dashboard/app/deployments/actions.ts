@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { createDeployment, deployAllServices } from '@/lib/api';
+import { createDeployment, deployAllServices, redeployDeployment, rollbackToDeployment } from '@/lib/api';
 import {
   createDeploymentErrorMessage,
   extractApiStatusCode,
@@ -79,6 +79,54 @@ export async function deployAllServicesAction(formData: FormData) {
   } catch (error) {
     const statusCode = extractApiStatusCode(error);
     const message = createDeploymentErrorMessage(statusCode, 'all services');
+    redirect(`${returnPath}${returnPath.includes('?') ? '&' : '?'}status=error&message=${encodeURIComponent(message)}`);
+  }
+}
+
+export async function redeployAction(formData: FormData) {
+  const projectId = formData.get('projectId');
+  const deploymentId = formData.get('deploymentId');
+  const returnPath = normalizeActionReturnPath(formData.get('returnPath'));
+
+  if (typeof projectId !== 'string' || typeof deploymentId !== 'string') {
+    redirect(`${returnPath}${returnPath.includes('?') ? '&' : '?'}status=error&message=Invalid+redeploy+request`);
+    return;
+  }
+
+  try {
+    const deployment = await redeployDeployment(projectId, deploymentId);
+    revalidatePath('/projects');
+    revalidatePath(`/projects/${projectId}`);
+    revalidatePath(`/projects/${projectId}/deployments`);
+    revalidatePath('/deployments');
+    redirect(`/deployments/${deployment.id}`);
+  } catch (error) {
+    const statusCode = extractApiStatusCode(error);
+    const message = createDeploymentErrorMessage(statusCode, 'redeploy');
+    redirect(`${returnPath}${returnPath.includes('?') ? '&' : '?'}status=error&message=${encodeURIComponent(message)}`);
+  }
+}
+
+export async function rollbackAction(formData: FormData) {
+  const projectId = formData.get('projectId');
+  const deploymentId = formData.get('deploymentId');
+  const returnPath = normalizeActionReturnPath(formData.get('returnPath'));
+
+  if (typeof projectId !== 'string' || typeof deploymentId !== 'string') {
+    redirect(`${returnPath}${returnPath.includes('?') ? '&' : '?'}status=error&message=Invalid+rollback+request`);
+    return;
+  }
+
+  try {
+    const deployment = await rollbackToDeployment(projectId, deploymentId);
+    revalidatePath('/projects');
+    revalidatePath(`/projects/${projectId}`);
+    revalidatePath(`/projects/${projectId}/deployments`);
+    revalidatePath('/deployments');
+    redirect(`/deployments/${deployment.id}?status=success&message=${encodeURIComponent('Rollback deployment created')}`);
+  } catch (error) {
+    const statusCode = extractApiStatusCode(error);
+    const message = createDeploymentErrorMessage(statusCode, 'rollback');
     redirect(`${returnPath}${returnPath.includes('?') ? '&' : '?'}status=error&message=${encodeURIComponent(message)}`);
   }
 }

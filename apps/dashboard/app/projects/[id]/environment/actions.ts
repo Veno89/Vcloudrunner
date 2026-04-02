@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { upsertEnvironmentVariable, deleteEnvironmentVariable } from '@/lib/api';
+import { upsertEnvironmentVariable, deleteEnvironmentVariable, importEnvironmentVariables } from '@/lib/api';
 import { createEnvironmentVariableActionErrorMessage } from '@/lib/helpers';
 
 function buildProjectEnvironmentRedirectPath(projectId: string | null | undefined): string {
@@ -64,6 +64,33 @@ export async function removeProjectEnvironmentVariableAction(formData: FormData)
     );
   } catch (error) {
     const message = createEnvironmentVariableActionErrorMessage('delete', error);
+    redirect(
+      `/projects/${encodeURIComponent(projectIdValue)}/environment?status=error&message=${encodeURIComponent(message)}`
+    );
+  }
+}
+
+export async function importEnvironmentVariablesAction(formData: FormData) {
+  const projectIdValue = formData.get('projectId');
+  const contentValue = formData.get('content');
+
+  if (typeof projectIdValue !== 'string' || typeof contentValue !== 'string') {
+    const basePath = buildProjectEnvironmentRedirectPath(typeof projectIdValue === 'string' ? projectIdValue : null);
+    redirect(`${basePath}${basePath.includes('?') ? '&' : '?'}status=error&message=Invalid+input`);
+    return;
+  }
+
+  try {
+    const result = await importEnvironmentVariables(projectIdValue, contentValue);
+    revalidatePath(`/projects/${projectIdValue}`);
+    revalidatePath(`/projects/${projectIdValue}/environment`);
+    revalidatePath('/environment');
+    const message = `Imported ${result.imported} variable${result.imported !== 1 ? 's' : ''}${result.skipped > 0 ? `, ${result.skipped} skipped` : ''}`;
+    redirect(
+      `/projects/${projectIdValue}/environment?status=success&message=${encodeURIComponent(message)}`
+    );
+  } catch (error) {
+    const message = createEnvironmentVariableActionErrorMessage('import', error);
     redirect(
       `/projects/${encodeURIComponent(projectIdValue)}/environment?status=error&message=${encodeURIComponent(message)}`
     );

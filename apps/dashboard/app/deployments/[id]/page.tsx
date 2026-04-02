@@ -20,6 +20,7 @@ import {
   truncateUuid
 } from '@/lib/helpers';
 import { deployProjectAction } from '../actions';
+import { redeployAction, rollbackAction } from '../actions';
 import Link from 'next/link';
 
 interface DeploymentDetailPageProps {
@@ -232,12 +233,9 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
             </div>
           )}
           <div className="flex flex-wrap gap-2">
-            <form action={deployProjectAction}>
+            <form action={redeployAction}>
               <input type="hidden" name="projectId" value={project.id} readOnly />
-              <input type="hidden" name="projectName" value={project.name} readOnly />
-              {deploymentService ? (
-                <input type="hidden" name="serviceName" value={deploymentService.name} readOnly />
-              ) : null}
+              <input type="hidden" name="deploymentId" value={deployment.id} readOnly />
               <input type="hidden" name="returnPath" value={`/deployments/${deployment.id}`} readOnly />
               <FormSubmitButton
                 idleText={deploymentService ? `Redeploy ${deploymentService.name}` : 'Redeploy'}
@@ -246,6 +244,19 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
                 size="sm"
               />
             </form>
+            {(deployment.status === 'failed' || deployment.status === 'stopped') ? (
+              <form action={rollbackAction}>
+                <input type="hidden" name="projectId" value={project.id} readOnly />
+                <input type="hidden" name="deploymentId" value={deployment.id} readOnly />
+                <input type="hidden" name="returnPath" value={`/deployments/${deployment.id}`} readOnly />
+                <FormSubmitButton
+                  idleText="Rollback to this"
+                  pendingText="Rolling back..."
+                  variant="outline"
+                  size="sm"
+                />
+              </form>
+            ) : null}
             <Link
               href={`/projects/${project.id}/logs?logsDeploymentId=${deployment.id}`}
               className="rounded-md border px-2.5 py-1 text-xs transition-colors hover:bg-accent"

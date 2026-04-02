@@ -23,7 +23,7 @@ import {
   hasRequestedCancellation,
   truncateUuid
 } from '@/lib/helpers';
-import { deployProjectAction } from '@/app/deployments/actions';
+import { deployProjectAction, redeployAction, rollbackAction } from '@/app/deployments/actions';
 
 interface ProjectDeploymentsPageProps {
   params: {
@@ -159,6 +159,30 @@ export default async function ProjectDeploymentsPage({ params, searchParams }: P
                         status={deployment.status}
                         cancellationRequested={hasRequestedCancellation(deployment.metadata)}
                       />
+                      {(deployment.status === 'failed' || deployment.status === 'stopped') ? (
+                        <form action={rollbackAction}>
+                          <input type="hidden" name="projectId" value={project.id} readOnly />
+                          <input type="hidden" name="deploymentId" value={deployment.id} readOnly />
+                          <input type="hidden" name="returnPath" value={`/projects/${project.id}/deployments`} readOnly />
+                          <FormSubmitButton
+                            idleText="Rollback"
+                            pendingText="..."
+                            variant="outline"
+                            size="sm"
+                          />
+                        </form>
+                      ) : null}
+                      <form action={redeployAction}>
+                        <input type="hidden" name="projectId" value={project.id} readOnly />
+                        <input type="hidden" name="deploymentId" value={deployment.id} readOnly />
+                        <input type="hidden" name="returnPath" value={`/projects/${project.id}/deployments`} readOnly />
+                        <FormSubmitButton
+                          idleText="Redeploy"
+                          pendingText="..."
+                          variant="outline"
+                          size="sm"
+                        />
+                      </form>
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/deployments/${deployment.id}`}>View</Link>
                       </Button>

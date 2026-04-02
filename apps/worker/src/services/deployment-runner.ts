@@ -173,7 +173,9 @@ export class DeploymentRunner {
         containerPort,
         publishPort: shouldPublishPort,
         memoryMb,
-        cpuMillicores
+        cpuMillicores,
+        healthCheck: job.runtime?.healthCheck,
+        restartPolicy: job.runtime?.restartPolicy
       });
       createdContainerId = startResult.containerId;
 

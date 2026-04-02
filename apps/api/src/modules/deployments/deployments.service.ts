@@ -3,7 +3,9 @@ import {
   normalizeProjectServices,
   resolveProjectService,
   type DeploymentJobPayload,
-  type DeploymentRuntimeConfig
+  type DeploymentRuntimeConfig,
+  type HealthCheckConfig,
+  type RestartPolicyName
 } from '@vcloudrunner/shared-types';
 
 import { env } from '../../config/env.js';
@@ -141,7 +143,11 @@ export class DeploymentsService {
       cpuMillicores:
         input.runtime?.cpuMillicores
         ?? selectedService.runtime?.cpuMillicores
-        ?? env.DEPLOYMENT_DEFAULT_CPU_MILLICORES
+        ?? env.DEPLOYMENT_DEFAULT_CPU_MILLICORES,
+      healthCheck:
+        (input.runtime?.healthCheck ?? selectedService.runtime?.healthCheck) as HealthCheckConfig | undefined,
+      restartPolicy:
+        (input.runtime?.restartPolicy ?? selectedService.runtime?.restartPolicy) as RestartPolicyName | undefined
     };
 
     let deployment;
@@ -368,6 +374,73 @@ export class DeploymentsService {
     } catch {
       // best-effort audit trail; the cancellation state change has already been persisted
     }
+  }
+
+  async redeployFromDeployment(input: {
+    projectId: string;
+    deploymentId: string;
+    correlationId: string;
+  }) {
+    const source = await this.deploymentsRepository.findById(input.projectId, input.deploymentId);
+    if (!source) {
+      throw new DeploymentNotFoundError();
+    }
+
+    const metadata = this.normalizeMetadata(source.metadata);
+
+    return this.createDeployment({
+      projectId: input.projectId,
+      correlationId: input.correlationId,
+      commitSha: source.commitSha ?? undefined,
+      branch: source.branch ?? undefined,
+      serviceName: source.serviceName,
+      runtime: metadata.runtime as CreateDeploymentInput['runtime'],
+      metadata: { redeployedFrom: source.id }
+    });
+  }
+
+  async rollbackToDeployment(input: {
+    projectId: string;
+    deploymentId: string;
+    correlationId: string;
+  }) {
+    const source = await this.deploymentsRepository.findById(input.projectId, input.deploymentId);
+    if (!source) {
+      throw new DeploymentNotFoundError();
+    }
+
+    if (source.status === 'queued' || source.status === 'building' || source.status === 'running') {
+      throw new DeploymentCancellationNotAllowedError(source.status);
+    }
+
+    // Stop any currently active deployment for this service before rolling back
+    const activeDeployments = await this.deploymentsRepository.findActiveByService(
+      input.projectId,
+      source.serviceName
+    );
+    for (const active of activeDeployments) {
+      try {
+        await this.cancelDeployment({
+          projectId: input.projectId,
+          deploymentId: active.id,
+          correlationId: input.correlationId
+        });
+      } catch {
+        // best-effort cancellation of active deployments
+      }
+    }
+
+    const metadata = this.normalizeMetadata(source.metadata);
+
+    return this.createDeployment({
+      projectId: input.projectId,
+      correlationId: input.correlationId,
+      commitSha: source.commitSha ?? undefined,
+      branch: source.branch ?? undefined,
+      serviceName: source.serviceName,
+      runtime: metadata.runtime as CreateDeploymentInput['runtime'],
+      metadata: { rolledBackFrom: source.id }
+    });
   }
 
   private async markFailedBestEffort(deploymentId: string, prefix: string, error: unknown) {

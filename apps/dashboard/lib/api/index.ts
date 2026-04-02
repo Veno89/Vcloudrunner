@@ -37,7 +37,7 @@ export {
 
 export { fetchProjectsForCurrentUser, createProject, updateProject, deleteProject } from './projects';
 
-export { fetchDeploymentsForProject, createDeployment, deployAllServices, fetchDeploymentLogs } from './deployments';
+export { fetchDeploymentsForProject, createDeployment, deployAllServices, fetchDeploymentLogs, redeployDeployment, rollbackToDeployment } from './deployments';
 
 export {
   fetchProjectMembers,
@@ -89,7 +89,9 @@ export {
 export {
   fetchEnvironmentVariables,
   upsertEnvironmentVariable,
-  deleteEnvironmentVariable
+  deleteEnvironmentVariable,
+  exportEnvironmentVariables,
+  importEnvironmentVariables
 } from './environment';
 
 export { fetchQueueHealth, fetchWorkerHealth, fetchApiHealth } from './health';

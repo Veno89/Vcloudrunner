@@ -179,6 +179,109 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                     placeholder="Default"
                   />
                 </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Restart Policy</Label>
+                  <Select
+                    value={service.runtime?.restartPolicy ?? 'unless-stopped'}
+                    onChange={(e) => {
+                      const val = e.target.value as 'no' | 'always' | 'unless-stopped' | 'on-failure';
+                      updateService(service.id, { runtime: { ...service.runtime, restartPolicy: val } });
+                    }}
+                  >
+                    <option value="unless-stopped">Unless Stopped</option>
+                    <option value="always">Always</option>
+                    <option value="on-failure">On Failure</option>
+                    <option value="no">No</option>
+                  </Select>
+                </div>
+                <div className="col-span-2 space-y-2 border-t pt-2">
+                  <Label className="text-xs font-medium">Health Check (optional)</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2 space-y-1">
+                      <Label className="text-xs">Command</Label>
+                      <Input
+                        value={service.runtime?.healthCheck?.command ?? ''}
+                        onChange={(e) => {
+                          const cmd = e.target.value;
+                          if (cmd.length === 0) {
+                            const { healthCheck: _, ...rest } = service.runtime ?? {};
+                            updateService(service.id, { runtime: Object.keys(rest).length > 0 ? rest : undefined });
+                          } else {
+                            updateService(service.id, {
+                              runtime: {
+                                ...service.runtime,
+                                healthCheck: {
+                                  command: cmd,
+                                  intervalSeconds: service.runtime?.healthCheck?.intervalSeconds ?? 30,
+                                  timeoutSeconds: service.runtime?.healthCheck?.timeoutSeconds ?? 5,
+                                  retries: service.runtime?.healthCheck?.retries ?? 3,
+                                  startPeriodSeconds: service.runtime?.healthCheck?.startPeriodSeconds ?? 10,
+                                }
+                              }
+                            });
+                          }
+                        }}
+                        placeholder="curl -f http://localhost:3000/health || exit 1"
+                      />
+                    </div>
+                    {service.runtime?.healthCheck?.command && (
+                      <>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Interval (seconds)</Label>
+                          <Input
+                            type="number"
+                            value={service.runtime.healthCheck.intervalSeconds}
+                            onChange={(e) => updateService(service.id, {
+                              runtime: {
+                                ...service.runtime,
+                                healthCheck: { ...service.runtime!.healthCheck!, intervalSeconds: Number(e.target.value) || 30 }
+                              }
+                            })}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Timeout (seconds)</Label>
+                          <Input
+                            type="number"
+                            value={service.runtime.healthCheck.timeoutSeconds}
+                            onChange={(e) => updateService(service.id, {
+                              runtime: {
+                                ...service.runtime,
+                                healthCheck: { ...service.runtime!.healthCheck!, timeoutSeconds: Number(e.target.value) || 5 }
+                              }
+                            })}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Retries</Label>
+                          <Input
+                            type="number"
+                            value={service.runtime.healthCheck.retries}
+                            onChange={(e) => updateService(service.id, {
+                              runtime: {
+                                ...service.runtime,
+                                healthCheck: { ...service.runtime!.healthCheck!, retries: Number(e.target.value) || 3 }
+                              }
+                            })}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Start Period (seconds)</Label>
+                          <Input
+                            type="number"
+                            value={service.runtime.healthCheck.startPeriodSeconds}
+                            onChange={(e) => updateService(service.id, {
+                              runtime: {
+                                ...service.runtime,
+                                healthCheck: { ...service.runtime!.healthCheck!, startPeriodSeconds: Number(e.target.value) || 10 }
+                              }
+                            })}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>

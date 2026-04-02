@@ -23,7 +23,9 @@ import { describeDashboardLiveDataFailure } from '@/lib/helpers';
 import {
   saveProjectEnvironmentVariableAction,
   removeProjectEnvironmentVariableAction,
+  importEnvironmentVariablesAction,
 } from './actions';
+import { EnvImportDialog } from '@/components/env-import-dialog';
 
 interface ProjectEnvironmentPageProps {
   params: {
@@ -98,6 +100,22 @@ export default async function ProjectEnvironmentPage({ params, searchParams }: P
             Environment values are temporarily unavailable, but you can still submit updates for this project.
           </DemoModeBanner>
         ) : null}
+
+        <div className="flex flex-wrap gap-2">
+          {environmentVariables.length > 0 && (
+            <a
+              href={`/api/env-export?projectId=${project.id}`}
+              download=".env"
+              className="inline-flex items-center rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+            >
+              Export .env
+            </a>
+          )}
+          <EnvImportDialog
+            projectId={project.id}
+            importAction={importEnvironmentVariablesAction}
+          />
+        </div>
 
         <ActionToast
           status={searchParams?.status}

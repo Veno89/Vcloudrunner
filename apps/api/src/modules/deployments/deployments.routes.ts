@@ -5,10 +5,20 @@ import { ensureProjectAccess, requireActor, requireScope } from '../auth/auth-ut
 import type { ProjectsService } from '../projects/projects.service.js';
 import type { DeploymentsService } from './deployments.service.js';
 
+const healthCheckSchema = z.object({
+  command: z.string().min(1).max(500),
+  intervalSeconds: z.number().int().min(1).max(300).default(30),
+  timeoutSeconds: z.number().int().min(1).max(60).default(5),
+  retries: z.number().int().min(1).max(10).default(3),
+  startPeriodSeconds: z.number().int().min(0).max(300).default(10)
+});
+
 const runtimeSchema = z.object({
   containerPort: z.number().int().min(1).max(65535).optional(),
   memoryMb: z.number().int().min(64).optional(),
-  cpuMillicores: z.number().int().min(100).optional()
+  cpuMillicores: z.number().int().min(100).optional(),
+  healthCheck: healthCheckSchema.optional(),
+  restartPolicy: z.enum(['no', 'always', 'unless-stopped', 'on-failure']).optional()
 });
 
 const createDeploymentBodySchema = z.object({
@@ -93,5 +103,35 @@ export const createDeploymentsRoutes = (
     });
 
     return reply.code(202).send({ data: result });
+  });
+
+  app.post('/projects/:projectId/deployments/:deploymentId/redeploy', async (request, reply) => {
+    const actor = requireActor(request);
+    const { projectId, deploymentId } = deploymentParamsSchema.parse(request.params);
+
+    requireScope(actor, 'deployments:write');
+    await ensureProjectAccess(projectsService, { projectId, actor });
+    const deployment = await deploymentsService.redeployFromDeployment({
+      projectId,
+      deploymentId,
+      correlationId: request.id
+    });
+
+    return reply.code(201).send({ data: deployment });
+  });
+
+  app.post('/projects/:projectId/deployments/:deploymentId/rollback', async (request, reply) => {
+    const actor = requireActor(request);
+    const { projectId, deploymentId } = deploymentParamsSchema.parse(request.params);
+
+    requireScope(actor, 'deployments:write');
+    await ensureProjectAccess(projectsService, { projectId, actor });
+    const deployment = await deploymentsService.rollbackToDeployment({
+      projectId,
+      deploymentId,
+      correlationId: request.id
+    });
+
+    return reply.code(201).send({ data: deployment });
   });
 };

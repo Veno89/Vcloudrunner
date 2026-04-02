@@ -18,6 +18,14 @@ export interface StartContainerInput {
   publishPort: boolean;
   memoryMb: number;
   cpuMillicores: number;
+  healthCheck?: {
+    command: string;
+    intervalSeconds: number;
+    timeoutSeconds: number;
+    retries: number;
+    startPeriodSeconds: number;
+  };
+  restartPolicy?: string;
 }
 
 export interface StartedContainerResult {

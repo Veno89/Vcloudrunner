@@ -53,4 +53,39 @@ export const createEnvironmentRoutes = (
     await environmentService.remove(projectId, key);
     return reply.code(204).send();
   });
+
+  app.get('/projects/:projectId/environment-variables/export', async (request, reply) => {
+    const actor = requireActor(request);
+    const { projectId } = projectIdParamsSchema.parse(request.params);
+
+    requireScope(actor, 'environment:read');
+    await ensureProjectAccess(projectsService, { projectId, actor });
+    const content = await environmentService.exportAsEnvFile(projectId);
+
+    return reply
+      .header('content-type', 'text/plain; charset=utf-8')
+      .header('content-disposition', 'attachment; filename=".env"')
+      .send(content);
+  });
+
+  app.post('/projects/:projectId/environment-variables/import', async (request, reply) => {
+    const actor = requireActor(request);
+    const { projectId } = projectIdParamsSchema.parse(request.params);
+
+    requireScope(actor, 'environment:write');
+    await ensureProjectAccess(projectsService, { projectId, actor });
+
+    const body = request.body;
+    let content: string;
+    if (typeof body === 'string') {
+      content = body;
+    } else if (body && typeof body === 'object' && 'content' in body) {
+      content = String((body as { content: unknown }).content);
+    } else {
+      return reply.code(400).send({ error: 'Request body must be a string or { content: string }' });
+    }
+
+    const result = await environmentService.importFromEnvFile(projectId, content);
+    return reply.code(200).send({ data: result });
+  });
 };

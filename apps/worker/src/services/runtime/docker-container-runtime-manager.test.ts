@@ -34,7 +34,7 @@ function createDockerClientStub() {
     getNetwork: (networkName: string) => {
       void networkName;
       return {
-        connect: async () => undefined
+        connect: async (_input: { Container: string }): Promise<void> => {}
       };
     },
     createContainer: async (input: {

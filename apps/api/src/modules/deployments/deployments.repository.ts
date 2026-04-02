@@ -12,6 +12,14 @@ export interface CreateDeploymentInput {
     containerPort?: number;
     memoryMb?: number;
     cpuMillicores?: number;
+    healthCheck?: {
+      command: string;
+      intervalSeconds: number;
+      timeoutSeconds: number;
+      retries: number;
+      startPeriodSeconds: number;
+    };
+    restartPolicy?: string;
   };
   metadata?: Record<string, unknown>;
 }
@@ -71,6 +79,17 @@ export class DeploymentsRepository {
         eq(deployments.projectId, projectId),
         eq(deployments.id, deploymentId)
       )
+    });
+  }
+
+  async findActiveByService(projectId: string, serviceName: string) {
+    return this.db.query.deployments.findMany({
+      where: and(
+        eq(deployments.projectId, projectId),
+        eq(deployments.serviceName, serviceName),
+        inArray(deployments.status, ['queued', 'building', 'running'])
+      ),
+      orderBy: [desc(deployments.createdAt)]
     });
   }
 

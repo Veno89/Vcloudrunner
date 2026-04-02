@@ -4,10 +4,22 @@ export type ProjectServiceKind = 'web' | 'worker';
 
 export type ProjectServiceExposure = 'public' | 'internal';
 
+export interface HealthCheckConfig {
+  command: string;
+  intervalSeconds: number;
+  timeoutSeconds: number;
+  retries: number;
+  startPeriodSeconds: number;
+}
+
+export type RestartPolicyName = 'no' | 'always' | 'unless-stopped' | 'on-failure';
+
 export interface ProjectServiceRuntimeOverrides {
   containerPort?: number;
   memoryMb?: number;
   cpuMillicores?: number;
+  healthCheck?: HealthCheckConfig;
+  restartPolicy?: RestartPolicyName;
 }
 
 export interface ProjectServiceDefinition {
@@ -166,6 +178,8 @@ export interface DeploymentRuntimeConfig {
   containerPort: number;
   memoryMb: number;
   cpuMillicores: number;
+  healthCheck?: HealthCheckConfig;
+  restartPolicy?: RestartPolicyName;
 }
 
 export interface DeploymentJobPayload {

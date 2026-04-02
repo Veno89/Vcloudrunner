@@ -48,6 +48,13 @@ interface DockerClientLike {
         Aliases?: string[];
       }>;
     };
+    Healthcheck?: {
+      Test: string[];
+      Interval: number;
+      Timeout: number;
+      Retries: number;
+      StartPeriod: number;
+    };
     HostConfig: {
       PublishAllPorts: boolean;
       Memory: number;
@@ -108,6 +115,7 @@ export class DockerContainerRuntimeManager implements ContainerRuntimeManager {
         && networkName !== input.networkName
         && items.indexOf(networkName) === index
       ));
+    const restartPolicyName = input.restartPolicy ?? 'unless-stopped';
     const container = await this.docker.createContainer({
       name: input.name,
       Image: input.imageTag,
@@ -125,13 +133,24 @@ export class DockerContainerRuntimeManager implements ContainerRuntimeManager {
             }
           }
         : {}),
+      ...(input.healthCheck
+        ? {
+            Healthcheck: {
+              Test: ['CMD-SHELL', input.healthCheck.command],
+              Interval: input.healthCheck.intervalSeconds * 1_000_000_000,
+              Timeout: input.healthCheck.timeoutSeconds * 1_000_000_000,
+              Retries: input.healthCheck.retries,
+              StartPeriod: input.healthCheck.startPeriodSeconds * 1_000_000_000
+            }
+          }
+        : {}),
       HostConfig: {
         PublishAllPorts: input.publishPort,
         Memory: input.memoryMb * 1024 * 1024,
         NanoCpus: input.cpuMillicores * 1_000_000,
         PidsLimit: 256,
         ReadonlyRootfs: false,
-        RestartPolicy: { Name: 'unless-stopped' },
+        RestartPolicy: { Name: restartPolicyName },
         NetworkMode: input.networkName
       }
     });

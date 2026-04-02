@@ -225,7 +225,7 @@ export function createDashboardProxyTimeoutMessage(feature: string): string {
 }
 
 export function createEnvironmentVariableActionErrorMessage(
-  action: 'save' | 'delete',
+  action: 'save' | 'delete' | 'import',
   error: unknown
 ): string {
   const statusCode = extractApiStatusCode(error);
@@ -249,7 +249,7 @@ export function createEnvironmentVariableActionErrorMessage(
       : 'The requested project no longer exists.';
   }
 
-  return action === 'save' ? 'Failed to save variable.' : 'Failed to delete variable.';
+  return action === 'save' ? 'Failed to save variable.' : action === 'import' ? 'Failed to import variables.' : 'Failed to delete variable.';
 }
 
 export function truncateUuid(id: string): string {

@@ -54,3 +54,27 @@ export async function fetchDeploymentLogs(
 
   return response.data;
 }
+
+export async function redeployDeployment(
+  projectId: string,
+  deploymentId: string
+): Promise<ApiDeployment> {
+  const response = await postJson<ApiDataResponse<ApiDeployment>>(
+    `/v1/projects/${projectId}/deployments/${deploymentId}/redeploy`,
+    {}
+  );
+
+  return response.data;
+}
+
+export async function rollbackToDeployment(
+  projectId: string,
+  deploymentId: string
+): Promise<ApiDeployment> {
+  const response = await postJson<ApiDataResponse<ApiDeployment>>(
+    `/v1/projects/${projectId}/deployments/${deploymentId}/rollback`,
+    {}
+  );
+
+  return response.data;
+}
