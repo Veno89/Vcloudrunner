@@ -28,6 +28,7 @@ export interface CreateProjectInput {
   gitRepositoryUrl: string;
   defaultBranch?: string;
   services?: ProjectServiceDefinition[];
+  githubInstallationId?: number;
 }
 
 export interface UpdateProjectInput {

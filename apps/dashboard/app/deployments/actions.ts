@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { createDeployment, deployAllServices, redeployDeployment, rollbackToDeployment } from '@/lib/api';
+import { createDeployment, deployAllServices, redeployDeployment, rollbackToDeployment, cancelDeployment } from '@/lib/api';
 import {
   createDeploymentErrorMessage,
   extractApiStatusCode,
@@ -22,6 +22,10 @@ function normalizeActionReturnPath(value: FormDataEntryValue | null): string {
   return normalized;
 }
 
+function appendQuery(path: string, params: string): string {
+  return `${path}${path.includes('?') ? '&' : '?'}${params}`;
+}
+
 export async function deployProjectAction(formData: FormData) {
   const projectIdValue = formData.get('projectId');
   const projectNameValue = formData.get('projectName');
@@ -29,7 +33,7 @@ export async function deployProjectAction(formData: FormData) {
   const returnPath = normalizeActionReturnPath(formData.get('returnPath'));
 
   if (typeof projectIdValue !== 'string' || projectIdValue.length === 0) {
-    redirect(`${returnPath}${returnPath.includes('?') ? '&' : '?'}status=error&message=Invalid+deployment+request`);
+    redirect(appendQuery(returnPath, 'status=error&message=Invalid+deployment+request'));
     return;
   }
 
@@ -39,6 +43,8 @@ export async function deployProjectAction(formData: FormData) {
       ? serviceNameValue.trim()
       : undefined;
 
+  let redirectTo: string | undefined;
+
   try {
     const deployment = await createDeployment(projectIdValue, {
       ...(serviceName ? { serviceName } : {})
@@ -47,12 +53,14 @@ export async function deployProjectAction(formData: FormData) {
     revalidatePath(`/projects/${projectIdValue}`);
     revalidatePath(`/projects/${projectIdValue}/deployments`);
     revalidatePath('/deployments');
-    redirect(`/deployments/${deployment.id}`);
+    redirectTo = `/deployments/${deployment.id}`;
   } catch (error) {
     const statusCode = extractApiStatusCode(error);
     const message = createDeploymentErrorMessage(statusCode, projectName);
-    redirect(`${returnPath}${returnPath.includes('?') ? '&' : '?'}status=error&message=${encodeURIComponent(message)}`);
+    redirectTo = appendQuery(returnPath, `status=error&message=${encodeURIComponent(message)}`);
   }
+
+  redirect(redirectTo);
 }
 
 export async function deployAllServicesAction(formData: FormData) {
@@ -60,9 +68,11 @@ export async function deployAllServicesAction(formData: FormData) {
   const returnPath = normalizeActionReturnPath(formData.get('returnPath'));
 
   if (typeof projectIdValue !== 'string' || projectIdValue.length === 0) {
-    redirect(`${returnPath}${returnPath.includes('?') ? '&' : '?'}status=error&message=Invalid+deployment+request`);
+    redirect(appendQuery(returnPath, 'status=error&message=Invalid+deployment+request'));
     return;
   }
+
+  let redirectTo: string | undefined;
 
   try {
     const results = await deployAllServices(projectIdValue);
@@ -75,12 +85,14 @@ export async function deployAllServicesAction(formData: FormData) {
     revalidatePath('/deployments');
 
     const message = `Deployed ${created} service${created !== 1 ? 's' : ''}${skipped > 0 ? `, ${skipped} skipped (already active)` : ''}`;
-    redirect(`${returnPath}${returnPath.includes('?') ? '&' : '?'}status=success&message=${encodeURIComponent(message)}`);
+    redirectTo = appendQuery(returnPath, `status=success&message=${encodeURIComponent(message)}`);
   } catch (error) {
     const statusCode = extractApiStatusCode(error);
     const message = createDeploymentErrorMessage(statusCode, 'all services');
-    redirect(`${returnPath}${returnPath.includes('?') ? '&' : '?'}status=error&message=${encodeURIComponent(message)}`);
+    redirectTo = appendQuery(returnPath, `status=error&message=${encodeURIComponent(message)}`);
   }
+
+  redirect(redirectTo);
 }
 
 export async function redeployAction(formData: FormData) {
@@ -89,9 +101,11 @@ export async function redeployAction(formData: FormData) {
   const returnPath = normalizeActionReturnPath(formData.get('returnPath'));
 
   if (typeof projectId !== 'string' || typeof deploymentId !== 'string') {
-    redirect(`${returnPath}${returnPath.includes('?') ? '&' : '?'}status=error&message=Invalid+redeploy+request`);
+    redirect(appendQuery(returnPath, 'status=error&message=Invalid+redeploy+request'));
     return;
   }
+
+  let redirectTo: string | undefined;
 
   try {
     const deployment = await redeployDeployment(projectId, deploymentId);
@@ -99,12 +113,14 @@ export async function redeployAction(formData: FormData) {
     revalidatePath(`/projects/${projectId}`);
     revalidatePath(`/projects/${projectId}/deployments`);
     revalidatePath('/deployments');
-    redirect(`/deployments/${deployment.id}`);
+    redirectTo = `/deployments/${deployment.id}`;
   } catch (error) {
     const statusCode = extractApiStatusCode(error);
     const message = createDeploymentErrorMessage(statusCode, 'redeploy');
-    redirect(`${returnPath}${returnPath.includes('?') ? '&' : '?'}status=error&message=${encodeURIComponent(message)}`);
+    redirectTo = appendQuery(returnPath, `status=error&message=${encodeURIComponent(message)}`);
   }
+
+  redirect(redirectTo);
 }
 
 export async function rollbackAction(formData: FormData) {
@@ -113,9 +129,11 @@ export async function rollbackAction(formData: FormData) {
   const returnPath = normalizeActionReturnPath(formData.get('returnPath'));
 
   if (typeof projectId !== 'string' || typeof deploymentId !== 'string') {
-    redirect(`${returnPath}${returnPath.includes('?') ? '&' : '?'}status=error&message=Invalid+rollback+request`);
+    redirect(appendQuery(returnPath, 'status=error&message=Invalid+rollback+request'));
     return;
   }
+
+  let redirectTo: string | undefined;
 
   try {
     const deployment = await rollbackToDeployment(projectId, deploymentId);
@@ -123,10 +141,40 @@ export async function rollbackAction(formData: FormData) {
     revalidatePath(`/projects/${projectId}`);
     revalidatePath(`/projects/${projectId}/deployments`);
     revalidatePath('/deployments');
-    redirect(`/deployments/${deployment.id}?status=success&message=${encodeURIComponent('Rollback deployment created')}`);
+    redirectTo = `/deployments/${deployment.id}?status=success&message=${encodeURIComponent('Rollback deployment created')}`;
   } catch (error) {
     const statusCode = extractApiStatusCode(error);
     const message = createDeploymentErrorMessage(statusCode, 'rollback');
-    redirect(`${returnPath}${returnPath.includes('?') ? '&' : '?'}status=error&message=${encodeURIComponent(message)}`);
+    redirectTo = appendQuery(returnPath, `status=error&message=${encodeURIComponent(message)}`);
   }
+
+  redirect(redirectTo);
+}
+
+export async function cancelDeploymentAction(formData: FormData) {
+  const projectId = formData.get('projectId');
+  const deploymentId = formData.get('deploymentId');
+  const returnPath = normalizeActionReturnPath(formData.get('returnPath'));
+
+  if (typeof projectId !== 'string' || typeof deploymentId !== 'string') {
+    redirect(appendQuery(returnPath, 'status=error&message=Invalid+cancel+request'));
+    return;
+  }
+
+  let redirectTo: string | undefined;
+
+  try {
+    await cancelDeployment(projectId, deploymentId);
+    revalidatePath('/projects');
+    revalidatePath(`/projects/${projectId}`);
+    revalidatePath(`/projects/${projectId}/deployments`);
+    revalidatePath('/deployments');
+    redirectTo = `/deployments/${deploymentId}?status=success&message=${encodeURIComponent('Deployment stopped')}`;
+  } catch (error) {
+    const statusCode = extractApiStatusCode(error);
+    const message = createDeploymentErrorMessage(statusCode, 'cancel');
+    redirectTo = appendQuery(returnPath, `status=error&message=${encodeURIComponent(message)}`);
+  }
+
+  redirect(redirectTo);
 }

@@ -7,6 +7,8 @@ import { FormSubmitButton } from '@/components/form-submit-button';
 import { HelpTip } from '@/components/help-tip';
 import { TIPS } from '@/lib/onboarding/steps';
 import { slugifyProjectName } from '@/lib/helpers';
+import { GitHubRepoPicker } from '@/components/github-repo-picker';
+import type { GitHubInstallation, GitHubRepository } from '@/lib/api/github';
 
 function isValidGitUrl(value: string): boolean {
   try {
@@ -36,12 +38,34 @@ function branchValidationMessage(value: string): string | null {
 
 interface ProjectCreateFormProps {
   action: (formData: FormData) => void | Promise<void>;
+  githubInstallations?: GitHubInstallation[];
+  githubInstallUrl?: string | null;
 }
 
-export function ProjectCreateForm({ action }: ProjectCreateFormProps) {
+export function ProjectCreateForm({ action, githubInstallations = [], githubInstallUrl = null }: ProjectCreateFormProps) {
   const [name, setName] = useState('');
   const [gitRepositoryUrl, setGitRepositoryUrl] = useState('');
   const [defaultBranch, setDefaultBranch] = useState('main');
+  const [githubInstallationId, setGithubInstallationId] = useState<number | null>(null);
+  const [selectedRepo, setSelectedRepo] = useState<{ fullName: string; installationId: number } | null>(null);
+
+  const hasGitHub = githubInstallations.length > 0;
+
+  const handleRepoSelect = (repo: GitHubRepository, installationId: number) => {
+    setGitRepositoryUrl(repo.cloneUrl);
+    setDefaultBranch(repo.defaultBranch);
+    setGithubInstallationId(installationId);
+    setSelectedRepo({ fullName: repo.fullName, installationId });
+    if (!name) {
+      setName(repo.name.charAt(0).toUpperCase() + repo.name.slice(1).replace(/-/g, ' '));
+    }
+  };
+
+  const handleRepoClear = () => {
+    setGitRepositoryUrl('');
+    setGithubInstallationId(null);
+    setSelectedRepo(null);
+  };
 
   const slug = useMemo(() => slugifyProjectName(name), [name]);
   const nameError = name.trim().length < 3 ? 'Project name must be at least 3 characters.' : null;
@@ -55,6 +79,9 @@ export function ProjectCreateForm({ action }: ProjectCreateFormProps) {
 
   return (
     <form action={action} className="grid gap-2 rounded-lg border bg-card p-3 md:grid-cols-[1fr_1fr_160px_auto]">
+      {githubInstallationId ? (
+        <input type="hidden" name="githubInstallationId" value={githubInstallationId} />
+      ) : null}
       <div className="space-y-1">
         <div className="flex items-center gap-1">
           <Label htmlFor="project-name" className="text-xs">Project name</Label>
@@ -73,18 +100,45 @@ export function ProjectCreateForm({ action }: ProjectCreateFormProps) {
       </div>
       <div className="space-y-1">
         <div className="flex items-center gap-1">
-          <Label htmlFor="project-repository" className="text-xs">Repository URL</Label>
+          <Label htmlFor="project-repository" className="text-xs">Repository</Label>
           <HelpTip label={TIPS.PROJECT_REPO.label} side="right" />
         </div>
-        <Input
-          id="project-repository"
-          type="url"
-          name="gitRepositoryUrl"
-          placeholder="https://github.com/org/repo"
-          required
-          value={gitRepositoryUrl}
-          onChange={(event) => setGitRepositoryUrl(event.target.value)}
-        />
+        {hasGitHub || githubInstallUrl ? (
+          <div className="space-y-2">
+            <GitHubRepoPicker
+              installations={githubInstallations}
+              installUrl={githubInstallUrl}
+              onSelect={handleRepoSelect}
+              onClear={handleRepoClear}
+              selected={selectedRepo}
+            />
+            {!selectedRepo ? (
+              <div className="space-y-1">
+                <p className="text-[10px] text-muted-foreground">Or paste a URL manually:</p>
+                <Input
+                  id="project-repository"
+                  type="url"
+                  name="gitRepositoryUrl"
+                  placeholder="https://github.com/org/repo"
+                  value={gitRepositoryUrl}
+                  onChange={(event) => setGitRepositoryUrl(event.target.value)}
+                />
+              </div>
+            ) : (
+              <input type="hidden" name="gitRepositoryUrl" value={gitRepositoryUrl} />
+            )}
+          </div>
+        ) : (
+          <Input
+            id="project-repository"
+            type="url"
+            name="gitRepositoryUrl"
+            placeholder="https://github.com/org/repo"
+            required
+            value={gitRepositoryUrl}
+            onChange={(event) => setGitRepositoryUrl(event.target.value)}
+          />
+        )}
       </div>
       <div className="space-y-1">
         <div className="flex items-center gap-1">

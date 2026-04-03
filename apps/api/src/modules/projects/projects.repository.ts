@@ -48,7 +48,8 @@ export class ProjectsRepository {
         slug: input.slug,
         gitRepositoryUrl: input.gitRepositoryUrl,
         defaultBranch: input.defaultBranch ?? 'main',
-        ...(input.services ? { services: input.services } : {})
+        ...(input.services ? { services: input.services } : {}),
+        ...(input.githubInstallationId ? { githubInstallationId: input.githubInstallationId } : {})
       }).returning();
 
       await tx.insert(projectMembers).values({

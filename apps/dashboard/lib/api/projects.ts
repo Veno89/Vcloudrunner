@@ -11,6 +11,7 @@ interface CreateProjectInput {
   gitRepositoryUrl: string;
   defaultBranch?: string;
   services?: ProjectServiceDefinition[];
+  githubInstallationId?: number;
 }
 
 interface UpdateProjectInput {

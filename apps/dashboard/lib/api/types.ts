@@ -13,6 +13,7 @@ export interface ApiProject {
   gitRepositoryUrl: string;
   defaultBranch: string;
   services: ProjectServiceDefinition[];
+  githubInstallationId?: number | null;
 }
 
 export interface ApiProjectMember {

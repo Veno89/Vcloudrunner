@@ -29,6 +29,8 @@ import { redisConnection } from '../queue/redis.js';
 import { AlertMonitorService } from '../services/alert-monitor.service.js';
 import { ProjectDomainDiagnosticsRefreshService } from '../services/project-domain-diagnostics-refresh.service.js';
 import { WebhookProjectInvitationDeliveryService } from '../services/project-invitation-delivery.service.js';
+import { GitHubAppService } from '../modules/github/github-app.service.js';
+import { createGitHubRoutes } from '../modules/github/github.routes.js';
 
 interface DeploymentQueueClient {
   close(): Promise<void>;
@@ -110,8 +112,19 @@ export const buildServer = (dependencies: BuildServerDependencies = {}) => {
   const projectDomainDiagnosticsRefresh = dependencies.projectDomainDiagnosticsRefresh
     ?? new ProjectDomainDiagnosticsRefreshService(projectsService, app.log);
   const apiTokensService = new ApiTokensService(dbClient);
+
+  const githubAppService = new GitHubAppService(dbClient, {
+    appId: env.GITHUB_APP_ID,
+    privateKey: env.GITHUB_APP_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    clientId: env.GITHUB_CLIENT_ID,
+    clientSecret: env.GITHUB_CLIENT_SECRET,
+    appSlug: env.GITHUB_APP_SLUG,
+    webhookSecret: env.GITHUB_WEBHOOK_SECRET
+  });
+
   const deploymentsService = new DeploymentsService(dbClient, deploymentQueueClient, {
-    projectDatabasesService
+    projectDatabasesService,
+    githubTokenProvider: githubAppService
   });
   const environmentService = new EnvironmentService(dbClient);
   const logsService = new LogsService(dbClient);
@@ -245,6 +258,7 @@ export const buildServer = (dependencies: BuildServerDependencies = {}) => {
     routeApp.register(createDeploymentsRoutes(deploymentsService, projectsService), { prefix: '/v1' });
     routeApp.register(createEnvironmentRoutes(environmentService, projectsService), { prefix: '/v1' });
     routeApp.register(createLogsRoutes(logsService, projectsService), { prefix: '/v1' });
+    routeApp.register(createGitHubRoutes(githubAppService), { prefix: '/v1' });
   });
 
   return app;

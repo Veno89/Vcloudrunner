@@ -1,5 +1,5 @@
 import { Queue } from 'bullmq';
-import { QUEUE_NAMES, type DeploymentJobPayload } from '@vcloudrunner/shared-types';
+import { QUEUE_NAMES, type DeploymentJobPayload, type DeploymentStopJobPayload } from '@vcloudrunner/shared-types';
 
 import { redisConnection } from './redis.js';
 
@@ -8,13 +8,22 @@ type QueueLike = Pick<
   'add' | 'getJobs' | 'getJob'
 > & Partial<Pick<Queue<DeploymentJobPayload, unknown, 'deploy'>, 'close'>>;
 
+type StopQueueLike = Pick<Queue<DeploymentStopJobPayload, unknown, 'stop'>, 'add'>
+  & Partial<Pick<Queue<DeploymentStopJobPayload, unknown, 'stop'>, 'close'>>;
+
 export class DeploymentQueue {
   private readonly queue: QueueLike;
+  private readonly stopQueue: StopQueueLike;
 
-  constructor(queue?: QueueLike) {
+  constructor(queue?: QueueLike, stopQueue?: StopQueueLike) {
     this.queue =
       queue ??
       new Queue<DeploymentJobPayload, unknown, 'deploy'>(QUEUE_NAMES.deployment, {
+        connection: redisConnection
+      });
+    this.stopQueue =
+      stopQueue ??
+      new Queue<DeploymentStopJobPayload, unknown, 'stop'>(QUEUE_NAMES.deploymentStop, {
         connection: redisConnection
       });
   }
@@ -78,7 +87,18 @@ export class DeploymentQueue {
     return removed;
   }
 
+  async enqueueStop(payload: DeploymentStopJobPayload) {
+    await this.stopQueue.add('stop', payload, {
+      jobId: `stop-${payload.deploymentId}`,
+      removeOnComplete: 100,
+      removeOnFail: 100,
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 2000 }
+    });
+  }
+
   async close() {
     await this.queue.close?.();
+    await this.stopQueue.close?.();
   }
 }

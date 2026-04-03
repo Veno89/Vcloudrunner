@@ -127,7 +127,8 @@ export const WorkerEnvSchema = z.object({
   DB_POOL_CONNECTION_TIMEOUT_MS: envInteger(z.number().int().min(1000), 5000),
   DB_POOL_STATEMENT_TIMEOUT_MS: envInteger(z.number().int().min(0), 30000),
   DEPLOYMENT_LIFECYCLE_WEBHOOK_URL: z.string().default(''),
-  DEPLOYMENT_LIFECYCLE_WEBHOOK_TOKEN: z.string().default('')
+  DEPLOYMENT_LIFECYCLE_WEBHOOK_TOKEN: z.string().default(''),
+  GITHUB_TOKEN: z.string().default('')
 });
 
 export type WorkerEnv = z.infer<typeof WorkerEnvSchema>;

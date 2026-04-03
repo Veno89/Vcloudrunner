@@ -171,8 +171,15 @@ export interface ProjectDto {
 }
 
 export const QUEUE_NAMES = {
-  deployment: 'deployment-jobs'
+  deployment: 'deployment-jobs',
+  deploymentStop: 'deployment-stop-jobs'
 } as const;
+
+export interface DeploymentStopJobPayload {
+  deploymentId: string;
+  containerId: string;
+  routeHosts: string[];
+}
 
 export interface DeploymentRuntimeConfig {
   containerPort: number;
@@ -197,6 +204,7 @@ export interface DeploymentJobPayload {
   publicRouteHosts?: string[];
   env: Record<string, string>;
   runtime: DeploymentRuntimeConfig;
+  gitAccessToken?: string;
 }
 
 export function formatCertificateFingerprintPreview(

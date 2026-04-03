@@ -10,7 +10,7 @@ import {
 } from '@/lib/helpers';
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
-const DASHBOARD_PROXY_TIMEOUT_MS = 10_000;
+const DASHBOARD_PROXY_TIMEOUT_MS = 300_000;
 
 export async function GET(request: NextRequest) {
   const requestAuth = getDashboardRequestAuth();

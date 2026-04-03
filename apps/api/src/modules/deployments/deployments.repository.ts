@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import type { DbClient } from '../../db/client.js';
-import { deploymentLogs, deployments, projects } from '../../db/schema.js';
+import { containers, deploymentLogs, deployments, domains, projects } from '../../db/schema.js';
 
 export interface CreateDeploymentInput {
   projectId: string;
@@ -119,6 +119,23 @@ export class DeploymentsRepository {
       runtimeUrl: null,
       updatedAt: new Date()
     }).where(eq(deployments.id, deploymentId));
+  }
+
+  async findContainerByDeploymentId(deploymentId: string) {
+    const rows = await this.db
+      .select({ containerId: containers.containerId })
+      .from(containers)
+      .where(eq(containers.deploymentId, deploymentId))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  async findRouteHostsByDeploymentId(deploymentId: string) {
+    const rows = await this.db
+      .select({ host: domains.host })
+      .from(domains)
+      .where(eq(domains.deploymentId, deploymentId));
+    return rows.map((r) => r.host);
   }
 
 

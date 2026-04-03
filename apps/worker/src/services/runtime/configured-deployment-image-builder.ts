@@ -18,7 +18,8 @@ export class ConfiguredDeploymentImageBuilder implements DeploymentImageBuilder 
     await this.commandRunner.cloneRepository({
       gitRepositoryUrl: input.gitRepositoryUrl,
       branch: input.branch,
-      repoDir: input.repoDir
+      repoDir: input.repoDir,
+      gitAccessToken: input.gitAccessToken
     });
 
     const buildResult = await this.buildSystemResolver.detect(input.repoDir, { sourceRoot });

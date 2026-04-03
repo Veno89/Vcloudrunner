@@ -113,7 +113,13 @@ export const EnvSchema = z.object({
   DB_POOL_STATEMENT_TIMEOUT_MS: envInteger(z.number().int().min(0), 30000),
   OTEL_ENABLED: envBoolean(false),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default('http://localhost:4318'),
-  OTEL_SERVICE_NAME: z.string().default('vcloudrunner-api')
+  OTEL_SERVICE_NAME: z.string().default('vcloudrunner-api'),
+  GITHUB_APP_ID: z.string().default(''),
+  GITHUB_APP_PRIVATE_KEY: z.string().default(''),
+  GITHUB_APP_SLUG: z.string().default('vcloudrunner'),
+  GITHUB_CLIENT_ID: z.string().default(''),
+  GITHUB_CLIENT_SECRET: z.string().default(''),
+  GITHUB_WEBHOOK_SECRET: z.string().default('')
 });
 
 export type AppEnv = z.infer<typeof EnvSchema>;

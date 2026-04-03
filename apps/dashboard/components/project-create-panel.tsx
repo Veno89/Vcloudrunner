@@ -3,13 +3,16 @@
 import { useState } from 'react';
 import { ProjectCreateForm } from '@/components/project-create-form';
 import { Button } from '@/components/ui/button';
+import type { GitHubInstallation } from '@/lib/api/github';
 
 interface ProjectCreatePanelProps {
   action: (formData: FormData) => void | Promise<void>;
   defaultOpen?: boolean;
+  githubInstallations?: GitHubInstallation[];
+  githubInstallUrl?: string | null;
 }
 
-export function ProjectCreatePanel({ action, defaultOpen = false }: ProjectCreatePanelProps) {
+export function ProjectCreatePanel({ action, defaultOpen = false, githubInstallations = [], githubInstallUrl = null }: ProjectCreatePanelProps) {
   const [open, setOpen] = useState(defaultOpen);
 
   return (
@@ -31,7 +34,11 @@ export function ProjectCreatePanel({ action, defaultOpen = false }: ProjectCreat
       </div>
       {open ? (
         <div id="project-create-form">
-          <ProjectCreateForm action={action} />
+          <ProjectCreateForm
+            action={action}
+            githubInstallations={githubInstallations}
+            githubInstallUrl={githubInstallUrl}
+          />
         </div>
       ) : null}
     </section>

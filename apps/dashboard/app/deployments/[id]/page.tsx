@@ -20,7 +20,7 @@ import {
   logLevelTextClassName,
   truncateUuid
 } from '@/lib/helpers';
-import { redeployAction, rollbackAction } from '../actions';
+import { redeployAction, rollbackAction, cancelDeploymentAction } from '../actions';
 import Link from 'next/link';
 
 interface DeploymentDetailPageProps {
@@ -268,6 +268,19 @@ export default async function DeploymentDetailPage({ params, searchParams }: Dep
             >
               Open Full Logs
             </Link>
+            {(deployment.status === 'queued' || deployment.status === 'building' || deployment.status === 'running') && !cancellationRequested ? (
+              <form action={cancelDeploymentAction}>
+                <input type="hidden" name="projectId" value={project.id} readOnly />
+                <input type="hidden" name="deploymentId" value={deployment.id} readOnly />
+                <input type="hidden" name="returnPath" value={`/deployments/${deployment.id}`} readOnly />
+                <FormSubmitButton
+                  idleText={deployment.status === 'running' ? 'Stop' : 'Cancel'}
+                  pendingText="Stopping..."
+                  variant="destructive"
+                  size="sm"
+                />
+              </form>
+            ) : null}
             <Link
               href={`/projects/${project.id}`}
               className="rounded-md border px-2.5 py-1 text-xs transition-colors hover:bg-accent"

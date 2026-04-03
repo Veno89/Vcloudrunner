@@ -16,6 +16,7 @@ export interface BuildRuntimeImageInput {
   repoDir: string;
   imageTag: string;
   sourceRoot?: string | null;
+  gitAccessToken?: string;
 }
 
 export interface DeploymentImageBuilder {

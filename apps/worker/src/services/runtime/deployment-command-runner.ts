@@ -3,6 +3,7 @@ export interface DeploymentCommandRunner {
     gitRepositoryUrl: string;
     branch: string;
     repoDir: string;
+    gitAccessToken?: string;
   }): Promise<void>;
   buildImage(input: {
     dockerfilePath: string;

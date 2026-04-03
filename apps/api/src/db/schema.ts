@@ -162,6 +162,20 @@ export const users = pgTable('users', {
   usersEmailUnique: uniqueIndex('users_email_unique').on(table.email)
 }));
 
+export const githubInstallations = pgTable('github_installations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  installationId: integer('installation_id').notNull(),
+  accountLogin: varchar('account_login', { length: 255 }).notNull(),
+  accountType: varchar('account_type', { length: 32 }).notNull().default('User'),
+  permissions: jsonb('permissions').$type<Record<string, string>>().notNull().default({}),
+  installedAt: timestamp('installed_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+}, (table) => ({
+  githubInstallationsUserIdIdx: index('github_installations_user_id_idx').on(table.userId),
+  githubInstallationsInstallationIdUnique: uniqueIndex('github_installations_installation_id_unique').on(table.installationId)
+}));
+
 export const apiTokens = pgTable('api_tokens', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id),
@@ -188,6 +202,7 @@ export const projects = pgTable('projects', {
   slug: varchar('slug', { length: 64 }).notNull(),
   gitRepositoryUrl: text('git_repository_url').notNull(),
   defaultBranch: varchar('default_branch', { length: 255 }).notNull().default('main'),
+  githubInstallationId: integer('github_installation_id'),
   services: jsonb('services').$type<ProjectServiceDefinition[]>().notNull().default(createDefaultProjectServices()),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()

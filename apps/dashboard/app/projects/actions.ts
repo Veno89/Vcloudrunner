@@ -56,6 +56,7 @@ export async function createProjectAction(formData: FormData) {
   const nameValue = formData.get('name');
   const gitRepositoryUrlValue = formData.get('gitRepositoryUrl');
   const defaultBranchValue = formData.get('defaultBranch');
+  const githubInstallationIdValue = formData.get('githubInstallationId');
 
   if (typeof nameValue !== 'string' || typeof gitRepositoryUrlValue !== 'string') {
     redirect('/projects?status=error&reason=invalid_input');
@@ -66,6 +67,9 @@ export async function createProjectAction(formData: FormData) {
   const gitRepositoryUrl = gitRepositoryUrlValue.trim();
   const defaultBranch = typeof defaultBranchValue === 'string' ? defaultBranchValue.trim() : '';
   const slug = slugifyProjectName(name);
+  const githubInstallationId = typeof githubInstallationIdValue === 'string' && githubInstallationIdValue.length > 0
+    ? Number(githubInstallationIdValue)
+    : undefined;
 
   if (name.length < 3 || slug.length < 3 || gitRepositoryUrl.length === 0) {
     redirect('/projects?status=error&reason=invalid_input');
@@ -79,6 +83,7 @@ export async function createProjectAction(formData: FormData) {
       slug,
       gitRepositoryUrl,
       defaultBranch: defaultBranch.length > 0 ? defaultBranch : undefined,
+      ...(githubInstallationId ? { githubInstallationId } : {})
     });
 
     revalidatePath('/projects');

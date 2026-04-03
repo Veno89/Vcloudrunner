@@ -654,7 +654,12 @@ async function configureRoutesIfNeeded(
 
   for (const host of desiredHosts) {
     try {
-      await dependencies.ingressManager.upsertRoute({ host, upstreamPort: input.result.hostPort });
+      await dependencies.ingressManager.upsertRoute({
+        host,
+        upstreamPort: input.result.hostPort,
+        containerName: input.result.containerName,
+        internalPort: input.result.internalPort
+      });
       configuredHosts.push(host);
     } catch (error) {
       const message = getErrorMessage(error);

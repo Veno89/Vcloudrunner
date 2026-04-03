@@ -4,6 +4,7 @@ import {
   resolveProjectService,
   type DeploymentJobPayload,
   type DeploymentRuntimeConfig,
+  type DeploymentStopJobPayload,
   type HealthCheckConfig,
   type RestartPolicyName
 } from '@vcloudrunner/shared-types';
@@ -94,6 +95,7 @@ interface DeploymentsServiceDependencies {
   environmentRepository?: EnvironmentRepository;
   cryptoService?: CryptoService;
   projectDatabasesService?: Pick<ProjectDatabasesService, 'listInjectedEnvironmentForProjectService'>;
+  githubTokenProvider?: { getInstallationForProject(installationId: number | null): Promise<string | null> };
 }
 
 export class DeploymentsService {
@@ -103,6 +105,7 @@ export class DeploymentsService {
   private readonly environmentRepository: EnvironmentRepository;
   private readonly cryptoService: CryptoService;
   private readonly projectDatabasesService: Pick<ProjectDatabasesService, 'listInjectedEnvironmentForProjectService'>;
+  private readonly githubTokenProvider: { getInstallationForProject(installationId: number | null): Promise<string | null> };
 
   constructor(
     db: DbClient,
@@ -116,6 +119,9 @@ export class DeploymentsService {
     this.cryptoService = dependencies.cryptoService ?? new CryptoService();
     this.projectDatabasesService = dependencies.projectDatabasesService ?? {
       listInjectedEnvironmentForProjectService: async () => ({})
+    };
+    this.githubTokenProvider = dependencies.githubTokenProvider ?? {
+      getInstallationForProject: async () => null
     };
   }
 
@@ -207,6 +213,10 @@ export class DeploymentsService {
           })
         : [];
 
+      const gitAccessToken = await this.githubTokenProvider.getInstallationForProject(
+        project.githubInstallationId ?? null
+      );
+
       payload = {
         deploymentId: deployment.id,
         projectId: project.id,
@@ -225,7 +235,8 @@ export class DeploymentsService {
           ...managedDatabaseEnv,
           ...discoveryEnv
         },
-        runtime
+        runtime,
+        ...(gitAccessToken ? { gitAccessToken } : {})
       };
     } catch (error) {
       await this.markFailedBestEffort(deployment.id, 'DEPLOYMENT_ENV_RESOLUTION_FAILED', error);
@@ -301,8 +312,40 @@ export class DeploymentsService {
       throw new DeploymentNotFoundError();
     }
 
-    if (deployment.status === 'failed' || deployment.status === 'stopped' || deployment.status === 'running') {
+    if (deployment.status === 'failed' || deployment.status === 'stopped') {
       throw new DeploymentCancellationNotAllowedError(deployment.status);
+    }
+
+    if (deployment.status === 'running') {
+      await this.deploymentsRepository.markStopped(deployment.id);
+
+      // Queue container cleanup in the worker
+      const containerRecord = await this.deploymentsRepository.findContainerByDeploymentId(deployment.id);
+      const routeHosts = await this.deploymentsRepository.findRouteHostsByDeploymentId(deployment.id);
+
+      if (containerRecord) {
+        try {
+          await this.deploymentQueue.enqueueStop({
+            deploymentId: deployment.id,
+            containerId: containerRecord.containerId,
+            routeHosts
+          });
+        } catch {
+          // best-effort; container will be cleaned up on next deploy or worker restart
+        }
+      }
+
+      await this.appendLogBestEffort({
+        deploymentId: deployment.id,
+        level: 'warn',
+        message: `Deployment stopped by user (correlation ${input.correlationId}). Container will be cleaned up.`
+      });
+
+      return {
+        deploymentId: deployment.id,
+        status: 'stopped' as const,
+        cancellation: 'completed'
+      };
     }
 
     const metadata = this.normalizeMetadata(deployment.metadata);
@@ -386,15 +429,12 @@ export class DeploymentsService {
       throw new DeploymentNotFoundError();
     }
 
-    const metadata = this.normalizeMetadata(source.metadata);
-
     return this.createDeployment({
       projectId: input.projectId,
       correlationId: input.correlationId,
       commitSha: source.commitSha ?? undefined,
       branch: source.branch ?? undefined,
       serviceName: source.serviceName,
-      runtime: metadata.runtime as CreateDeploymentInput['runtime'],
       metadata: { redeployedFrom: source.id }
     });
   }

@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
 import { ProjectsOnboardingClient } from '@/components/onboarding/projects-onboarding-client';
 import { loadDashboardData } from '@/lib/loaders';
+import { fetchGitHubInstallations, fetchGitHubInstallUrl, fetchGitHubStatus } from '@/lib/api';
 
 import Link from 'next/link';
 import { createProjectAction, triggerDeploymentAction } from './actions';
@@ -25,6 +26,25 @@ interface ProjectsPageProps {
 export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
   const data = await loadDashboardData();
   const projects = data.projects;
+
+  let githubInstallations: Awaited<ReturnType<typeof fetchGitHubInstallations>> = [];
+  let githubInstallUrl: string | null = null;
+
+  if (data.usingLiveData) {
+    try {
+      const status = await fetchGitHubStatus();
+      if (status.configured) {
+        const [installs, urlResult] = await Promise.all([
+          fetchGitHubInstallations().catch(() => []),
+          fetchGitHubInstallUrl().catch(() => null)
+        ]);
+        githubInstallations = installs;
+        githubInstallUrl = urlResult;
+      }
+    } catch {
+      // GitHub App not configured — fall back to manual URL entry
+    }
+  }
 
   return (
     <PageLayout>
@@ -78,6 +98,8 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
         <ProjectCreatePanel
           action={createProjectAction}
           defaultOpen={projects.length === 0 || searchParams?.status === 'error'}
+          githubInstallations={githubInstallations}
+          githubInstallUrl={githubInstallUrl}
         />
       )}
 

@@ -14,6 +14,7 @@ RUN npm --workspace @vcloudrunner/shared-types run build \
   && npm --workspace @vcloudrunner/worker run build
 
 FROM node:20-alpine AS runtime
+RUN apk add --no-cache git docker-cli
 WORKDIR /workspace
 ENV NODE_ENV=production
 

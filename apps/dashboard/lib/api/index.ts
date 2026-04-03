@@ -37,7 +37,7 @@ export {
 
 export { fetchProjectsForCurrentUser, createProject, updateProject, deleteProject } from './projects';
 
-export { fetchDeploymentsForProject, createDeployment, deployAllServices, fetchDeploymentLogs, redeployDeployment, rollbackToDeployment } from './deployments';
+export { fetchDeploymentsForProject, createDeployment, deployAllServices, fetchDeploymentLogs, redeployDeployment, rollbackToDeployment, cancelDeployment } from './deployments';
 
 export {
   fetchProjectMembers,
@@ -95,3 +95,13 @@ export {
 } from './environment';
 
 export { fetchQueueHealth, fetchWorkerHealth, fetchApiHealth } from './health';
+
+export {
+  fetchGitHubStatus,
+  fetchGitHubInstallUrl,
+  registerGitHubInstallation,
+  fetchGitHubInstallations,
+  fetchInstallationRepos,
+  removeGitHubInstallation
+} from './github';
+export type { GitHubInstallation, GitHubRepository } from './github';

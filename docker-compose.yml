@@ -6,6 +6,7 @@ services:
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_API_BASE_URL: http://api:4000
+      NEXT_PUBLIC_PLATFORM_DOMAIN: ${PLATFORM_DOMAIN:-apps.127.0.0.1.nip.io}
       NEXT_PUBLIC_DEMO_USER_ID: ${NEXT_PUBLIC_DEMO_USER_ID:-}
       API_AUTH_TOKEN: ${API_AUTH_TOKEN:-}
     depends_on:
@@ -45,6 +46,14 @@ services:
       DEPLOYMENT_DEFAULT_MEMORY_MB: 512
       DEPLOYMENT_DEFAULT_CPU_MILLICORES: 500
       ENABLE_DEV_AUTH: false
+      API_RATE_LIMIT_MAX: ${API_RATE_LIMIT_MAX:-1000}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      PLATFORM_DOMAIN: ${PLATFORM_DOMAIN:-apps.127.0.0.1.nip.io}
+      GITHUB_APP_SLUG: ${GITHUB_APP_SLUG:-vcloudrunner}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -63,7 +72,7 @@ services:
       context: .
       dockerfile: apps/worker/Dockerfile
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - //var/run/docker.sock:/var/run/docker.sock
       - ./.tmp/deployments:/workspace/.tmp/deployments
     environment:
       NODE_ENV: production
@@ -73,11 +82,12 @@ services:
       DOCKER_SOCKET_PATH: /var/run/docker.sock
       PLATFORM_DOCKER_NETWORK_NAME: vcloudrunner-platform
       WORK_DIR: /workspace/.tmp/deployments
-      PLATFORM_DOMAIN: apps.platform.example.com
+      PLATFORM_DOMAIN: apps.127.0.0.1.nip.io
       CADDY_ADMIN_URL: http://caddy:2019
       DEPLOYMENT_DEFAULT_CONTAINER_PORT: 3000
       DEPLOYMENT_DEFAULT_MEMORY_MB: 512
       DEPLOYMENT_DEFAULT_CPU_MILLICORES: 500
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     depends_on:
       postgres:
         condition: service_healthy

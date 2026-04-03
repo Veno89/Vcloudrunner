@@ -78,3 +78,15 @@ export async function rollbackToDeployment(
 
   return response.data;
 }
+
+export async function cancelDeployment(
+  projectId: string,
+  deploymentId: string
+): Promise<{ status: string }> {
+  const response = await postJson<ApiDataResponse<{ status: string }>>(
+    `/v1/projects/${projectId}/deployments/${deploymentId}/cancel`,
+    {}
+  );
+
+  return response.data;
+}

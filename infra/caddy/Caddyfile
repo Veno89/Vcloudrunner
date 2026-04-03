@@ -3,15 +3,15 @@
   auto_https disable_redirects
 }
 
-http://api.platform.example.com {
+http://api.127.0.0.1.nip.io {
   reverse_proxy api:4000
 }
 
-http://platform.example.com {
+http://127.0.0.1.nip.io {
   reverse_proxy dashboard:3001
 }
 
-http://*.apps.platform.example.com {
+http://*.apps.127.0.0.1.nip.io {
   respond "No deployment route found yet" 404
 }
 

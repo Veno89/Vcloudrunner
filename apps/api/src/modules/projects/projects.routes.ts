@@ -78,7 +78,8 @@ const createProjectSchema = z.object({
   slug: z.string().min(3).max(64).regex(/^[a-z0-9-]+$/),
   gitRepositoryUrl: z.string().url(),
   defaultBranch: z.string().min(1).max(255).optional(),
-  services: projectServicesSchema.optional()
+  services: projectServicesSchema.optional(),
+  githubInstallationId: z.number().int().positive().optional()
 });
 
 const updateProjectSchema = z.object({

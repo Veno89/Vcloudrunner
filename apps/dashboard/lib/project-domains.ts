@@ -78,7 +78,8 @@ function domainStatusPriority(status: ApiProjectDomain['routeStatus']): number {
 }
 
 export function createExpectedProjectDomainHost(project: Pick<ApiProject, 'slug'>): string {
-  return `${project.slug}.apps.platform.example.com`;
+  const domain = process.env.NEXT_PUBLIC_PLATFORM_DOMAIN || 'apps.127.0.0.1.nip.io';
+  return `${project.slug}.${domain}`;
 }
 
 export function sortProjectDomainsForDisplay(

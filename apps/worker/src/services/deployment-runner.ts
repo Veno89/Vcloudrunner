@@ -149,7 +149,8 @@ export class DeploymentRunner {
         branch: job.branch,
         repoDir: workspace.repoDir,
         imageTag,
-        sourceRoot
+        sourceRoot,
+        gitAccessToken: job.gitAccessToken
       });
       imageBuilt = true;
 
