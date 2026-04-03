@@ -109,7 +109,8 @@ export class GitHubAppService {
     const repos: GitHubRepository[] = [];
     let page = 1;
 
-    while (true) {
+    let hasMore = true;
+    while (hasMore) {
       const response = await fetch(
         `${GITHUB_API_BASE}/installation/repositories?per_page=100&page=${page}`,
         {
@@ -151,10 +152,10 @@ export class GitHubAppService {
       }
 
       if (repos.length >= data.total_count) {
-        break;
+        hasMore = false;
+      } else {
+        page++;
       }
-
-      page++;
     }
 
     return repos;

@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 
-import { requireActor, requireScope, assertUserAccess } from '../auth/auth-utils.js';
+import { requireActor, requireScope } from '../auth/auth-utils.js';
 import type { GitHubAppService } from './github-app.service.js';
 
 export function createGitHubRoutes(githubService: GitHubAppService): FastifyPluginAsync {

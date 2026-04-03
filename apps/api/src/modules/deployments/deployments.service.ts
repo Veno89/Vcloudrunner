@@ -4,7 +4,6 @@ import {
   resolveProjectService,
   type DeploymentJobPayload,
   type DeploymentRuntimeConfig,
-  type DeploymentStopJobPayload,
   type HealthCheckConfig,
   type RestartPolicyName
 } from '@vcloudrunner/shared-types';
