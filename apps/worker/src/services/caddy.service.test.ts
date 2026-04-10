@@ -33,13 +33,13 @@ test('upsertRoute sends the expected Caddy route payload with the configured tim
   });
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0]?.url, 'http://caddy.internal:2019/id/vcloudrunner/routes/app.example.test');
+  assert.equal(calls[0]?.url, 'http://caddy.internal:2019/id/vcloudrunner-route-app.example.test');
   assert.equal(calls[0]?.timeoutMs, 10_000);
   assert.equal(calls[0]?.init?.method, 'PUT');
 
   const body = JSON.parse(String(calls[0]?.init?.body));
   assert.deepEqual(body, {
-    '@id': 'vcloudrunner/routes/app.example.test',
+    '@id': 'vcloudrunner-route-app.example.test',
     match: [
       {
         host: ['app.example.test']
@@ -48,13 +48,21 @@ test('upsertRoute sends the expected Caddy route payload with the configured tim
     handle: [
       {
         handler: 'reverse_proxy',
+        headers: {
+          request: {
+            set: {
+              Origin: ['https://app.example.test']
+            }
+          }
+        },
         upstreams: [
           {
             dial: '127.0.0.1:4321'
           }
         ]
       }
-    ]
+    ],
+    terminal: true
   });
 });
 
@@ -134,7 +142,7 @@ test('deleteRoute sends the expected Caddy delete request with the configured ti
   });
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0]?.url, 'http://caddy.internal:2019/id/vcloudrunner/routes/app.example.test');
+  assert.equal(calls[0]?.url, 'http://caddy.internal:2019/id/vcloudrunner-route-app.example.test');
   assert.equal(calls[0]?.timeoutMs, 10_000);
   assert.equal(calls[0]?.init?.method, 'DELETE');
 });

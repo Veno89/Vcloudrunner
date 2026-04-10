@@ -78,6 +78,7 @@ export const WorkerEnvSchema = z.object({
   DEPLOYMENT_RUNTIME_EXECUTOR: z.enum(['docker']).default('docker'),
   WORK_DIR: z.string().default('.tmp/deployments'),
   PLATFORM_DOMAIN: z.string().default('platform.local'),
+  PLATFORM_PUBLIC_URL_SCHEME: z.enum(['http', 'https']).default('https'),
   CADDY_ADMIN_URL: z.string().url().default('http://localhost:2019'),
   DEPLOYMENT_DEFAULT_CONTAINER_PORT: envInteger(z.number().int().min(1).max(65535), 3000),
   DEPLOYMENT_DEFAULT_MEMORY_MB: envInteger(z.number().int().min(64), 512),

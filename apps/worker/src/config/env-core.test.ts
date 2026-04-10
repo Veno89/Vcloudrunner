@@ -12,6 +12,7 @@ test('parseEnv defaults archive deletion flag to false', () => {
   const env = parseEnv(REQUIRED_ENV);
 
   assert.equal(env.DEPLOYMENT_LOG_ARCHIVE_DELETE_LOCAL_AFTER_UPLOAD, false);
+  assert.equal(env.PLATFORM_PUBLIC_URL_SCHEME, 'https');
 });
 
 test('parseEnv honors explicit false string values for worker boolean flags', () => {
@@ -78,4 +79,13 @@ test('parseEnv rejects malformed worker numeric strings', () => {
       }),
     /Expected number/
   );
+});
+
+test('parseEnv allows overriding the public ingress url scheme', () => {
+  const env = parseEnv({
+    ...REQUIRED_ENV,
+    PLATFORM_PUBLIC_URL_SCHEME: 'http'
+  });
+
+  assert.equal(env.PLATFORM_PUBLIC_URL_SCHEME, 'http');
 });

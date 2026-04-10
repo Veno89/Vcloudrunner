@@ -8,6 +8,8 @@ const { env } = await import('../config/env.js');
 const { logger } = await import('../logger/logger.js');
 const { DeploymentRunner } = await import('./deployment-runner.js');
 
+const expectedPublicRuntimeUrl = `${env.PLATFORM_PUBLIC_URL_SCHEME}://demo-project.${env.PLATFORM_DOMAIN}`;
+
 function createRunner() {
   return new DeploymentRunner(
     {
@@ -557,6 +559,7 @@ test('run uses the injected image builder for repository clone and image build o
   assert.deepEqual(cleanupCalls, ['workspace-dir']);
   assert.equal(result.containerId, 'container-123');
   assert.equal(result.projectPath, 'repo-dir/apps/frontend');
+  assert.equal(result.runtimeUrl, expectedPublicRuntimeUrl);
 });
 
 test('run keeps internal services off public host ports and runtime urls', async () => {

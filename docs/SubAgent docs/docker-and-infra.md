@@ -74,9 +74,9 @@ Dashboard builds with `next build` and runs with `next start -p 3001`.
 ### Static Config (`infra/caddy/Caddyfile`)
 
 Caddy is configured with:
-- Auto HTTPS disabled for local dev (`auto_https off`)
 - Admin API on `:2019`
-- HTTP on `:80`
+- Local HTTPS for `127.0.0.1.nip.io`, `api.127.0.0.1.nip.io`, and `*.apps.127.0.0.1.nip.io` via `tls internal`
+- Automatic HTTP to HTTPS redirects for the platform hosts
 - Static routes for `api` and `dashboard` services
 
 ### Dynamic Routes (Caddy Admin API)
@@ -178,6 +178,7 @@ When a repo has no Dockerfile, the worker's `AutoDockerfileDetector` generates `
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `PLATFORM_DOMAIN` | `apps.127.0.0.1.nip.io` | Base domain for deployed apps |
+| `PLATFORM_PUBLIC_URL_SCHEME` | `https` | Public scheme used for runtime URLs and ingress-origin headers |
 | `API_RATE_LIMIT_MAX` | `1000` | API rate limit per window |
 | `GITHUB_APP_ID` | — | GitHub App integration |
 | `GITHUB_CLIENT_ID` | — | GitHub OAuth |

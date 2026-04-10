@@ -82,7 +82,8 @@ services:
       DOCKER_SOCKET_PATH: /var/run/docker.sock
       PLATFORM_DOCKER_NETWORK_NAME: vcloudrunner-platform
       WORK_DIR: /workspace/.tmp/deployments
-      PLATFORM_DOMAIN: apps.127.0.0.1.nip.io
+      PLATFORM_DOMAIN: ${PLATFORM_DOMAIN:-apps.127.0.0.1.nip.io}
+      PLATFORM_PUBLIC_URL_SCHEME: ${PLATFORM_PUBLIC_URL_SCHEME:-https}
       CADDY_ADMIN_URL: http://caddy:2019
       DEPLOYMENT_DEFAULT_CONTAINER_PORT: 3000
       DEPLOYMENT_DEFAULT_MEMORY_MB: 512

@@ -1,6 +1,7 @@
 import { env } from '../config/env.js';
 import type { OutboundHttpClient } from './http/outbound-http-client.js';
 import { OutboundHttpRequestError } from './http/outbound-http-client.js';
+import { buildPublicRuntimeUrl } from './public-url.js';
 
 interface UpsertRouteInput {
   host: string;
@@ -34,7 +35,7 @@ export class CaddyService {
           headers: {
             request: {
               set: {
-                Origin: [`http://${input.host}`]
+                Origin: [buildPublicRuntimeUrl(input.host)]
               }
             }
           },

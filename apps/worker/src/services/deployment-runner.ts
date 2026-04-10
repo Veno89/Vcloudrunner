@@ -7,6 +7,7 @@ import {
 import { env } from '../config/env.js';
 import { logger } from '../logger/logger.js';
 import { normalizeDeploymentSourceRoot } from './deployment-source-root.js';
+import { buildPublicRuntimeUrl } from './public-url.js';
 import type { ContainerRuntimeManager } from './runtime/container-runtime-manager.js';
 import type { DeploymentImageBuilder } from './runtime/deployment-image-builder.js';
 import type {
@@ -187,7 +188,7 @@ export class DeploymentRunner {
         hostPort: startResult.hostPort,
         runtimeUrl:
           shouldPublishPort && startResult.hostPort
-            ? `http://${job.projectSlug}.${env.PLATFORM_DOMAIN}`
+            ? buildPublicRuntimeUrl(`${job.projectSlug}.${env.PLATFORM_DOMAIN}`)
             : null,
         internalPort: containerPort,
         projectPath: workspace.projectPath

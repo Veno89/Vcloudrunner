@@ -1,17 +1,19 @@
 {
   admin 0.0.0.0:2019
-  auto_https disable_redirects
 }
 
-http://api.127.0.0.1.nip.io {
+api.127.0.0.1.nip.io {
+  tls internal
   reverse_proxy api:4000
 }
 
-http://127.0.0.1.nip.io {
+127.0.0.1.nip.io {
+  tls internal
   reverse_proxy dashboard:3001
 }
 
-http://*.apps.127.0.0.1.nip.io {
+*.apps.127.0.0.1.nip.io {
+  tls internal
   respond "No deployment route found yet" 404
 }
 

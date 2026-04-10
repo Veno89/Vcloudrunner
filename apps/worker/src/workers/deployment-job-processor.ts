@@ -8,6 +8,7 @@ import { env } from '../config/env.js';
 import type { DeploymentEventSink } from '../services/deployment-event-sink.js';
 import type { DeploymentEvent } from '../services/deployment-events.js';
 import type { IngressManager } from '../services/ingress/ingress-manager.js';
+import { buildPublicRuntimeUrl } from '../services/public-url.js';
 import type { RuntimeExecutionResult, RuntimeExecutor } from '../services/runtime/runtime-executor.js';
 import { createDeploymentJobProcessorDependencies } from './deployment-job-processor-dependencies.factory.js';
 import { DeploymentFailure, classifyDeploymentFailure } from './deployment-errors.js';
@@ -705,6 +706,6 @@ async function configureRoutesIfNeeded(
   return {
     configuredHosts,
     persistedHosts,
-    runtimeUrl: preferredHost ? `http://${preferredHost}` : null
+    runtimeUrl: preferredHost ? buildPublicRuntimeUrl(preferredHost) : null
   };
 }

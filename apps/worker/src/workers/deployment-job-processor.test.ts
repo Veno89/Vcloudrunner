@@ -28,6 +28,7 @@ const jobData: DeploymentJobPayload = {
   }
 };
 const expectedRouteHost = `${jobData.projectSlug}.${env.PLATFORM_DOMAIN}`;
+const expectedRuntimeUrl = `${env.PLATFORM_PUBLIC_URL_SCHEME}://${expectedRouteHost}`;
 
 function createJob(overrides?: Partial<typeof jobData>) {
   return {
@@ -380,7 +381,7 @@ test('processor configures the default and claimed custom route hosts for public
     'www.example.com'
   ]);
   assert.equal(markRunningCalls.length, 1);
-  assert.equal(markRunningCalls[0]?.runtimeUrl, `http://${expectedRouteHost}`);
+  assert.equal(markRunningCalls[0]?.runtimeUrl, expectedRuntimeUrl);
   assert.deepEqual(markRunningCalls[0]?.routeHosts, [
     expectedRouteHost,
     'app.example.com',
@@ -448,7 +449,7 @@ test('processor keeps failed custom routes pending while preserving successful p
     'www.example.com'
   ]);
   assert.equal(markRunningCalls.length, 1);
-  assert.equal(markRunningCalls[0]?.runtimeUrl, `http://${expectedRouteHost}`);
+  assert.equal(markRunningCalls[0]?.runtimeUrl, expectedRuntimeUrl);
   assert.deepEqual(markRunningCalls[0]?.routeHosts, [
     expectedRouteHost,
     'app.example.com'
