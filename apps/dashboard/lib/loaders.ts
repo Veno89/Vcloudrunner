@@ -191,8 +191,8 @@ export async function loadDashboardData(): Promise<DashboardData> {
       const publicService = getPrimaryProjectService(project.services);
       const serviceSummary =
         project.services.length === 1
-          ? `1 service · public: ${publicService.name}`
-          : `${project.services.length} services · public: ${publicService.name}`;
+          ? `1 service | public: ${publicService.name}`
+          : `${project.services.length} services | public: ${publicService.name}`;
 
       const projectDomainsStatus = projectDomainsResultsByProjectId.get(project.id);
       const routeSummary = summarizeProjectDomains({

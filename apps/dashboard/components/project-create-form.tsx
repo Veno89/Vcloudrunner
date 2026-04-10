@@ -78,93 +78,133 @@ export function ProjectCreateForm({ action, githubInstallations = [], githubInst
   const formInvalid = Boolean(nameError || slugError || urlError || branchError || gitRepositoryUrl.trim().length === 0);
 
   return (
-    <form action={action} className="grid gap-2 rounded-lg border bg-card p-3 md:grid-cols-[1fr_1fr_160px_auto]">
+    <form action={action} className="space-y-5 rounded-2xl border bg-card/70 p-5">
       {githubInstallationId ? (
         <input type="hidden" name="githubInstallationId" value={githubInstallationId} />
       ) : null}
-      <div className="space-y-1">
-        <div className="flex items-center gap-1">
-          <Label htmlFor="project-name" className="text-xs">Project name</Label>
-          <HelpTip label={TIPS.PROJECT_NAME.label} side="right" />
-        </div>
-        <Input
-          id="project-name"
-          type="text"
-          name="name"
-          placeholder="Project name"
-          minLength={3}
-          required
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-        />
-      </div>
-      <div className="space-y-1">
-        <div className="flex items-center gap-1">
-          <Label htmlFor="project-repository" className="text-xs">Repository</Label>
-          <HelpTip label={TIPS.PROJECT_REPO.label} side="right" />
-        </div>
-        {hasGitHub || githubInstallUrl ? (
+
+      <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Basics
+            </p>
+            <h3 className="text-lg font-semibold tracking-tight">Name the project and choose its branch.</h3>
+          </div>
+
           <div className="space-y-2">
-            <GitHubRepoPicker
-              installations={githubInstallations}
-              installUrl={githubInstallUrl}
-              onSelect={handleRepoSelect}
-              onClear={handleRepoClear}
-              selected={selectedRepo}
+            <div className="flex items-center gap-1">
+              <Label htmlFor="project-name" className="text-xs">Project name</Label>
+              <HelpTip label={TIPS.PROJECT_NAME.label} side="right" />
+            </div>
+            <Input
+              id="project-name"
+              type="text"
+              name="name"
+              placeholder="Project name"
+              minLength={3}
+              required
+              value={name}
+              onChange={(event) => setName(event.target.value)}
             />
-            {!selectedRepo ? (
-              <div className="space-y-1">
-                <p className="text-[10px] text-muted-foreground">Or paste a URL manually:</p>
-                <Input
-                  id="project-repository"
-                  type="url"
-                  name="gitRepositoryUrl"
-                  placeholder="https://github.com/org/repo"
-                  value={gitRepositoryUrl}
-                  onChange={(event) => setGitRepositoryUrl(event.target.value)}
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-1">
+              <Label htmlFor="project-branch" className="text-xs">Default branch</Label>
+              <HelpTip label={TIPS.PROJECT_BRANCH.label} side="right" />
+            </div>
+            <Input
+              id="project-branch"
+              type="text"
+              name="defaultBranch"
+              placeholder="main"
+              value={defaultBranch}
+              onChange={(event) => setDefaultBranch(event.target.value)}
+            />
+          </div>
+
+          <div className="rounded-2xl border bg-muted/20 p-4 text-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Slug preview
+            </p>
+            <p className="pt-2 font-mono text-foreground">{slug || '(empty)'}</p>
+            <p className="pt-2 text-xs leading-6 text-muted-foreground">
+              Slugs come from the project name, stay lowercase, and must be globally unique.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Source
+            </p>
+            <h3 className="text-lg font-semibold tracking-tight">Choose the repository to deploy.</h3>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-1">
+              <Label htmlFor="project-repository" className="text-xs">Repository</Label>
+              <HelpTip label={TIPS.PROJECT_REPO.label} side="right" />
+            </div>
+            {hasGitHub || githubInstallUrl ? (
+              <div className="space-y-3">
+                <GitHubRepoPicker
+                  installations={githubInstallations}
+                  installUrl={githubInstallUrl}
+                  onSelect={handleRepoSelect}
+                  onClear={handleRepoClear}
+                  selected={selectedRepo}
                 />
+                {!selectedRepo ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">Or paste a repository URL manually.</p>
+                    <Input
+                      id="project-repository"
+                      type="url"
+                      name="gitRepositoryUrl"
+                      placeholder="https://github.com/org/repo"
+                      value={gitRepositoryUrl}
+                      onChange={(event) => setGitRepositoryUrl(event.target.value)}
+                    />
+                  </div>
+                ) : (
+                  <input type="hidden" name="gitRepositoryUrl" value={gitRepositoryUrl} />
+                )}
               </div>
             ) : (
-              <input type="hidden" name="gitRepositoryUrl" value={gitRepositoryUrl} />
+              <Input
+                id="project-repository"
+                type="url"
+                name="gitRepositoryUrl"
+                placeholder="https://github.com/org/repo"
+                required
+                value={gitRepositoryUrl}
+                onChange={(event) => setGitRepositoryUrl(event.target.value)}
+              />
             )}
           </div>
-        ) : (
-          <Input
-            id="project-repository"
-            type="url"
-            name="gitRepositoryUrl"
-            placeholder="https://github.com/org/repo"
-            required
-            value={gitRepositoryUrl}
-            onChange={(event) => setGitRepositoryUrl(event.target.value)}
-          />
-        )}
-      </div>
-      <div className="space-y-1">
-        <div className="flex items-center gap-1">
-          <Label htmlFor="project-branch" className="text-xs">Default branch</Label>
-          <HelpTip label={TIPS.PROJECT_BRANCH.label} side="right" />
+
+          <div className="rounded-2xl border bg-muted/20 p-4 text-xs leading-6 text-muted-foreground">
+            New projects start with one public <span className="font-mono text-foreground">app</span> service.
+            You can add more services and richer compositions after the project exists.
+          </div>
         </div>
-        <Input
-          id="project-branch"
-          type="text"
-          name="defaultBranch"
-          placeholder="main"
-          value={defaultBranch}
-          onChange={(event) => setDefaultBranch(event.target.value)}
-        />
       </div>
-      <FormSubmitButton idleText="Create Project" pendingText="Creating..." disabled={formInvalid} />
-      <div className="space-y-1 text-xs text-muted-foreground md:col-span-4">
-        <p>
-          Slug preview: <span className="font-mono text-foreground">{slug || '(empty)'}</span>
-        </p>
-        <p>Slugs are derived from project name (lowercase + hyphens) and must be globally unique.</p>
-        <p>New projects start with one public <span className="font-mono text-foreground">app</span> service and can grow into multi-service compositions later.</p>
+
+      <div className="space-y-2 text-sm">
         {nameError ? <p className="text-destructive">{nameError}</p> : null}
         {slugError ? <p className="text-destructive">{slugError}</p> : null}
         {urlError ? <p className="text-destructive">{urlError}</p> : null}
         {branchError ? <p className="text-destructive">{branchError}</p> : null}
+      </div>
+
+      <div className="flex flex-col gap-3 border-t pt-4 md:flex-row md:items-center md:justify-between">
+        <p className="text-sm text-muted-foreground">
+          When you create the project, Vcloudrunner will save the repo, branch, and default service layout for you.
+        </p>
+        <FormSubmitButton idleText="Create Project" pendingText="Creating..." disabled={formInvalid} />
       </div>
     </form>
   );
