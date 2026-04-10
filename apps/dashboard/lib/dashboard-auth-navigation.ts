@@ -1,3 +1,5 @@
+export type DashboardPlan = 'free' | 'pro';
+
 export function normalizeDashboardRedirectTarget(
   value: string | null | undefined,
   fallback = '/settings/account'
@@ -12,6 +14,14 @@ export function normalizeDashboardRedirectTarget(
   }
 
   return normalized;
+}
+
+export function normalizeDashboardPlan(
+  value: string | null | undefined,
+  fallback: DashboardPlan = 'free'
+): DashboardPlan {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return normalized === 'pro' ? 'pro' : fallback;
 }
 
 export function buildDashboardSignInHref(input?: {
@@ -30,6 +40,24 @@ export function buildDashboardSignInHref(input?: {
 
   const query = params.toString();
   return query.length > 0 ? `/sign-in?${query}` : '/sign-in';
+}
+
+export function buildDashboardRegisterHref(input?: {
+  redirectTo?: string | null;
+  plan?: DashboardPlan | null;
+}): string {
+  const params = new URLSearchParams();
+
+  if (input?.redirectTo) {
+    params.set('redirectTo', input.redirectTo);
+  }
+
+  if (input?.plan) {
+    params.set('plan', normalizeDashboardPlan(input.plan));
+  }
+
+  const query = params.toString();
+  return query.length > 0 ? `/register?${query}` : '/register';
 }
 
 export function buildDashboardAccountSetupHref(input?: {

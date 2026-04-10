@@ -12,6 +12,7 @@ Next.js dashboard scaffold for the single-node Vcloudrunner MVP.
 - settings account/session surface that shows the resolved viewer, available profile details, and current auth source from `/v1/auth/me`
 - interactive dashboard sign-in flow that stores a per-user API token in an httpOnly session cookie and treats the server env token as a fallback path only
 - persisted-user account setup flow for bootstrap/dev actors before they move into normal DB-backed token and project-creation workflows
+- public landing page with a friendlier sign-up/sign-in flow and pricing placeholders (`Free` live today, `Pro` still placeholder-only)
 
 ## Next
 
@@ -26,5 +27,6 @@ Next.js dashboard scaffold for the single-node Vcloudrunner MVP.
   - keep this unset in normal token-backed flows; set it only when you explicitly want local dev-auth requests to impersonate a specific user ID
 - `API_AUTH_TOKEN` (optional server-side bearer-token fallback used only when no dashboard session cookie is present)
   - prefer per-user sign-in sessions for normal operator workflows; the env token is just a shared fallback path
+  - protected dashboard pages no longer auto-open in the browser just because this server fallback exists; browser navigation should move through sign-in and the resulting session cookie
   - prefer a DB-backed token from `/v1/users/:userId/api-tokens`; bootstrap tokens from `API_TOKENS_JSON` should mainly be used to reach account setup and mint the real DB-backed tokens afterwards
   - `dev-admin-token` is only valid when the API has `ENABLE_DEV_AUTH=true`, which should remain a local-only opt-in bypass

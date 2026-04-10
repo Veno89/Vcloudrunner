@@ -39,5 +39,17 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: "Aptos", "Trebuchet MS", "Segoe UI", sans-serif;
+  }
+
+  ::selection {
+    background-color: hsl(var(--info) / 0.35);
+    color: hsl(var(--foreground));
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: "Aptos Display", "Aptos", "Trebuchet MS", "Segoe UI", sans-serif;
   }
 }

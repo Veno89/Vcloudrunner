@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 const PUBLIC_PATHS = [
+  '/',
   '/sign-in',
   '/register',
   '/invitations',
@@ -21,10 +22,9 @@ export function middleware(request: NextRequest) {
   }
 
   const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const envToken = process.env.API_AUTH_TOKEN?.trim();
   const demoUserId = process.env.NEXT_PUBLIC_DEMO_USER_ID?.trim();
 
-  if (sessionToken || envToken || demoUserId) {
+  if (sessionToken || demoUserId) {
     return NextResponse.next();
   }
 
