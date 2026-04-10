@@ -1,5 +1,6 @@
 'use client';
 
+import { Loader2 } from 'lucide-react';
 import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import type { ButtonProps } from '@/components/ui/button';
@@ -19,7 +20,12 @@ export function FormSubmitButton({
 
   return (
     <Button type="submit" disabled={disabled || pending} {...buttonProps}>
-      {pending ? (pendingText ?? 'Working...') : idleText}
+      {pending ? (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          {pendingText ?? 'Working...'}
+        </>
+      ) : idleText}
     </Button>
   );
 }

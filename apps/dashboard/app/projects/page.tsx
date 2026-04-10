@@ -1,6 +1,5 @@
 import { ProjectCard } from '@/components/project-card';
 import { ProjectCreatePanel } from '@/components/project-create-panel';
-import { Button } from '@/components/ui/button';
 import { ActionToast } from '@/components/action-toast';
 import { DashboardAuthRequiredState } from '@/components/dashboard-auth-required-state';
 import { EmptyState } from '@/components/empty-state';
@@ -13,7 +12,6 @@ import { ProjectsOnboardingClient } from '@/components/onboarding/projects-onboa
 import { loadDashboardData } from '@/lib/loaders';
 import { fetchGitHubInstallations, fetchGitHubInstallUrl, fetchGitHubStatus } from '@/lib/api';
 
-import Link from 'next/link';
 import { createProjectAction, triggerDeploymentAction } from './actions';
 
 interface ProjectsPageProps {
@@ -138,6 +136,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             {projects.map((project) => (
               <ProjectCard
                 key={project.id}
+                href={data.usingLiveData ? `/projects/${project.id}` : undefined}
                 name={project.name}
                 repo={project.repo}
                 domain={project.domain}
@@ -147,22 +146,17 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
                 status={project.status}
                 statusVariant={project.statusVariant}
                 actions={data.usingLiveData ? (
-                  <>
-                    <Button asChild variant="ghost" size="sm" className="w-full justify-center sm:justify-start">
-                      <Link href={`/projects/${project.id}`}>Open Project</Link>
-                    </Button>
-                    <form action={triggerDeploymentAction}>
-                      <input name="projectId" value={project.id} type="hidden" readOnly />
-                      <input name="projectName" value={project.name} type="hidden" readOnly />
-                      <FormSubmitButton
-                        idleText="Deploy"
-                        pendingText="Deploying..."
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                      />
-                    </form>
-                  </>
+                  <form action={triggerDeploymentAction}>
+                    <input name="projectId" value={project.id} type="hidden" readOnly />
+                    <input name="projectName" value={project.name} type="hidden" readOnly />
+                    <FormSubmitButton
+                      idleText="Deploy"
+                      pendingText="Deploying..."
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                    />
+                  </form>
                 ) : null}
               />
             ))}

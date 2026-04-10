@@ -1,9 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import {
-  buildProjectServiceInternalHostname,
-  getPrimaryProjectService
-} from '@vcloudrunner/shared-types';
+import { getPrimaryProjectService } from '@vcloudrunner/shared-types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +14,8 @@ import { FormSubmitButton } from '@/components/form-submit-button';
 import { ActionToast } from '@/components/action-toast';
 import { PageLayout } from '@/components/page-layout';
 import { ProjectTourClient } from '@/components/onboarding/project-tour-client';
+import { ProjectOverviewMetrics } from '@/components/project-overview-metrics';
+import { ProjectServiceRuntimeCard } from '@/components/project-service-runtime-card';
 import {
   apiAuthToken,
   fetchProjectDatabases,
@@ -42,7 +41,7 @@ import {
 } from '@/lib/project-service-status';
 import { summarizeProjectDomains } from '@/lib/project-domains';
 import { summarizeProjectDatabases } from '@/lib/project-databases';
-import { deployProjectAction, deployAllServicesAction } from '@/app/deployments/actions';
+import { deployAllServicesAction } from '@/app/deployments/actions';
 import {
   deleteProjectAction,
 } from '@/app/projects/actions';
@@ -173,6 +172,8 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
       );
 
     const latestDeployment = sortedDeployments[0] ?? null;
+    const domainCount = projectDomainsReadErrorMessage ? null : Math.max(projectDomains.length, 1);
+    const latestDeploymentRelative = latestDeployment ? formatRelativeTime(latestDeployment.createdAt) : null;
     let latestLogs: Array<{ level: string; message: string; timestamp: string }> = [];
     let latestLogsErrorMessage: string | null = null;
 
@@ -230,199 +231,155 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
           fallbackErrorMessage="Project action failed."
         />
 
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Deployments</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {deploymentReadErrorMessage ? (
-                <>
-                  <p className="text-2xl font-semibold">Unavailable</p>
-                  <p className="text-xs text-muted-foreground">Deployment history could not be loaded.</p>
-                </>
-              ) : (
-                <p className="text-2xl font-semibold">{sortedDeployments.length}</p>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Environment Variables</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {environmentReadErrorMessage ? (
-                <>
-                  <p className="text-2xl font-semibold">Unavailable</p>
-                  <p className="text-xs text-muted-foreground">Environment variables could not be loaded.</p>
-                </>
-              ) : (
-                <p className="text-2xl font-semibold">{environmentVariables.length}</p>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Service Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {deploymentReadErrorMessage ? (
-                <p className="text-muted-foreground">Unavailable</p>
-              ) : (
-                <div className="space-y-2">
-                  <Badge variant={composedProjectStatus.variant}>{composedProjectStatus.label}</Badge>
-                  <p className="text-xs text-muted-foreground">{composedServiceStatusBreakdown}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Databases</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {projectDatabasesReadErrorMessage ? (
-                <>
-                  <p className="text-2xl font-semibold">Unavailable</p>
-                  <p className="text-xs text-muted-foreground">Managed databases could not be loaded.</p>
-                </>
-              ) : (
-                <div className="space-y-2">
-                  <p className="text-2xl font-semibold">{projectDatabases.length}</p>
-                  <Badge variant={databaseSummary.variant}>{databaseSummary.label}</Badge>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-sm">Services</CardTitle>
-            {project.services.length > 1 && (
-              <form action={deployAllServicesAction}>
-                <input type="hidden" name="projectId" value={project.id} />
-                <input type="hidden" name="returnPath" value={`/projects/${project.id}`} />
-                <FormSubmitButton
-                  idleText="Deploy All"
-                  pendingText="Deploying..."
-                  variant="outline"
-                  size="sm"
-                />
-              </form>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Project environment variables remain shared at the project level. Deployments now also receive generated `VCLOUDRUNNER_SERVICE_*` discovery variables plus a stable internal host per service on the worker network.
-            </p>
-            <div className="space-y-2">
-              {project.services.map((service) => {
-                const serviceStatus = serviceStatusesByName.get(service.name) ?? null;
-                const runtimeDetails = [
-                  typeof service.runtime?.containerPort === 'number'
-                    ? `port ${service.runtime.containerPort}`
-                    : null,
-                  typeof service.runtime?.memoryMb === 'number'
-                    ? `${service.runtime.memoryMb}MB`
-                    : null,
-                  typeof service.runtime?.cpuMillicores === 'number'
-                    ? `${service.runtime.cpuMillicores}m CPU`
-                    : null
-                ].filter((value): value is string => Boolean(value));
+        <ProjectOverviewMetrics
+          statusLabel={composedProjectStatus.label}
+          statusVariant={composedProjectStatus.variant}
+          statusBreakdown={composedServiceStatusBreakdown}
+          deploymentCount={deploymentReadErrorMessage ? null : sortedDeployments.length}
+          latestDeploymentRelative={latestDeploymentRelative}
+          domainCount={domainCount}
+          primaryHost={routeSummary.host}
+          routeLabel={routeSummary.label}
+          routeVariant={routeSummary.variant}
+        />
 
-                return (
-                  <div
+        <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+          <Card className="rounded-2xl border-border/80">
+            <CardHeader className="flex flex-row items-center justify-between gap-3">
+              <div className="space-y-1">
+                <CardTitle className="text-base">Services</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Operational details stay here. Lower-frequency configuration counts move to the side.
+                </p>
+              </div>
+              {project.services.length > 1 && (
+                <form action={deployAllServicesAction}>
+                  <input type="hidden" name="projectId" value={project.id} />
+                  <input type="hidden" name="returnPath" value={`/projects/${project.id}`} />
+                  <FormSubmitButton
+                    idleText="Deploy All"
+                    pendingText="Deploying..."
+                    variant="outline"
+                    size="sm"
+                  />
+                </form>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+                Project environment variables remain shared at the project level. Deployments also receive generated
+                <span className="font-mono text-foreground"> VCLOUDRUNNER_SERVICE_* </span>
+                discovery variables plus a stable internal host per service on the worker network.
+              </div>
+
+              <div className="space-y-3">
+                {project.services.map((service) => (
+                  <ProjectServiceRuntimeCard
                     key={service.name}
-                    className="rounded-md border px-3 py-2"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium">{service.name}</p>
-                        <Badge variant={service.exposure === 'public' ? 'default' : 'secondary'}>
-                          {service.exposure}
-                        </Badge>
-                        <Badge variant="outline">{service.kind}</Badge>
-                        {service.name === primaryService.name ? (
-                          <Badge variant="secondary">primary</Badge>
-                        ) : null}
-                        {deploymentReadErrorMessage ? (
-                          <Badge variant="warning">history unavailable</Badge>
-                        ) : serviceStatus?.deploymentStatus ? (
-                          <DeploymentStatusBadges
-                            status={serviceStatus.deploymentStatus}
-                            cancellationRequested={serviceStatus.cancellationRequested}
-                          />
-                        ) : (
-                          <Badge variant="secondary">no deployments</Badge>
-                        )}
-                      </div>
-                      <form action={deployProjectAction}>
-                        <input type="hidden" name="projectId" value={project.id} readOnly />
-                        <input type="hidden" name="projectName" value={project.name} readOnly />
-                        <input type="hidden" name="serviceName" value={service.name} readOnly />
-                        <input type="hidden" name="returnPath" value={`/projects/${project.id}`} readOnly />
-                        <FormSubmitButton
-                          idleText={`Deploy ${service.name}`}
-                          pendingText="Deploying..."
-                          variant={service.name === primaryService.name ? 'default' : 'outline'}
-                          size="sm"
-                        />
-                      </form>
+                    projectId={project.id}
+                    projectName={project.name}
+                    projectSlug={project.slug}
+                    service={service}
+                    primaryServiceName={primaryService.name}
+                    deploymentHistoryUnavailable={Boolean(deploymentReadErrorMessage)}
+                    serviceStatus={serviceStatusesByName.get(service.name) ?? null}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="space-y-4">
+            <Card className="rounded-2xl border-border/80">
+              <CardHeader>
+                <CardTitle className="text-base">Configuration Snapshot</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3">
+                <div className="rounded-2xl border bg-background/70 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Environment Variables
+                  </p>
+                  {environmentReadErrorMessage ? (
+                    <div className="pt-2 space-y-1">
+                      <p className="text-2xl font-semibold">Unavailable</p>
+                      <p className="text-xs text-muted-foreground">Environment variables could not be loaded.</p>
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Source root: <span className="font-mono text-foreground">{service.sourceRoot}</span>
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Internal host: <span className="font-mono text-foreground">{buildProjectServiceInternalHostname(project.slug, service.name)}</span>
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Deployment status:{' '}
-                      {deploymentReadErrorMessage
-                        ? 'history unavailable'
-                        : serviceStatus
-                          ? serviceStatus.statusText
-                          : 'no deployments'}
-                      {serviceStatus?.latestDeployment
-                        ? ` | latest ${formatRelativeTime(serviceStatus.latestDeployment.createdAt)}`
-                        : ''}
-                    </p>
-                    {serviceStatus?.latestDeployment?.runtimeUrl ? (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Public URL:{' '}
-                        <a
-                          href={serviceStatus.latestDeployment.runtimeUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-primary underline-offset-4 hover:underline"
-                        >
-                          {serviceStatus.latestDeployment.runtimeUrl}
-                        </a>
+                  ) : (
+                    <div className="pt-2 space-y-1">
+                      <p className="text-2xl font-semibold">{environmentVariables.length}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Project-wide configuration shared across services.
                       </p>
-                    ) : null}
-                    {serviceStatus?.latestDeployment ? (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Latest deployment:{' '}
-                        <Link
-                          href={`/deployments/${serviceStatus.latestDeployment.id}`}
-                          className="text-primary underline-offset-4 hover:underline"
-                        >
-                          {truncateUuid(serviceStatus.latestDeployment.id)}
-                        </Link>
-                      </p>
-                    ) : (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        This service has not been deployed yet.
-                      </p>
-                    )}
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Runtime defaults: {runtimeDetails.length > 0 ? runtimeDetails.join(' | ') : 'platform defaults'}
-                    </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border bg-background/70 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Managed Databases
+                  </p>
+                  {projectDatabasesReadErrorMessage ? (
+                    <div className="pt-2 space-y-1">
+                      <p className="text-2xl font-semibold">Unavailable</p>
+                      <p className="text-xs text-muted-foreground">Managed databases could not be loaded.</p>
+                    </div>
+                  ) : (
+                    <div className="pt-2 space-y-2">
+                      <p className="text-2xl font-semibold">{projectDatabases.length}</p>
+                      <Badge variant={databaseSummary.variant} className="w-fit">
+                        {databaseSummary.label}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl border-border/80">
+              <CardHeader>
+                <CardTitle className="text-base">Recent Deployments</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {deploymentReadErrorMessage ? (
+                  <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
+                    <p className="font-medium text-destructive">Recent deployments unavailable</p>
+                    <p className="mt-1 text-xs">{deploymentReadErrorMessage}</p>
                   </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+                ) : sortedDeployments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No deployments yet for this project.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {sortedDeployments.slice(0, 8).map((deployment) => (
+                      <div
+                        key={deployment.id}
+                        className="flex items-center justify-between rounded-2xl border bg-background/70 px-3 py-3"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-mono text-xs">{truncateUuid(deployment.id)}</p>
+                            <Badge variant="outline">{deployment.serviceName ?? 'app'}</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground" title={new Date(deployment.createdAt).toLocaleString()}>
+                            {formatRelativeTime(deployment.createdAt)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <DeploymentStatusBadges
+                            status={deployment.status}
+                            cancellationRequested={hasRequestedCancellation(deployment.metadata)}
+                          />
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/deployments/${deployment.id}`}>View</Link>
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
 
         <Card className="border-destructive/30">
           <CardHeader>
@@ -497,50 +454,6 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                 </div>
               </form>
             ) : null}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Recent Deployments</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {deploymentReadErrorMessage ? (
-              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
-                <p className="font-medium text-destructive">Recent deployments unavailable</p>
-                <p className="mt-1 text-xs">{deploymentReadErrorMessage}</p>
-              </div>
-            ) : sortedDeployments.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No deployments yet for this project.</p>
-            ) : (
-              <div className="space-y-2">
-                {sortedDeployments.slice(0, 10).map((deployment) => (
-                  <div
-                    key={deployment.id}
-                    className="flex items-center justify-between rounded-md border px-3 py-2"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-mono text-xs">{truncateUuid(deployment.id)}</p>
-                        <Badge variant="outline">{deployment.serviceName ?? 'app'}</Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground" title={new Date(deployment.createdAt).toLocaleString()}>
-                        {formatRelativeTime(deployment.createdAt)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <DeploymentStatusBadges
-                        status={deployment.status}
-                        cancellationRequested={hasRequestedCancellation(deployment.metadata)}
-                      />
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/deployments/${deployment.id}`}>View</Link>
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </CardContent>
         </Card>
 

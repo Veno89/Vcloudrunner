@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { FolderGit2, Globe, ServerCog } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import type { DashboardStatusBadgeVariant } from '@/lib/project-service-status';
 
 interface ProjectCardProps {
+  href?: string;
   name: string;
   repo: string;
   domain: string;
@@ -32,6 +34,7 @@ function formatRepositoryLabel(repo: string): { host: string; path: string } {
 }
 
 export function ProjectCard({
+  href,
   name,
   repo,
   domain,
@@ -43,9 +46,8 @@ export function ProjectCard({
   actions
 }: ProjectCardProps) {
   const repository = formatRepositoryLabel(repo);
-
-  return (
-    <Card className="h-full rounded-2xl border-border/80">
+  const content = (
+    <>
       <CardHeader className="space-y-4 pb-4">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
@@ -107,6 +109,19 @@ export function ProjectCard({
           </div>
         </div>
       </CardContent>
+    </>
+  );
+
+  return (
+    <Card className="group h-full rounded-2xl border-border/80 transition-all duration-200 hover:-translate-y-1 hover:border-primary/30 hover:shadow-[0_16px_48px_rgba(15,23,42,0.18)]">
+      {href ? (
+        <Link
+          href={href}
+          className="block rounded-t-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          {content}
+        </Link>
+      ) : content}
 
       {actions ? (
         <CardFooter className="grid gap-2 border-t bg-muted/10">
