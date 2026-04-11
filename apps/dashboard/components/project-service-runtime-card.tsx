@@ -55,12 +55,12 @@ function ServiceProperty({
   monospace?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border bg-background/70 p-4">
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-        <Icon className="h-4 w-4" />
+    <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+        <Icon className="h-4 w-4 text-slate-300" />
         {label}
       </div>
-      <p className={`pt-2 text-sm ${tone === 'primary' ? 'text-primary' : 'text-foreground'} ${monospace ? 'font-mono text-xs' : ''}`}>
+      <p className={`pt-2 text-sm ${tone === 'primary' ? 'text-sky-200' : 'text-slate-100'} ${monospace ? 'font-mono text-xs' : ''}`}>
         {value}
       </p>
     </div>
@@ -79,12 +79,12 @@ export function ProjectServiceRuntimeCard({
   const latestDeployment = serviceStatus?.latestDeployment ?? null;
 
   return (
-    <Card className="rounded-2xl border-border/80">
-      <CardHeader className="space-y-4">
+    <Card className="rounded-[2rem] border-white/10 bg-slate-950/60 shadow-[0_24px_64px_rgba(2,6,23,0.22)] backdrop-blur-xl">
+      <CardHeader className="space-y-4 border-b border-white/10">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <CardTitle className="text-lg">{service.name}</CardTitle>
+              <CardTitle className="text-lg text-white">{service.name}</CardTitle>
               <Badge variant={service.exposure === 'public' ? 'default' : 'secondary'}>
                 {service.exposure}
               </Badge>
@@ -103,7 +103,7 @@ export function ProjectServiceRuntimeCard({
                 <Badge variant="secondary">no deployments</Badge>
               )}
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm leading-7 text-slate-400">
               {deploymentHistoryUnavailable
                 ? 'Deployment history is temporarily unavailable for this service.'
                 : serviceStatus
@@ -122,6 +122,7 @@ export function ProjectServiceRuntimeCard({
               pendingText="Deploying..."
               variant={service.name === primaryServiceName ? 'default' : 'outline'}
               size="sm"
+              className={service.name === primaryServiceName ? 'bg-sky-300 text-slate-950 hover:bg-sky-200' : 'border-white/10 bg-white/[0.03] text-slate-100 hover:bg-white/[0.08]'}
             />
           </form>
         </div>
@@ -155,26 +156,26 @@ export function ProjectServiceRuntimeCard({
           />
         </div>
 
-        <div className="rounded-2xl border bg-muted/20 p-4">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            <Rocket className="h-4 w-4" />
+        <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+            <Rocket className="h-4 w-4 text-amber-300" />
             Latest Deployment
           </div>
           {latestDeployment ? (
             <div className="pt-3 space-y-2">
-              <p className="text-sm text-foreground">
+              <p className="text-sm text-slate-100">
                 Latest deployment {formatRelativeTime(latestDeployment.createdAt)}
               </p>
               <Link
                 href={`/deployments/${latestDeployment.id}`}
-                className="inline-flex items-center gap-2 text-sm text-primary underline-offset-4 hover:underline"
+                className="inline-flex items-center gap-2 text-sm text-sky-200 underline-offset-4 hover:underline"
               >
                 <Cpu className="h-4 w-4" />
                 {truncateUuid(latestDeployment.id)}
               </Link>
             </div>
           ) : (
-            <p className="pt-3 text-sm text-muted-foreground">
+            <p className="pt-3 text-sm text-slate-400">
               Trigger a deployment to populate runtime details and public URLs.
             </p>
           )}

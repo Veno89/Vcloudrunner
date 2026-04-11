@@ -85,20 +85,38 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
 
   return (
     <div className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Services</p>
+          <p className="pt-2 text-2xl font-semibold text-white">{services.length}</p>
+          <p className="pt-1 text-xs text-slate-500">Deployable units in this project</p>
+        </div>
+        <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Public services</p>
+          <p className="pt-2 text-2xl font-semibold text-white">{publicCount}</p>
+          <p className="pt-1 text-xs text-slate-500">Exactly one public web service is required</p>
+        </div>
+        <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Validation</p>
+          <p className="pt-2 text-2xl font-semibold text-white">{isValid ? 'Ready' : 'Needs care'}</p>
+          <p className="pt-1 text-xs text-slate-500">We check naming, exposure, and topology rules before save</p>
+        </div>
+      </div>
+
       {services.map((service) => {
         const isExpanded = expandedId === service.id;
         const isDuplicate = duplicateNames.has(service.name);
         const isPublic = service.exposure === 'public';
 
         return (
-          <div key={service.id} className="rounded-md border px-3 py-2 space-y-2">
+          <div key={service.id} className="space-y-2 rounded-[1.5rem] border border-white/10 bg-white/[0.04] px-4 py-4 shadow-[0_18px_48px_rgba(2,6,23,0.18)]">
             <div className="flex items-center justify-between gap-2">
               <button
                 type="button"
-                className="flex items-center gap-2 text-left flex-1 min-w-0"
+                className="flex min-w-0 flex-1 items-center gap-2 text-left"
                 onClick={() => setExpandedId(isExpanded ? null : service.id)}
               >
-                <span className="font-medium truncate">{service.name || '(unnamed)'}</span>
+                <span className="truncate font-medium text-slate-100">{service.name || '(unnamed)'}</span>
                 <Badge variant={isPublic ? 'default' : 'secondary'} className="text-xs">
                   {service.exposure}
                 </Badge>
@@ -118,33 +136,35 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
             </div>
 
             {isExpanded && (
-              <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+              <div className="grid grid-cols-2 gap-3 border-t border-white/10 pt-3">
                 <div className="space-y-1">
-                  <Label className="text-xs">Name</Label>
+                  <Label className="text-xs uppercase tracking-[0.18em] text-slate-300">Name</Label>
                   <Input
                     value={service.name}
                     onChange={(e) => updateService(service.id, { name: e.target.value.toLowerCase() })}
                     placeholder="e.g. api, frontend, worker"
-                    className={isDuplicate || (service.name.length > 0 && !/^[a-z][a-z0-9-]*$/.test(service.name)) ? 'border-destructive' : ''}
+                    className={`h-11 rounded-2xl border-white/10 bg-slate-950/80 text-slate-100 ${isDuplicate || (service.name.length > 0 && !/^[a-z][a-z0-9-]*$/.test(service.name)) ? 'border-destructive' : ''}`}
                   />
                   {isDuplicate && <p className="text-xs text-destructive">Name must be unique</p>}
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Source Root</Label>
+                  <Label className="text-xs uppercase tracking-[0.18em] text-slate-300">Source Root</Label>
                   <Input
                     value={service.sourceRoot}
                     onChange={(e) => updateService(service.id, { sourceRoot: e.target.value })}
                     placeholder="."
+                    className="h-11 rounded-2xl border-white/10 bg-slate-950/80 text-slate-100"
                   />
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
-                    <Label className="text-xs">Kind</Label>
+                    <Label className="text-xs uppercase tracking-[0.18em] text-slate-300">Kind</Label>
                     <HelpTip label={TIPS.SERVICE_KIND.label} side="top" />
                   </div>
                   <Select
                     value={service.kind}
                     onChange={(e) => updateService(service.id, { kind: e.target.value as 'web' | 'worker' })}
+                    className="h-11 rounded-2xl border-white/10 bg-slate-950/80 text-slate-100"
                   >
                     <option value="web">Web</option>
                     <option value="worker">Worker</option>
@@ -152,12 +172,13 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
-                    <Label className="text-xs">Exposure</Label>
+                    <Label className="text-xs uppercase tracking-[0.18em] text-slate-300">Exposure</Label>
                     <HelpTip label={TIPS.SERVICE_EXPOSURE.label} side="top" />
                   </div>
                   <Select
                     value={service.exposure}
                     onChange={(e) => updateService(service.id, { exposure: e.target.value as 'public' | 'internal' })}
+                    className="h-11 rounded-2xl border-white/10 bg-slate-950/80 text-slate-100"
                   >
                     <option value="public">Public</option>
                     <option value="internal">Internal</option>
@@ -165,7 +186,7 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
-                    <Label className="text-xs">Container Port</Label>
+                    <Label className="text-xs uppercase tracking-[0.18em] text-slate-300">Container Port</Label>
                     <HelpTip label={TIPS.CONTAINER_PORT.label} side="top" />
                   </div>
                   <Input
@@ -176,11 +197,12 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                       updateService(service.id, { runtime: { ...service.runtime, containerPort: val } });
                     }}
                     placeholder="Default"
+                    className="h-11 rounded-2xl border-white/10 bg-slate-950/80 text-slate-100"
                   />
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
-                    <Label className="text-xs">Memory (MB)</Label>
+                    <Label className="text-xs uppercase tracking-[0.18em] text-slate-300">Memory (MB)</Label>
                     <HelpTip label={TIPS.MEMORY_MB.label} side="top" />
                   </div>
                   <Input
@@ -191,11 +213,12 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                       updateService(service.id, { runtime: { ...service.runtime, memoryMb: val } });
                     }}
                     placeholder="Default"
+                    className="h-11 rounded-2xl border-white/10 bg-slate-950/80 text-slate-100"
                   />
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
-                    <Label className="text-xs">Restart Policy</Label>
+                    <Label className="text-xs uppercase tracking-[0.18em] text-slate-300">Restart Policy</Label>
                     <HelpTip label={TIPS.RESTART_POLICY.label} side="top" />
                   </div>
                   <Select
@@ -204,6 +227,7 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                       const val = e.target.value as 'no' | 'always' | 'unless-stopped' | 'on-failure';
                       updateService(service.id, { runtime: { ...service.runtime, restartPolicy: val } });
                     }}
+                    className="h-11 rounded-2xl border-white/10 bg-slate-950/80 text-slate-100"
                   >
                     <option value="unless-stopped">Unless Stopped</option>
                     <option value="always">Always</option>
@@ -211,14 +235,14 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                     <option value="no">No</option>
                   </Select>
                 </div>
-                <div className="col-span-2 space-y-2 border-t pt-2">
+                <div className="col-span-2 space-y-2 border-t border-white/10 pt-3">
                   <div className="flex items-center gap-1">
-                    <Label className="text-xs font-medium">Health Check (optional)</Label>
+                    <Label className="text-xs font-medium uppercase tracking-[0.18em] text-slate-300">Health Check (optional)</Label>
                     <HelpTip label={TIPS.HEALTH_CHECK_COMMAND.label} side="top" />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="col-span-2 space-y-1">
-                      <Label className="text-xs">Command</Label>
+                      <Label className="text-xs uppercase tracking-[0.18em] text-slate-300">Command</Label>
                       <Input
                         value={service.runtime?.healthCheck?.command ?? ''}
                         onChange={(e) => {
@@ -244,13 +268,14 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                           }
                         }}
                         placeholder="curl -f http://localhost:3000/health || exit 1"
+                        className="h-11 rounded-2xl border-white/10 bg-slate-950/80 text-slate-100"
                       />
                     </div>
                     {service.runtime?.healthCheck?.command && (
                       <>
                         <div className="space-y-1">
                           <div className="flex items-center gap-1">
-                            <Label className="text-xs">Interval (seconds)</Label>
+                            <Label className="text-xs uppercase tracking-[0.18em] text-slate-300">Interval (seconds)</Label>
                             <HelpTip label={TIPS.HEALTH_CHECK_INTERVAL.label} side="top" />
                           </div>
                           <Input
@@ -262,11 +287,12 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                                 healthCheck: { ...service.runtime!.healthCheck!, intervalSeconds: Number(e.target.value) || 30 }
                               }
                             })}
+                            className="h-11 rounded-2xl border-white/10 bg-slate-950/80 text-slate-100"
                           />
                         </div>
                         <div className="space-y-1">
                           <div className="flex items-center gap-1">
-                            <Label className="text-xs">Timeout (seconds)</Label>
+                            <Label className="text-xs uppercase tracking-[0.18em] text-slate-300">Timeout (seconds)</Label>
                             <HelpTip label={TIPS.HEALTH_CHECK_TIMEOUT.label} side="top" />
                           </div>
                           <Input
@@ -278,11 +304,12 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                                 healthCheck: { ...service.runtime!.healthCheck!, timeoutSeconds: Number(e.target.value) || 5 }
                               }
                             })}
+                            className="h-11 rounded-2xl border-white/10 bg-slate-950/80 text-slate-100"
                           />
                         </div>
                         <div className="space-y-1">
                           <div className="flex items-center gap-1">
-                            <Label className="text-xs">Retries</Label>
+                            <Label className="text-xs uppercase tracking-[0.18em] text-slate-300">Retries</Label>
                             <HelpTip label={TIPS.HEALTH_CHECK_RETRIES.label} side="top" />
                           </div>
                           <Input
@@ -294,11 +321,12 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                                 healthCheck: { ...service.runtime!.healthCheck!, retries: Number(e.target.value) || 3 }
                               }
                             })}
+                            className="h-11 rounded-2xl border-white/10 bg-slate-950/80 text-slate-100"
                           />
                         </div>
                         <div className="space-y-1">
                           <div className="flex items-center gap-1">
-                            <Label className="text-xs">Start Period (seconds)</Label>
+                            <Label className="text-xs uppercase tracking-[0.18em] text-slate-300">Start Period (seconds)</Label>
                             <HelpTip label={TIPS.HEALTH_CHECK_START_PERIOD.label} side="top" />
                           </div>
                           <Input
@@ -310,6 +338,7 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
                                 healthCheck: { ...service.runtime!.healthCheck!, startPeriodSeconds: Number(e.target.value) || 10 }
                               }
                             })}
+                            className="h-11 rounded-2xl border-white/10 bg-slate-950/80 text-slate-100"
                           />
                         </div>
                       </>
@@ -323,32 +352,38 @@ export function ServiceEditor({ projectId, services: initialServices }: ServiceE
       })}
 
       {services.length < 12 && (
-        <Button type="button" variant="outline" size="sm" onClick={addService}>
+        <Button type="button" variant="outline" size="sm" onClick={addService} className="border-white/10 bg-white/[0.03] text-slate-100 hover:bg-white/[0.08]">
           Add Service
         </Button>
       )}
 
-      {publicCount !== 1 && (
-        <p className="text-xs text-destructive">
-          Exactly one service must be public.
-        </p>
-      )}
-      {hasPublicNonWeb && (
-        <p className="text-xs text-destructive">
-          Public services must use the web kind.
-        </p>
-      )}
+      {publicCount !== 1 || hasPublicNonWeb ? (
+        <div className="rounded-[1.5rem] border border-destructive/30 bg-destructive/5 p-4 text-xs leading-6 text-foreground">
+          {publicCount !== 1 ? (
+            <p className="text-destructive">Exactly one service must be public.</p>
+          ) : null}
+          {hasPublicNonWeb ? (
+            <p className="text-destructive">Public services must use the web kind.</p>
+          ) : null}
+        </div>
+      ) : null}
 
       {hasChanged && (
-        <form action={updateProjectServicesAction}>
+        <form action={updateProjectServicesAction} className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4">
           <input type="hidden" name="projectId" value={projectId} />
           <input type="hidden" name="services" value={JSON.stringify(toDefinitions(services))} />
-          <FormSubmitButton
-            idleText="Save Services"
-            pendingText="Saving..."
-            disabled={!isValid}
-            size="sm"
-          />
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <p className="text-xs leading-6 text-slate-500">
+              Save the service topology after the validation state reads ready.
+            </p>
+            <FormSubmitButton
+              idleText="Save Services"
+              pendingText="Saving..."
+              disabled={!isValid}
+              size="sm"
+              className="bg-sky-300 text-slate-950 hover:bg-sky-200"
+            />
+          </div>
         </form>
       )}
     </div>

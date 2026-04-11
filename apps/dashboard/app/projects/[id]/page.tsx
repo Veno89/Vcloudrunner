@@ -4,8 +4,6 @@ import { getPrimaryProjectService } from '@vcloudrunner/shared-types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { DashboardUnavailableState } from '@/components/dashboard-unavailable-state';
 import { DemoModeBanner } from '@/components/demo-mode-banner';
 import { DeploymentStatusBadges } from '@/components/deployment-status-badges';
@@ -42,9 +40,6 @@ import {
 import { summarizeProjectDomains } from '@/lib/project-domains';
 import { summarizeProjectDatabases } from '@/lib/project-databases';
 import { deployAllServicesAction } from '@/app/deployments/actions';
-import {
-  deleteProjectAction,
-} from '@/app/projects/actions';
 
 interface ProjectDetailPageProps {
   params: {
@@ -140,14 +135,6 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
     const sortedDeployments = deployments
       .slice()
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-    const activeDeletionBlockedDeployments = sortedDeployments.filter((deployment) =>
-      deployment.status === 'queued'
-      || deployment.status === 'building'
-      || deployment.status === 'running'
-    );
-    const activeDeletionBlockedDeploymentSummary = activeDeletionBlockedDeployments
-      .map((deployment) => `${deployment.serviceName ?? 'app'} (${deployment.status})`)
-      .join(', ');
     const primaryService = getPrimaryProjectService(project.services);
     const routeSummary = summarizeProjectDomains({
       project,
@@ -164,16 +151,11 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
     );
     const composedProjectStatus = composeProjectStatus(serviceStatuses);
     const composedServiceStatusBreakdown = formatProjectServiceStatusBreakdown(serviceStatuses);
-    const canDeleteProject =
-      Boolean(viewer.user)
-      && (
-        viewer.role === 'admin'
-        || project.userId === viewer.userId
-      );
 
     const latestDeployment = sortedDeployments[0] ?? null;
     const domainCount = projectDomainsReadErrorMessage ? null : Math.max(projectDomains.length, 1);
     const latestDeploymentRelative = latestDeployment ? formatRelativeTime(latestDeployment.createdAt) : null;
+    const publicServiceCount = project.services.filter((service) => service.exposure === 'public').length;
     let latestLogs: Array<{ level: string; message: string; timestamp: string }> = [];
     let latestLogsErrorMessage: string | null = null;
 
@@ -191,30 +173,54 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
 
     return (
       <PageLayout>
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <Link href="/projects" className="hover:text-foreground">
-            Projects
-          </Link>
-          <span>/</span>
-          <span className="text-foreground">{project.name}</span>
-        </div>
-
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
-            <p className="text-sm text-muted-foreground">{project.gitRepositoryUrl}</p>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <p className="text-sm text-primary">{routeSummary.host}</p>
-              <Badge variant={routeSummary.variant}>{routeSummary.label}</Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {project.services.length} service{project.services.length === 1 ? '' : 's'} configured.
-              Primary public service: <span className="font-medium text-foreground">{primaryService.name}</span>
-            </p>
+        <div className="rounded-[2rem] border border-white/10 bg-slate-950/60 p-6 shadow-[0_24px_64px_rgba(2,6,23,0.22)] backdrop-blur-xl lg:p-7">
+          <div className="flex items-center gap-3 text-sm text-slate-400">
+            <Link href="/projects" className="hover:text-white">
+              Projects
+            </Link>
+            <span>/</span>
+            <span className="text-slate-200">{project.name}</span>
           </div>
-          <Button asChild variant="outline">
-            <Link href="/projects">Back to Projects</Link>
-          </Button>
+
+          <div className="mt-5 flex flex-wrap items-start justify-between gap-4">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <h1 className="font-display text-3xl font-semibold tracking-tight text-white">{project.name}</h1>
+                <p className="text-sm leading-7 text-slate-400">{project.gitRepositoryUrl}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-mono text-xs text-sky-200">{routeSummary.host}</p>
+                <Badge variant={routeSummary.variant} className="border-white/10">
+                  {routeSummary.label}
+                </Badge>
+                <Badge variant={composedProjectStatus.variant} className="border-white/10">
+                  {composedProjectStatus.label}
+                </Badge>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Services</p>
+                  <p className="pt-2 text-2xl font-semibold text-white">{project.services.length}</p>
+                  <p className="pt-1 text-xs text-slate-500">
+                    {publicServiceCount} public / {Math.max(project.services.length - publicServiceCount, 0)} internal
+                  </p>
+                </div>
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Primary Service</p>
+                  <p className="pt-2 text-lg font-semibold text-white">{primaryService.name}</p>
+                  <p className="pt-1 text-xs text-slate-500">Current public entry point</p>
+                </div>
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Default Branch</p>
+                  <p className="pt-2 font-mono text-sm text-slate-100">{project.defaultBranch}</p>
+                  <p className="pt-1 text-xs text-slate-500">Source branch used for new deploys</p>
+                </div>
+              </div>
+            </div>
+            <Button asChild variant="outline" className="border-white/10 bg-white/[0.03] text-slate-100 hover:bg-white/[0.08]">
+              <Link href="/projects">Back to Projects</Link>
+            </Button>
+          </div>
         </div>
         <ProjectSubnav projectId={project.id} />
         <ProjectTourClient />
@@ -244,11 +250,11 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
         />
 
         <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-          <Card className="rounded-2xl border-border/80">
-            <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <Card className="rounded-[2rem] border-white/10 bg-slate-950/60 shadow-[0_24px_64px_rgba(2,6,23,0.22)] backdrop-blur-xl">
+            <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-white/10">
               <div className="space-y-1">
-                <CardTitle className="text-base">Services</CardTitle>
-                <p className="text-sm text-muted-foreground">
+                <CardTitle className="text-base text-white">Services</CardTitle>
+                <p className="text-sm leading-7 text-slate-400">
                   Operational details stay here. Lower-frequency configuration counts move to the side.
                 </p>
               </div>
@@ -261,14 +267,15 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                     pendingText="Deploying..."
                     variant="outline"
                     size="sm"
+                    className="border-white/10 bg-white/[0.03] text-slate-100 hover:bg-white/[0.08]"
                   />
                 </form>
               )}
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+              <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4 text-sm leading-7 text-slate-400">
                 Project environment variables remain shared at the project level. Deployments also receive generated
-                <span className="font-mono text-foreground"> VCLOUDRUNNER_SERVICE_* </span>
+                <span className="font-mono text-slate-100"> VCLOUDRUNNER_SERVICE_* </span>
                 discovery variables plus a stable internal host per service on the worker network.
               </div>
 
@@ -290,54 +297,68 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
           </Card>
 
           <div className="space-y-4">
-            <Card className="rounded-2xl border-border/80">
-              <CardHeader>
-                <CardTitle className="text-base">Configuration Snapshot</CardTitle>
+            <Card className="rounded-[2rem] border-white/10 bg-slate-950/60 shadow-[0_24px_64px_rgba(2,6,23,0.22)] backdrop-blur-xl">
+              <CardHeader className="border-b border-white/10">
+                <CardTitle className="text-base text-white">Configuration Snapshot</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-3">
-                <div className="rounded-2xl border bg-background/70 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                     Environment Variables
                   </p>
                   {environmentReadErrorMessage ? (
                     <div className="pt-2 space-y-1">
-                      <p className="text-2xl font-semibold">Unavailable</p>
-                      <p className="text-xs text-muted-foreground">Environment variables could not be loaded.</p>
+                      <p className="text-2xl font-semibold text-white">Unavailable</p>
+                      <p className="text-xs text-slate-500">Environment variables could not be loaded.</p>
                     </div>
                   ) : (
                     <div className="pt-2 space-y-1">
-                      <p className="text-2xl font-semibold">{environmentVariables.length}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-2xl font-semibold text-white">{environmentVariables.length}</p>
+                      <p className="text-xs text-slate-500">
                         Project-wide configuration shared across services.
                       </p>
                     </div>
                   )}
                 </div>
 
-                <div className="rounded-2xl border bg-background/70 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                     Managed Databases
                   </p>
                   {projectDatabasesReadErrorMessage ? (
                     <div className="pt-2 space-y-1">
-                      <p className="text-2xl font-semibold">Unavailable</p>
-                      <p className="text-xs text-muted-foreground">Managed databases could not be loaded.</p>
+                      <p className="text-2xl font-semibold text-white">Unavailable</p>
+                      <p className="text-xs text-slate-500">Managed databases could not be loaded.</p>
                     </div>
                   ) : (
                     <div className="pt-2 space-y-2">
-                      <p className="text-2xl font-semibold">{projectDatabases.length}</p>
-                      <Badge variant={databaseSummary.variant} className="w-fit">
+                      <p className="text-2xl font-semibold text-white">{projectDatabases.length}</p>
+                      <Badge variant={databaseSummary.variant} className="w-fit border-white/10">
                         {databaseSummary.label}
                       </Badge>
                     </div>
                   )}
                 </div>
+
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Administrative controls
+                  </p>
+                  <p className="pt-2 text-sm leading-7 text-slate-400">
+                    Ownership, access management, and destructive project actions now live under Settings and Members so this overview can stay operational.
+                  </p>
+                  <div className="pt-3">
+                    <Button asChild variant="outline" size="sm" className="border-white/10 bg-white/[0.03] text-slate-100 hover:bg-white/[0.08]">
+                      <Link href={`/projects/${project.id}/settings`}>Open Settings</Link>
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
-            <Card className="rounded-2xl border-border/80">
-              <CardHeader>
-                <CardTitle className="text-base">Recent Deployments</CardTitle>
+            <Card className="rounded-[2rem] border-white/10 bg-slate-950/60 shadow-[0_24px_64px_rgba(2,6,23,0.22)] backdrop-blur-xl">
+              <CardHeader className="border-b border-white/10">
+                <CardTitle className="text-base text-white">Recent Deployments</CardTitle>
               </CardHeader>
               <CardContent>
                 {deploymentReadErrorMessage ? (
@@ -346,20 +367,20 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                     <p className="mt-1 text-xs">{deploymentReadErrorMessage}</p>
                   </div>
                 ) : sortedDeployments.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No deployments yet for this project.</p>
+                  <p className="text-sm text-slate-400">No deployments yet for this project.</p>
                 ) : (
                   <div className="space-y-2">
                     {sortedDeployments.slice(0, 8).map((deployment) => (
                       <div
                         key={deployment.id}
-                        className="flex items-center justify-between rounded-2xl border bg-background/70 px-3 py-3"
+                        className="flex items-center justify-between rounded-[1.5rem] border border-white/10 bg-white/[0.04] px-3 py-3"
                       >
                         <div className="space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-mono text-xs">{truncateUuid(deployment.id)}</p>
-                            <Badge variant="outline">{deployment.serviceName ?? 'app'}</Badge>
+                            <p className="font-mono text-xs text-slate-100">{truncateUuid(deployment.id)}</p>
+                            <Badge variant="outline" className="border-white/10 text-slate-200">{deployment.serviceName ?? 'app'}</Badge>
                           </div>
-                          <p className="text-xs text-muted-foreground" title={new Date(deployment.createdAt).toLocaleString()}>
+                          <p className="text-xs text-slate-500" title={new Date(deployment.createdAt).toLocaleString()}>
                             {formatRelativeTime(deployment.createdAt)}
                           </p>
                         </div>
@@ -368,7 +389,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                             status={deployment.status}
                             cancellationRequested={hasRequestedCancellation(deployment.metadata)}
                           />
-                          <Button asChild size="sm" variant="outline">
+                          <Button asChild size="sm" variant="outline" className="border-white/10 bg-white/[0.03] text-slate-100 hover:bg-white/[0.08]">
                             <Link href={`/deployments/${deployment.id}`}>View</Link>
                           </Button>
                         </div>
@@ -381,85 +402,9 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
           </div>
         </div>
 
-        <Card className="border-destructive/30">
-          <CardHeader>
-            <CardTitle className="text-sm text-destructive">Danger Zone</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
-              <p className="font-medium text-destructive">Delete this project</p>
-              <p className="mt-1 text-xs">
-                This permanently removes the project record, deployment history, environment variables, domain claims, membership/invitation data, and managed database records tracked for this project. Managed Postgres resources are deprovisioned as part of deletion when possible.
-              </p>
-              <p className="mt-2 text-xs">
-                Deletion is intentionally blocked while any deployment is queued, building, or running so we do not orphan live runtime or routing state.
-              </p>
-            </div>
-
-            {!viewer.user ? (
-              <p className="text-sm text-muted-foreground">
-                Complete account setup before deleting projects from the dashboard.
-              </p>
-            ) : null}
-
-            {viewer.user && !canDeleteProject ? (
-              <p className="text-sm text-muted-foreground">
-                Only the current project owner or a platform admin can delete this project.
-              </p>
-            ) : null}
-
-            {deploymentReadErrorMessage ? (
-              <p className="text-sm text-muted-foreground">
-                Current deployment activity could not be loaded here. The API will still refuse deletion if any service is queued, building, or running.
-              </p>
-            ) : null}
-
-            {!deploymentReadErrorMessage && activeDeletionBlockedDeployments.length > 0 ? (
-              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
-                <p className="font-medium text-destructive">Deletion is currently blocked</p>
-                <p className="mt-1 text-xs">
-                  Stop or cancel these active deployments first: {activeDeletionBlockedDeploymentSummary}
-                </p>
-              </div>
-            ) : null}
-
-            {viewer.user && canDeleteProject ? (
-              <form action={deleteProjectAction} className="space-y-3 rounded-md border border-destructive/30 p-4">
-                <input type="hidden" name="projectId" value={project.id} readOnly />
-                <input type="hidden" name="projectName" value={project.name} readOnly />
-                <input type="hidden" name="returnPath" value={`/projects/${project.id}`} readOnly />
-                <div className="space-y-2">
-                  <Label htmlFor="project-delete-confirmation">
-                    Type <span className="font-mono text-foreground">{project.name}</span> to confirm project deletion
-                  </Label>
-                  <Input
-                    id="project-delete-confirmation"
-                    name="confirmName"
-                    placeholder={project.name}
-                    autoComplete="off"
-                    required
-                    disabled={activeDeletionBlockedDeployments.length > 0}
-                  />
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs text-muted-foreground">
-                    This cannot be undone from the dashboard.
-                  </p>
-                  <FormSubmitButton
-                    idleText="Delete Project"
-                    pendingText="Deleting..."
-                    variant="destructive"
-                    disabled={activeDeletionBlockedDeployments.length > 0}
-                  />
-                </div>
-              </form>
-            ) : null}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Latest Deployment Logs</CardTitle>
+        <Card className="rounded-[2rem] border-white/10 bg-slate-950/60 shadow-[0_24px_64px_rgba(2,6,23,0.22)] backdrop-blur-xl">
+          <CardHeader className="border-b border-white/10">
+            <CardTitle className="text-sm text-white">Latest Deployment Logs</CardTitle>
           </CardHeader>
           <CardContent>
             {deploymentReadErrorMessage ? (
@@ -469,9 +414,9 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
               </div>
             ) : latestDeployment ? (
               <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <div className="flex items-center justify-between text-xs text-slate-500">
                   <span>Deployment {truncateUuid(latestDeployment.id)}</span>
-                  <Button asChild variant="ghost" size="sm">
+                  <Button asChild variant="ghost" size="sm" className="text-slate-300 hover:bg-white/10 hover:text-white">
                     <Link href={`/projects/${project.id}/logs?logsDeploymentId=${latestDeployment.id}`}>Open full logs</Link>
                   </Button>
                 </div>
@@ -481,15 +426,15 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                     <p className="mt-1">{latestLogsErrorMessage}</p>
                   </div>
                 ) : null}
-                <div className="max-h-72 overflow-auto rounded-md border bg-background p-2 font-mono text-xs">
+                <div className="max-h-72 overflow-auto rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-3 font-mono text-xs">
                   {latestLogsErrorMessage ? (
-                    <p className="text-muted-foreground">Open the full logs view after restoring live log access.</p>
+                    <p className="text-slate-500">Open the full logs view after restoring live log access.</p>
                   ) : latestLogs.length === 0 ? (
-                    <p className="text-muted-foreground">No logs captured yet.</p>
+                    <p className="text-slate-500">No logs captured yet.</p>
                   ) : (
                     latestLogs.map((log, index) => (
                       <p key={`${log.timestamp}-${index}`} className="mb-1 whitespace-pre-wrap break-words">
-                        <span className="text-muted-foreground">[{log.timestamp}]</span>{' '}
+                        <span className="text-slate-500">[{log.timestamp}]</span>{' '}
                         <span className={logLevelTextClassName(log.level)}>{log.level.toUpperCase()}</span> {log.message}
                       </p>
                     ))
@@ -497,7 +442,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Trigger a deployment to see logs.</p>
+              <p className="text-sm text-slate-400">Trigger a deployment to see logs.</p>
             )}
           </CardContent>
         </Card>
