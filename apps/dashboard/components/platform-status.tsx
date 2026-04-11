@@ -11,6 +11,7 @@ export async function PlatformStatus() {
       workerStatus={health.workerStatus}
       queueCounts={health.queueCounts}
       workerAgeMs={health.workerAgeMs}
+      lastRunningDeployAt={health.lastRunningDeployAt}
     />
   );
 }

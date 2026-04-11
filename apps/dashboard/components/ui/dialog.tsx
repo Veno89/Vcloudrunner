@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface DialogProps {
   open: boolean;
@@ -16,6 +17,8 @@ interface DialogProps {
   contentId?: string;
   role?: 'dialog' | 'alertdialog';
   closeOnOverlayClick?: boolean;
+  overlayClassName?: string;
+  contentClassName?: string;
 }
 
 export function Dialog({
@@ -30,6 +33,8 @@ export function Dialog({
   contentId,
   role = 'dialog',
   closeOnOverlayClick = true,
+  overlayClassName,
+  contentClassName,
 }: DialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
@@ -118,7 +123,10 @@ export function Dialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4" onClick={onOverlayClick}>
+    <div
+      className={cn('fixed inset-0 z-50 flex items-center justify-center bg-slate-950/82 p-4 backdrop-blur-sm', overlayClassName)}
+      onClick={onOverlayClick}
+    >
       <div
         id={contentId}
         ref={dialogRef}
@@ -127,7 +135,10 @@ export function Dialog({
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
-        className="relative w-full max-w-md rounded-lg border bg-card p-4 shadow-lg"
+        className={cn(
+          'relative w-full max-w-md overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/95 p-5 text-foreground shadow-[0_28px_80px_rgba(2,6,23,0.55)]',
+          contentClassName
+        )}
         onClick={(event) => event.stopPropagation()}
         onKeyDown={trapFocus}
       >
@@ -135,15 +146,15 @@ export function Dialog({
           type="button"
           variant="ghost"
           size="sm"
-          className="absolute right-2 top-2 h-7 w-7 p-0"
+          className="absolute right-3 top-3 h-8 w-8 p-0 text-slate-300 hover:bg-white/10 hover:text-white"
           aria-label={closeLabel}
           onClick={closeDialog}
         >
           <X className="h-4 w-4" />
         </Button>
-        <h2 id={titleId} className="text-sm font-semibold text-foreground">{title}</h2>
+        <h2 id={titleId} className="pr-10 text-sm font-semibold text-white">{title}</h2>
         {description ? (
-          <p id={descriptionId} className="mt-2 text-sm text-foreground">{description}</p>
+          <p id={descriptionId} className="mt-2 text-sm leading-6 text-slate-400">{description}</p>
         ) : null}
         {children}
         {actions ? <div className="mt-4 flex justify-end gap-2">{actions}</div> : null}

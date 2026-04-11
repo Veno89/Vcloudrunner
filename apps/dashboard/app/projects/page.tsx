@@ -22,6 +22,15 @@ interface ProjectsPageProps {
   };
 }
 
+const PROJECT_CREATE_ERROR_MESSAGES: Record<string, string> = {
+  slug_taken: 'Project name creates a slug that already exists. Try a more specific name.',
+  invalid_input: 'Invalid project input. Ensure the project name, repository URL, and branch are all valid.',
+  auth_required: 'Project creation is unauthorized. Sign in again with an active dashboard session, use API_AUTH_TOKEN only as a temporary fallback, or use the explicit local dev-auth bypass.',
+  access_denied: 'Project creation is authenticated but lacks the required project write access.',
+  user_context_missing: 'Project creation requires a live dashboard session. Sign in with a valid token, use API_AUTH_TOKEN only as a temporary fallback, or use explicit local dev-auth setup.',
+  api_unavailable: 'Project creation is temporarily unavailable. Check API availability and retry.'
+};
+
 export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
   const data = await loadDashboardData();
   const projects = data.projects;
@@ -30,6 +39,13 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
   const attentionProjects = projects.filter((project) => (
     project.statusVariant === 'warning' || project.statusVariant === 'destructive'
   )).length;
+  const createErrorReason =
+    searchParams?.status === 'error' && searchParams?.reason && searchParams.reason in PROJECT_CREATE_ERROR_MESSAGES
+      ? searchParams.reason
+      : null;
+  const createErrorMessage = createErrorReason ? PROJECT_CREATE_ERROR_MESSAGES[createErrorReason] : null;
+  const shouldReopenCreateProject = projects.length === 0 || Boolean(createErrorReason);
+  const actionToastMessage = createErrorMessage ?? searchParams?.message;
 
   let githubInstallations: Awaited<ReturnType<typeof fetchGitHubInstallations>> = [];
   let githubInstallUrl: string | null = null;
@@ -46,7 +62,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
         githubInstallUrl = urlResult;
       }
     } catch {
-      // GitHub App not configured — fall back to manual URL entry
+      // GitHub App not configured; fall back to manual URL entry.
     }
   }
 
@@ -59,19 +75,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
 
       <ActionToast
         status={searchParams?.status}
-        message={
-          searchParams?.reason === 'slug_taken'
-            ? encodeURIComponent('Project name creates a slug that already exists. Try a more specific name.')
-            : searchParams?.reason === 'invalid_input'
-              ? encodeURIComponent('Invalid project input. Ensure name/repository URL are valid.')
-              : searchParams?.reason === 'auth_required'
-                ? encodeURIComponent('Project creation is unauthorized. Sign in again with an active dashboard session, use API_AUTH_TOKEN only as a temporary fallback, or use the explicit local dev-auth bypass.')
-              : searchParams?.reason === 'access_denied'
-                  ? encodeURIComponent('Project creation is authenticated but lacks the required project write access.')
-                  : searchParams?.reason === 'user_context_missing'
-                    ? encodeURIComponent('Project creation requires a live dashboard session. Sign in with a valid token, use API_AUTH_TOKEN only as a temporary fallback, or use explicit local dev-auth setup.')
-              : searchParams?.message
-        }
+        message={actionToastMessage ? encodeURIComponent(actionToastMessage) : undefined}
         fallbackErrorMessage="Operation failed. Check API availability and try again."
       />
 
@@ -111,10 +115,12 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
       {data.usingLiveData && (
         <ProjectCreatePanel
           action={createProjectAction}
-          defaultOpen={projects.length === 0 || searchParams?.status === 'error'}
+          defaultOpen={shouldReopenCreateProject}
           githubInstallations={githubInstallations}
           githubInstallUrl={githubInstallUrl}
           projectCount={projects.length}
+          submissionError={createErrorMessage}
+          submissionReason={createErrorReason}
         />
       )}
 
